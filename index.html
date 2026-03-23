@@ -281,6 +281,10 @@ tr.final td,tr.remaining td{font-weight:1000}
         <button id="installBtn">Instalar app</button>
         <button id="refreshAppBtn">Actualizar app</button>
         <button id="exportSessionBtn">Exportar sesión</button>
+        <button id="resumeSessionBtn">Reanudar sesión guardada</button>
+        <button id="finalSummaryBtn">Resumen final</button>
+        <button id="exportSessionJsonBtn">Exportar JSON</button>
+        <button id="compareLastBtn">Comparar con última</button>
       </div>
       <div id="pwaBanner" class="badge" style="width:max-content;margin-bottom:8px">PWA lista. Instálala desde Chrome como app.</div>
       <div class="status">Instalada con modo standalone para ocultar la barra del navegador. Si el icono abre Chrome normal, se creó un acceso directo y no una instalación real.</div>
@@ -299,7 +303,7 @@ tr.final td,tr.remaining td{font-weight:1000}
   const $ = id => document.getElementById(id);
 
   const state = {
-    plan: { rows: [], waters: [], waterTaken: [], duration: 0, goal: 0, running: false, baseMachineSec: 0, t0: 0, timer: null, wakeLastTapMachine: 0, continueMode: { active:false, refMinute:0, refKcal:0 }, sessionLog: [], sessionStartedAt: null, lastRecordedSecond: -1 },
+    plan: { rows: [], waters: [], waterTaken: [], duration: 0, goal: 0, running: false, baseMachineSec: 0, t0: 0, timer: null, wakeLastTapMachine: 0, continueMode: { active:false, refMinute:0, refKcal:0 }, sessionLog: [], sessionStartedAt: null, lastRecordedSecond: -1, markers: [] },
     ble: { connectionState: 'desconectado', device: null, server: null, hrChar: null, batteryChar: null, current: { bpm:null, contactSupported:null, contactDetected:null, rrCount:0, rrAverageMs:null, rrAverageBpmEstimado:null, rmssd:null, sdnn:null, batteryLevel:null, zone:null, signal:'--', receivedAt:null }, samples: [], _hrListener:null }
   };
 
@@ -993,6 +997,139 @@ tr.final td,tr.remaining td{font-weight:1000}
     a.remove();
     setTimeout(() => URL.revokeObjectURL(url), 1500);
     log('Sesión exportada', 'ok');
+  }
+
+
+  const STORAGE_KEYS_EXTRA = {
+    tramo:'eliptica_last_tramo_summary_v1',
+    compare:'eliptica_last_compare_v1',
+    previous:'eliptica_previous_session_v1'
+  };
+
+  function buildTramoSummary(){
+    const rows = state.plan.sessionLog || [];
+    if (!rows.length){
+      if ($('tramoSummaryBox')) $('tramoSummaryBox').value = 'No hay datos por tramo.';
+      return 'No hay datos por tramo.';
+    }
+    const bySeg = {};
+    rows.forEach(r => {
+      const key = r.seg || 'Sin tramo';
+      bySeg[key] = bySeg[key] || { secs:0, kcalStart:null, kcalEnd:0, bpm:[], zones:{}, level:r.level };
+      bySeg[key].secs += 1;
+      if (bySeg[key].kcalStart == null) bySeg[key].kcalStart = Number(r.kcalPlan || 0);
+      bySeg[key].kcalEnd = Number(r.kcalPlan || 0);
+      if (Number.isFinite(r.bpm)) bySeg[key].bpm.push(r.bpm);
+      const z = r.zone || 'Sin zona';
+      bySeg[key].zones[z] = (bySeg[key].zones[z] || 0) + 1;
+    });
+    const lines = ['RESUMEN POR TRAMO',''];
+    Object.keys(bySeg).sort().forEach(seg => {
+      const d = bySeg[seg];
+      const kcal = Math.max(0, d.kcalEnd - (d.kcalStart || 0));
+      const mins = Math.max(1e-9, d.secs / 60);
+      const bpmAvg = d.bpm.length ? d.bpm.reduce((a,b)=>a+b,0)/d.bpm.length : null;
+      const domZone = Object.entries(d.zones).sort((a,b)=>b[1]-a[1])[0]?.[0] || '--';
+      lines.push(`Tramo ${seg} · nivel ${d.level}`);
+      lines.push(`- duración: ${fmtTime(d.secs)}`);
+      lines.push(`- kcal: ${num(kcal,1)}`);
+      lines.push(`- kcal/min: ${num(kcal/mins,2)}`);
+      lines.push(`- bpm medio: ${num(bpmAvg,1)}`);
+      lines.push(`- zona dominante: ${domZone}`);
+      lines.push('');
+    });
+    const out = lines.join('\n');
+    if ($('tramoSummaryBox')) $('tramoSummaryBox').value = out;
+    try{ localStorage.setItem(STORAGE_KEYS_EXTRA.tramo, out); }catch{}
+    return out;
+  }
+
+  function exportSessionJson(){
+    const payload = {
+      meta: {
+        startedAt: state.plan.sessionStartedAt,
+        durationVisible: fmtTime(shownMachineElapsed()),
+        durationMachine: fmtTime(machineElapsed()),
+        goalKcal: state.plan.goal
+      },
+      plan: { rows: state.plan.rows, waters: state.plan.waters },
+      sessionLog: state.plan.sessionLog,
+      markers: state.plan.markers
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], {type:'application/json;charset=utf-8'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'sesion_eliptica.json';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1500);
+    log('Sesión JSON exportada', 'ok');
+  }
+
+  function addMarker(type){
+    const ps = getPlanState();
+    state.plan.markers.push({
+      type,
+      second: Math.floor(machineElapsed()),
+      shownSecond: Math.floor(shownMachineElapsed()),
+      clock: fmtTime(shownMachineElapsed()),
+      machineClock: fmtTime(machineElapsed()),
+      kcalPlan: Number(shownKcalAtTime(machineElapsed()).toFixed(1)),
+      bpm: state.ble.current.bpm == null ? null : Math.round(state.ble.current.bpm),
+      seg: ps.seg,
+      level: ps.level,
+      timestampIso: new Date().toISOString()
+    });
+    saveLiveSession();
+    log('Marcador: ' + type, 'ok');
+  }
+
+  function savePreviousSession(){
+    try{
+      localStorage.setItem(STORAGE_KEYS_EXTRA.previous, JSON.stringify({
+        savedAt: new Date().toISOString(),
+        sessionLog: state.plan.sessionLog,
+        markers: state.plan.markers
+      }));
+    }catch{}
+  }
+
+  function compareWithPrevious(){
+    try{
+      const prevRaw = localStorage.getItem(STORAGE_KEYS_EXTRA.previous);
+      if (!prevRaw){
+        if ($('lastCompareVal')) $('lastCompareVal').textContent = 'sin previa';
+        if ($('tramoSummaryBox')) $('tramoSummaryBox').value += '\n\nCOMPARACIÓN\n- sin sesión previa guardada';
+        return 'Sin sesión previa';
+      }
+      const prev = JSON.parse(prevRaw);
+      const currRows = state.plan.sessionLog || [];
+      const prevRows = prev.sessionLog || [];
+      const currK = currRows.length ? Math.max(...currRows.map(r => Number(r.kcalPlan || 0))) : 0;
+      const prevK = prevRows.length ? Math.max(...prevRows.map(r => Number(r.kcalPlan || 0))) : 0;
+      const currB = currRows.map(r => r.bpm).filter(v => Number.isFinite(v));
+      const prevB = prevRows.map(r => r.bpm).filter(v => Number.isFinite(v));
+      const currAvg = currB.length ? currB.reduce((a,b)=>a+b,0)/currB.length : null;
+      const prevAvg = prevB.length ? prevB.reduce((a,b)=>a+b,0)/prevB.length : null;
+      const txt = `Comparación con última · kcal ${num(currK,1)} vs ${num(prevK,1)} · FC media ${num(currAvg,1)} vs ${num(prevAvg,1)}`;
+      if ($('lastCompareVal')) $('lastCompareVal').textContent = 'sí';
+      if ($('tramoSummaryBox')) $('tramoSummaryBox').value += '\n\nCOMPARACIÓN\n' + txt;
+      localStorage.setItem(STORAGE_KEYS_EXTRA.compare, txt);
+      return txt;
+    }catch{
+      return 'Error en comparación';
+    }
+  }
+
+  function updateExtraSavedInfo(){
+    try{
+      const cmp = localStorage.getItem(STORAGE_KEYS_EXTRA.compare);
+      if ($('lastCompareVal')) $('lastCompareVal').textContent = cmp ? 'sí' : '--';
+      const tramo = localStorage.getItem(STORAGE_KEYS_EXTRA.tramo);
+      if ($('tramoSummaryBox') && tramo) $('tramoSummaryBox').value = tramo;
+    }catch{}
   }
 
   function bind(){
