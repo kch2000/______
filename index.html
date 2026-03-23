@@ -152,11 +152,6 @@ tr.final td,tr.remaining td{font-weight:1000}
           <div class="tapHead"><div>💧 Agua</div><div id="waterRemain">--</div></div>
           <div class="barWrap"><div id="waterBar" class="bar"></div></div>
         </div>
-        <div style="height:8px"></div>
-        <div id="wakeCard" class="tapCard">
-          <div class="tapHead"><div>👆 Pantalla</div><div id="wakeRemain">--</div></div>
-          <div class="barWrap"><div id="wakeBar" class="bar"></div></div>
-        </div>
       </div>
     </div>
 
@@ -546,13 +541,7 @@ tr.final td,tr.remaining td{font-weight:1000}
       waterCard.classList.remove('warn','due');
     }
 
-    const since = Math.max(0, t - state.plan.wakeLastTapMachine);
-    const progress = clamp(since / 40, 0, 1);
-    $('wakeRemain').textContent = fmtTime(Math.max(0, 40 - since));
-    $('wakeBar').style.width = (progress * 100).toFixed(1) + '%';
-    const wakeCard = $('wakeCard');
-    wakeCard.classList.toggle('warn', progress >= .75 && progress < 1);
-    wakeCard.classList.toggle('due', progress >= 1);
+
   }
 
   function refreshNextTable(){
@@ -1157,7 +1146,7 @@ tr.final td,tr.remaining td{font-weight:1000}
       }
       refreshAll();
     };
-    $('wakeCard').onclick = () => { state.plan.wakeLastTapMachine = machineElapsed(); refreshAll(); };
+    
 
     document.addEventListener('pointerdown', ev => {
       const target = ev.target;
