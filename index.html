@@ -1,0 +1,1038 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+
+<meta name="theme-color" content="#0b0d10">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Elíptica">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+
+<title>Elíptica estable limpia</title>
+<style>
+:root{
+  --bg:#0b0d10; --card:#141820; --line:rgba(255,255,255,.10); --text:#eef3f8; --muted:#a8b2bf;
+  --ok:#66e28a; --warn:#ffd166; --bad:#ff5a5f; --blue:#78c6ff;
+  --z0:#8c8c8c; --z1:#4ea8ff; --z2:#43c26b; --z3:#f2d64b; --z4:#ff9f43; --z5:#ff4d4f;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif}
+body{min-height:100dvh}
+.app{padding:8px;display:flex;flex-direction:column;gap:8px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+.head{display:flex;justify-content:space-between;align-items:center;padding:8px 10px;border-bottom:1px solid var(--line);gap:8px}
+.body{padding:10px}
+.title{font-size:18px;font-weight:1000}
+.status{font-size:12px;color:var(--muted);font-weight:900}
+.topGrid,.bottomGrid{display:grid;grid-template-columns:1.2fr .8fr;gap:8px}
+button,input,textarea{font:inherit}
+button{border:1px solid var(--line);background:#1d2330;color:var(--text);border-radius:10px;padding:9px 12px;font-weight:900;cursor:pointer}
+button.primary{background:rgba(50,140,80,.35)}
+button.danger{background:rgba(170,40,40,.35)}
+button.small{padding:7px 10px;font-size:13px}
+input,textarea{background:#0e1218;border:1px solid var(--line);color:var(--text);border-radius:10px;padding:8px}
+textarea{width:100%;min-height:180px;resize:vertical;font-family:ui-monospace,Consolas,monospace;font-size:12px}
+.controls{display:flex;gap:8px;flex-wrap:wrap}
+.sep{height:1px;background:var(--line);margin:8px 0}
+.metrics{display:grid;grid-template-columns:1.1fr 220px 220px;gap:16px}
+.metricCol{display:grid;grid-template-rows:20px 78px 26px 26px;align-items:end}
+.metricLabel{font-size:12px;font-weight:1000;text-transform:uppercase;color:#cfd7e2}
+.metricBig{font-size:62px;line-height:1;font-weight:1000;font-variant-numeric:tabular-nums}
+.metricBig.time.test{color:var(--bad)}
+.metricBig.kcal{color:var(--blue)}
+.metricSub{font-size:16px;color:var(--muted)}
+.targetVal{font-size:24px;font-weight:1000}
+.hrBad{color:#fff;background:var(--bad);padding:4px 10px;border-radius:12px;display:inline-block}
+.hrGood{color:var(--ok)}
+.hrNeutral{color:#d8e2ef}
+.quickStats{display:grid;grid-template-columns:1fr 1.6fr;gap:8px}
+.stat{padding:8px;border:1px solid var(--line);border-radius:10px;background:rgba(255,255,255,.03)}
+.stat .lab{font-size:10px;font-weight:1000;color:var(--muted);text-transform:uppercase}
+.stat .val{font-size:18px;font-weight:1000}
+.badges{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 8px 0}
+.badge{padding:8px 10px;border-radius:999px;border:1px solid var(--line);font-size:13px;font-weight:950;background:rgba(255,255,255,.04)}
+.badge.test{background:rgba(255,90,95,.14);color:#ffb0b5;border-color:rgba(255,90,95,.35)}
+.badge.phase{background:rgba(255,180,80,.14);color:#ffdca6;border-color:rgba(255,180,80,.35)}
+.badge.continue{background:rgba(120,198,255,.14);color:#bfe3ff;border-color:rgba(120,198,255,.35)}
+.timeline{background:#000;border:1px solid rgba(255,255,255,.15);border-radius:14px;padding:10px}
+.timelineWrap{position:relative;height:74px}
+.timelineTrack{position:absolute;left:0;right:0;top:8px;height:18px;border-radius:999px;background:#f4f4f4;overflow:visible;border:1px solid rgba(255,255,255,.18)}
+.timelineFill{position:absolute;left:0;top:0;bottom:0;width:0;background:linear-gradient(90deg,#ff7b7b,#ff2d2d);transition:width .2s linear;box-shadow:0 0 10px rgba(255,70,70,.7)}
+.timelineMarks{position:absolute;inset:0}
+.segBlock{position:absolute;top:1px;height:28px;border-radius:999px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:1000;border:1px solid rgba(0,0,0,.12);padding:0 6px;white-space:nowrap}
+.segBlock.done{filter:grayscale(1) brightness(.75)}
+.l10{background:#f1f1f1;color:#111}.l11{background:#72ad68;color:#111}.l12{background:#ffe07a;color:#111}.l13{background:#ff9d9d;color:#111}
+.mark{position:absolute;transform:translateX(-50%);text-align:center;font-size:11px;font-weight:1000}
+.mark .line{width:3px;background:#d9d9d9;margin:0 auto 2px;box-shadow:0 0 0 1px rgba(0,0,0,.55)}
+.mark .time{display:inline-block;background:rgba(0,0,0,.88);padding:2px 5px;border-radius:7px;border:1px solid rgba(255,255,255,.12)}
+.mark.done .line{background:#ff6666;box-shadow:0 0 6px rgba(255,70,70,.8)}
+.mark.done .time{background:rgba(60,60,60,.95);color:#f2f2f2}
+.mark.r1{top:30px}.mark.r1 .line{height:18px}
+.mark.r2{top:46px}.mark.r2 .line{height:13px}
+.mark.r3{top:60px}.mark.r3 .line{height:10px}
+.tapCard{border:1px solid var(--line);border-radius:10px;padding:8px;background:rgba(255,255,255,.03);cursor:pointer}
+.tapCard.warn{background:rgba(255,210,80,.18)} .tapCard.due{background:rgba(255,90,95,.18)}
+.tapHead{display:flex;justify-content:space-between;gap:8px;margin-bottom:6px}
+.barWrap{height:7px;border-radius:999px;overflow:hidden;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.08)}
+.bar{height:100%;width:0}
+#waterBar{background:linear-gradient(90deg,#4ea8ff,#7bddff)}
+#wakeBar{background:linear-gradient(90deg,#ffbd45,#ffe08a)}
+table{width:100%;border-collapse:collapse;table-layout:fixed}
+th,td{padding:7px 6px;border-bottom:1px solid var(--line);text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:15px}
+th{font-size:14px;color:var(--muted);font-weight:1000}
+tr.current td{background:rgba(255,210,80,.18)}
+tr.next td{background:rgba(120,198,255,.15)}
+tr.water td{background:rgba(78,168,255,.12);color:#9fd2ff}
+tr.waterSoon td{background:rgba(255,210,80,.22)}
+tr.waterDue td{background:rgba(255,90,95,.22)}
+tr.final td,tr.remaining td{font-weight:1000}
+.bleGrid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.panel{border:1px solid var(--line);border-radius:12px;padding:10px;background:rgba(255,255,255,.03)}
+.bigBpm{font-size:56px;font-weight:1000;line-height:1}
+.kv{display:grid;grid-template-columns:165px 1fr;gap:6px 10px;font-size:13px}
+.kv .k{color:var(--muted)}
+.logBox{display:flex;flex-direction:column;gap:6px;max-height:280px;overflow:auto}
+.logLine{padding:6px 8px;border-radius:8px;background:rgba(255,255,255,.04);font-size:12px}
+.logLine.ok{background:rgba(102,226,138,.12)} .logLine.warn{background:rgba(255,209,102,.14)} .logLine.err{background:rgba(255,90,95,.14)}
+.zonePill{padding:6px 10px;border-radius:999px;color:#111;font-weight:1000;display:inline-block}
+.hidden{display:none !important}
+@media (max-width:1100px){ .topGrid,.bottomGrid,.bleGrid,.metrics,.quickStats{grid-template-columns:1fr} }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="timeline">
+    <div class="timelineWrap">
+      <div class="timelineTrack"><div id="timelineFill" class="timelineFill"></div><div id="timelineCursor" style="position:absolute;top:-6px;bottom:-6px;width:4px;background:#ff2d2d;border-radius:999px;left:0;box-shadow:0 0 10px rgba(255,45,45,.95);z-index:3"></div></div>
+      <div id="timelineMarks" class="timelineMarks"></div>
+    </div>
+  </div>
+
+  <div class="topGrid">
+    <div class="card">
+      <div class="head"><div class="title">Elíptica</div><div id="statusLine" class="status">Lista</div></div>
+      <div class="body">
+        <div id="planTitle" class="title" style="font-size:15px;margin-bottom:8px">Plan no cargado</div>
+        <div class="badges">
+          <div id="continueBadge" class="badge continue hidden">Continuando desde --</div>
+          <div id="testBadge" class="badge test hidden">MODO TEST ACTIVO · bloque principal B · 30 min</div>
+          <div id="testPhaseBadge" class="badge phase hidden">Modo test activo · bloque principal B</div>
+        </div>
+        <div class="metrics">
+          <div class="metricCol">
+            <div class="metricLabel">Tiempo</div>
+            <div id="clock" class="metricBig time">00:00</div>
+            <div id="subClock" class="metricSub">Objetivo: 0.0 kcal · 00:00</div>
+            <div id="realClock" class="metricSub">Real: 00:00</div>
+          </div>
+          <div class="metricCol">
+            <div class="metricLabel">Kcal plan</div>
+            <div id="kPlanBig" class="metricBig kcal">0.0</div>
+            <div class="metricSub">&nbsp;</div>
+            <div class="metricSub">&nbsp;</div>
+          </div>
+          <div class="metricCol">
+            <div class="metricLabel">Pulso actual</div>
+            <div id="hrBig" class="metricBig hrNeutral">--</div>
+            <div class="metricLabel" style="font-size:11px">BPM objetivo</div>
+            <div id="hrTarget" class="targetVal">—</div>
+          </div>
+        </div>
+        <div class="sep"></div>
+        <div class="quickStats">
+          <div class="stat"><div class="lab">Kcal reales</div><div id="kReal" class="val">0.0</div></div>
+          <div class="stat"><div class="lab">Avg reales</div><div id="avgReal" class="val">0.00 kcal/min · 0.00/30s</div></div>
+        </div>
+        <div class="sep"></div>
+        <div id="waterCard" class="tapCard">
+          <div class="tapHead"><div>💧 Agua</div><div id="waterRemain">--</div></div>
+          <div class="barWrap"><div id="waterBar" class="bar"></div></div>
+        </div>
+        <div style="height:8px"></div>
+        <div id="wakeCard" class="tapCard">
+          <div class="tapHead"><div>👆 Pantalla</div><div id="wakeRemain">--</div></div>
+          <div class="barWrap"><div id="wakeBar" class="bar"></div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="head"><div class="title">&nbsp;</div></div>
+      <div class="body" style="padding:0">
+        <table>
+          <thead><tr><th>En</th><th>Hora</th><th>Nivel</th><th>Tramo</th></tr></thead>
+          <tbody id="nextBody"></tbody>
+        </table>
+      </div>
+      <div class="body">
+        <div class="controls" style="margin-bottom:8px">
+          <button id="startBtnTop" class="primary" style="min-height:52px">▶ Empezar</button>
+          <button id="resetBtnTop" class="danger" style="min-height:52px">↺ Reset</button>
+        </div>
+        <div class="controls" style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px">
+          <button class="seekBtn" style="min-height:48px" data-seek="-1">-1seg</button>
+          <button class="seekBtn" style="min-height:48px" data-seek="-30">-30seg</button>
+          <button class="seekBtn" style="min-height:48px" data-seek="-60">-1min</button>
+          <button class="seekBtn" style="min-height:48px" data-seek="-300">-5min</button>
+          <button class="seekBtn" style="min-height:48px" data-seek="1">1seg</button>
+          <button class="seekBtn" style="min-height:48px" data-seek="30">30seg</button>
+          <button class="seekBtn" style="min-height:48px" data-seek="60">1min</button>
+          <button class="seekBtn" style="min-height:48px" data-seek="300">5min</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="head"><div class="title">Frecuencia cardiaca BLE</div></div>
+    <div class="body">
+      <div class="controls" style="margin-bottom:8px">
+        <button id="bleConnectBtn">Conectar pulsómetro</button>
+        <button id="bleReconnectBtn">Reconectar</button>
+        <button id="bleDisconnectBtn">Desconectar</button>
+        <button id="bleDiagBtn">Diagnóstico BLE</button>
+      </div>
+      <div id="bleBanner" class="badge" style="width:max-content;margin-bottom:8px">BLE listo. Usa “Conectar pulsómetro”. Si falla, usa “Diagnóstico BLE”.</div>
+      <div class="controls" style="margin-bottom:8px;gap:8px;flex-wrap:wrap">
+        <div class="badge">Z0 &lt;116 · Muy suave · gris</div>
+        <div class="badge">Z1 116–130 · Recuperación · azul</div>
+        <div class="badge">Z2 131–138 · Base baja · verde</div>
+        <div class="badge">Z3 139–145 · Base útil · amarillo</div>
+        <div class="badge">Z4 146–154 · Umbral · naranja</div>
+        <div class="badge">Z5 155–165 · Máxima · rojo</div>
+      </div>
+      <div class="bleGrid">
+        <div class="panel">
+          <div class="bigBpm" id="bleBpmBig">--</div>
+          <div id="bleZoneLine">Zona --</div>
+          <div id="bleZonePill" class="zonePill" style="display:none;margin-top:8px">--</div>
+          <div class="sep"></div>
+          <div class="kv">
+            <div class="k">Estado</div><div id="bleStateVal">desconectado</div>
+            <div class="k">Dispositivo</div><div id="bleDeviceVal">--</div>
+            <div class="k">Señal</div><div id="bleSignalVal">--</div>
+            <div class="k">Contacto</div><div id="bleContactVal">--</div>
+            <div class="k">Batería</div><div id="bleBatteryVal">--</div>
+            <div class="k">RR disponibles</div><div id="bleRrStatusVal">--</div>
+          </div>
+        </div>
+        <div class="panel">
+          <div class="kv">
+            <div class="k">BPM 5s</div><div id="bleAvg5Val">--</div>
+            <div class="k">BPM 10s</div><div id="bleAvg10Val">--</div>
+            <div class="k">BPM 30s</div><div id="bleAvg30Val">--</div>
+            <div class="k">Mín / Máx / Med</div><div id="bleMinMaxAvgVal">--</div>
+            <div class="k">RR medio</div><div id="bleRrAvgVal">--</div>
+            <div class="k">RMSSD / SDNN</div><div id="bleHrvVal">--</div>
+            <div class="k">Último paquete</div><div id="bleLastPacketVal">--</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="bottomGrid">
+    <div class="card">
+      <div class="head">
+        <div class="title">Importar plan</div>
+        <div class="controls">
+          <button id="copyPlanBtn" class="small">Copiar texto</button>
+          <button id="clearPlanBtn" class="small">Borrar</button>
+          <button id="applyPlanBtn" class="small">Aplicar</button>
+        </div>
+      </div>
+      <div class="body">
+        <textarea id="importBox"></textarea>
+        <div class="sep"></div>
+        <div class="controls" style="margin-bottom:8px">
+          <button id="startBtn" class="primary" style="min-height:52px">▶ Empezar</button>
+          <button id="resetBtn" class="danger" style="min-height:52px">↺ Reset</button>
+        </div>
+        <div class="controls">
+          <div class="stat"><div class="lab">Filas</div><div id="rowsVal" class="val">0</div></div>
+          <div class="stat"><div class="lab">Duración</div><div id="durVal" class="val">00:00</div></div>
+          <div class="stat"><div class="lab">Objetivo</div><div id="goalVal" class="val">0.0</div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="head"><div class="title">Continuar</div></div>
+      <div class="body">
+        <div class="controls">
+          <input id="continueMinuteInput" placeholder="Minuto, ej. 29:00" style="max-width:200px">
+          <input id="continueKcalInput" type="number" min="0" step="0.1" placeholder="Kcal, opcional" style="max-width:180px">
+          <button id="continueApplyBtn" class="primary">Aplicar continuar</button>
+          <button id="continueClearBtn">Borrar continuar</button>
+        </div>
+        <div id="continueLine" class="status" style="margin-top:8px">Sin modo continuar activo. Puedes dar minuto, kcal o ambos.</div>
+      </div>
+    </div>
+  </div>
+
+
+  <div class="card">
+    <div class="head"><div class="title">App / PWA</div></div>
+    <div class="body">
+      <div class="controls" style="margin-bottom:8px">
+        <button id="installBtn">Instalar app</button>
+        <button id="wakeLockBtn">Mantener pantalla encendida</button>
+        <button id="refreshAppBtn">Actualizar app</button>
+      </div>
+      <div id="pwaBanner" class="badge" style="width:max-content;margin-bottom:8px">PWA lista. Instala la app y activa pantalla encendida durante la sesión.</div>
+      <div class="status">Para que se abra como app en Android, súbela con estos archivos juntos a GitHub Pages y usa Chrome.</div>
+    </div>
+  </div>
+
+
+  <div class="card">
+    <div class="head"><div class="title">Log</div></div>
+    <div class="body"><div id="logBox" class="logBox"></div></div>
+  </div>
+</div>
+
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+
+  const state = {
+    plan: { rows: [], waters: [], waterTaken: [], duration: 0, goal: 0, running: false, baseMachineSec: 0, t0: 0, timer: null, wakeLastTapMachine: 0, continueMode: { active:false, refMinute:0, refKcal:0 } },
+    ble: { connectionState: 'desconectado', device: null, server: null, hrChar: null, batteryChar: null, current: { bpm:null, contactSupported:null, contactDetected:null, rrCount:0, rrAverageMs:null, rrAverageBpmEstimado:null, rmssd:null, sdnn:null, batteryLevel:null, zone:null, signal:'--', receivedAt:null }, samples: [], _hrListener:null }
+  };
+
+  function log(msg, kind=''){
+    const box = $('logBox');
+    const div = document.createElement('div');
+    div.className = 'logLine ' + kind;
+    div.textContent = '[' + new Date().toLocaleTimeString() + '] ' + msg;
+    box.prepend(div);
+    while (box.children.length > 80) box.removeChild(box.lastChild);
+  }
+
+  function fmtTime(sec){ sec = Math.max(0, Math.floor(sec)); return String(Math.floor(sec/60)).padStart(2,'0') + ':' + String(sec%60).padStart(2,'0'); }
+  function fmtMs(ms){ return (ms == null || !isFinite(ms)) ? '--' : fmtTime(ms/1000); }
+  function num(v, d=1){ return (v == null || !isFinite(v)) ? '--' : Number(v).toFixed(d); }
+  function clamp(v, lo, hi){ return Math.max(lo, Math.min(hi, v)); }
+  function parseTime(str){ const m = /^\s*(\d{1,3}):(\d{2})\s*$/.exec(String(str||'')); return m ? parseInt(m[1],10)*60 + parseInt(m[2],10) : null; }
+  function realToMachine(realSec){ return realSec * 0.989307671745; }
+  function machineToReal(machineSec){ return machineSec / 0.989307671745; }
+
+  function parseImportText(text){
+    const lines = String(text || '').split(/\r?\n/);
+    const rows = [];
+    for (const line of lines){
+      const parts = line.trim().split(/\t+/);
+      if (parts.length >= 5 && /^\d{1,3}:\d{2}$/.test(parts[0].trim())){
+        const t = parseTime(parts[0].trim());
+        const kcalTotal = parseFloat(parts[1].replace(',', '.'));
+        const kcalStep = parseFloat(parts[2].replace(',', '.'));
+        const level = parseInt(parts[3], 10);
+        const seg = String(parts[4]).trim();
+        if (t != null && isFinite(kcalTotal) && isFinite(kcalStep) && isFinite(level)) rows.push({ t, kcalTotal, kcalStep, level, seg });
+      }
+    }
+    rows.sort((a,b) => a.t - b.t);
+    const waters = [...String(text || '').matchAll(/Min(?:uto)?\s+(\d{1,3}:\d{2})/gi)].map(m => parseTime(m[1])).filter(v => v != null);
+    const title = String(text || '').split(/\r?\n/).map(s => s.trim()).find(s => s && !/^(A\)|B\)|C\)|D\)|E\)|F\)|G\)|H\)|Minuto|tiempo\t)/i.test(s)) || 'Plan cargado';
+    return { title, rows, waters };
+  }
+
+  function machineElapsed(){
+    const p = state.plan;
+    if (!p.running) return p.baseMachineSec;
+    return clamp(p.baseMachineSec + realToMachine((performance.now() - p.t0) / 1000), 0, p.duration);
+  }
+  function shownMachineElapsed(){ const t = machineElapsed(); return state.plan.continueMode.active ? Math.max(0, t - state.plan.continueMode.refMinute) : t; }
+
+  function idxByTime(t){
+    const rows = state.plan.rows; if (!rows.length) return 0;
+    let idx = 0; for (let i=0;i<rows.length;i++) if (rows[i].t <= t + 1e-9) idx = i; return idx;
+  }
+
+  function kcalAtTime(t){
+    const rows = state.plan.rows;
+    if (!rows.length) return 0;
+    t = clamp(t, 0, state.plan.duration);
+    if (t <= rows[0].t) return rows[0].t ? rows[0].kcalTotal * (t / rows[0].t) : 0;
+    for (let i=1;i<rows.length;i++){
+      const a = rows[i-1], b = rows[i];
+      if (t <= b.t){
+        const frac = (t - a.t) / Math.max(1e-9, b.t - a.t);
+        return a.kcalTotal + (b.kcalTotal - a.kcalTotal) * frac;
+      }
+    }
+    return rows[rows.length-1].kcalTotal;
+  }
+
+  function shownKcalAtTime(t){ const raw = kcalAtTime(t); return state.plan.continueMode.active ? Math.max(0, raw - state.plan.continueMode.refKcal) : raw; }
+
+  function machineTimeFromKcal(kcal){
+    const rows = state.plan.rows; if (!rows.length) return null; if (kcal <= 0) return 0;
+    for (let i=1;i<rows.length;i++){
+      const a = rows[i-1], b = rows[i];
+      if (kcal <= b.kcalTotal){
+        const frac = (kcal - a.kcalTotal) / Math.max(1e-9, b.kcalTotal - a.kcalTotal);
+        return a.t + (b.t - a.t) * frac;
+      }
+    }
+    return state.plan.duration;
+  }
+
+  function buildSegmentWindows(){
+    const rows = state.plan.rows, out = [];
+    if (!rows.length) return out;
+    let cur = null;
+    for (let i=0;i<rows.length;i++){
+      const r = rows[i];
+      if (!cur || cur.seg !== r.seg || cur.level !== r.level){
+        if (cur) cur.end = r.t;
+        cur = { seg:String(r.seg).toUpperCase(), level:r.level, start:r.t, end:state.plan.duration };
+        out.push(cur);
+      }
+    }
+    return out;
+  }
+
+  function getPlanState(){
+    const t = machineElapsed();
+    if (!state.plan.rows.length) return { machineT:t, seg:null, level:null, bpmTarget:null };
+    const row = state.plan.rows[idxByTime(t)];
+    const targets = { 10:{min:131,max:145}, 11:{min:139,max:154}, 12:{min:146,max:165}, 13:{min:155,max:165} };
+    return { machineT:t, seg:String(row.seg).toUpperCase(), level:row.level, bpmTarget:targets[row.level] || null };
+  }
+
+  function refreshTimeline(){
+    const box = $('timelineMarks');
+    box.innerHTML = '';
+    const end = state.plan.duration;
+    const progressPct = (end ? (machineElapsed() / end * 100) : 0);
+    $('timelineFill').style.width = progressPct + '%';
+    const cursor = $('timelineCursor');
+    if (cursor) cursor.style.left = `calc(${progressPct}% - 2px)`;
+
+    if (!end || !state.plan.rows.length) return;
+
+    const wins = buildSegmentWindows();
+    wins.forEach(w => {
+      const d = document.createElement('div');
+      d.className = 'segBlock l' + w.level + (machineElapsed() >= w.end - 1e-9 ? ' done' : '');
+      d.style.left = (w.start / end * 100) + '%';
+      d.style.width = Math.max(2, ((w.end - w.start) / end * 100)) + '%';
+      d.textContent = w.seg + ' · ' + w.level;
+      box.appendChild(d);
+    });
+
+    const events = [];
+    wins.forEach(w => events.push({ t:w.start, label:w.seg, kind:'seg' }));
+    state.plan.waters.forEach(w => events.push({ t:w, label:'💧', kind:'water' }));
+    events.push({ t:end, label:'Fin', kind:'end' });
+    events.sort((a,b) => a.t - b.t);
+
+    const rowLast = [-999,-999,-999];
+    events.forEach(ev => {
+      const leftPct = ev.t / end * 100;
+      let row = 0;
+      for (let r=0;r<rowLast.length;r++){ if (leftPct - rowLast[r] >= 8){ row = r; break; } }
+      rowLast[row] = leftPct;
+      const m = document.createElement('div');
+      m.className = 'mark r' + (row+1) + (machineElapsed() >= ev.t - 1e-9 ? ' done' : '');
+      m.style.left = leftPct + '%';
+      const lineColor = ev.kind === 'water' ? '#4ea8ff' : (ev.kind === 'end' ? '#ffffff' : '#d9d9d9');
+      const lineShadow = ev.kind === 'water' ? '0 0 6px rgba(78,168,255,.8)' : (ev.kind === 'end' ? '0 0 6px rgba(255,255,255,.6)' : '0 0 0 1px rgba(0,0,0,.55)');
+      m.innerHTML = '<div class="line" style="background:' + lineColor + ';box-shadow:' + lineShadow + ';"></div><div class="time">' + fmtTime(ev.t) + ' ' + ev.label + '</div>';
+      box.appendChild(m);
+    });
+  }
+
+  function hrZone(bpm){
+    if (!bpm || !isFinite(bpm)) return null;
+    const zones = [
+      {name:'Z0 · Muy suave / Calentamiento', min:-Infinity, max:116},
+      {name:'Z1 · Recuperación', min:116, max:130},
+      {name:'Z2 · Suave / Base baja', min:131, max:138},
+      {name:'Z3 · Media / Base útil', min:139, max:145},
+      {name:'Z4 · Intensa / Umbral', min:146, max:154},
+      {name:'Z5 · Máxima / Toque corto', min:155, max:165}
+    ];
+    if (bpm < 116) return { index:0, ...zones[0] };
+    for (let i=1;i<zones.length;i++){ const z = zones[i]; if (bpm >= z.min && bpm <= z.max) return { index:i, ...z }; }
+    return { index:5, ...zones[5] };
+  }
+
+  function zoneColorStyle(zone){
+    if (!zone) return { bg:'#999', fg:'#111' };
+    const map = {
+      0:{bg:'var(--z0)',fg:'#111'},
+      1:{bg:'var(--z1)',fg:'#111'},
+      2:{bg:'var(--z2)',fg:'#111'},
+      3:{bg:'var(--z3)',fg:'#111'},
+      4:{bg:'var(--z4)',fg:'#111'},
+      5:{bg:'var(--z5)',fg:'#fff'}
+    };
+    return map[zone.index] || { bg:'#999', fg:'#111' };
+  }
+
+  function avgRecent(msWindow){
+    const cutoff = Date.now() - msWindow;
+    const arr = state.ble.samples.filter(s => s.timestampMs >= cutoff).map(s => s.bpm).filter(v => Number.isFinite(v));
+    return arr.length ? arr.reduce((a,b)=>a+b,0)/arr.length : null;
+  }
+
+  function refreshTop(){
+    const machineT = machineElapsed();
+    const shownT = shownMachineElapsed();
+    const kPlan = shownKcalAtTime(machineT);
+    const realT = machineToReal(shownT);
+    $('clock').textContent = fmtTime(shownT);
+    $('subClock').textContent = 'Objetivo: ' + state.plan.goal.toFixed(1) + ' kcal · ' + fmtTime(state.plan.duration);
+    $('realClock').textContent = 'Real: ' + fmtTime(realT);
+    $('kPlanBig').textContent = kPlan.toFixed(1);
+    $('kReal').textContent = kPlan.toFixed(1);
+    $('avgReal').textContent = realT <= 0 ? '0.00 kcal/min · 0.00/30s' : ((kPlan / (realT / 60)).toFixed(2) + ' kcal/min · ' + (kPlan / Math.max(1, Math.round(realT / 30))).toFixed(2) + '/30s');
+
+    const ps = getPlanState();
+    const bpm = state.ble.current.bpm;
+    $('hrBig').textContent = bpm == null ? '--' : String(Math.round(bpm));
+    if (ps.bpmTarget){
+      $('hrTarget').textContent = ps.bpmTarget.min + '–' + ps.bpmTarget.max;
+      $('hrBig').className = 'metricBig ' + (bpm == null ? 'hrNeutral' : (bpm >= ps.bpmTarget.min && bpm <= ps.bpmTarget.max ? 'hrGood' : 'hrBad'));
+    } else {
+      $('hrTarget').textContent = '—';
+      $('hrBig').className = 'metricBig hrNeutral';
+    }
+
+    const test = /TEST|ZONAS CARDIACAS|30 MIN/i.test($('planTitle').textContent || '');
+    const psSeg = ps.seg;
+    $('clock').classList.toggle('test', !!test);
+    $('testBadge').classList.toggle('hidden', !test);
+    $('testPhaseBadge').classList.toggle('hidden', !test);
+    if (test){
+      $('testBadge').textContent = 'MODO TEST ACTIVO · bloque principal B · 30 min';
+      if (psSeg === 'B') $('testPhaseBadge').textContent = 'TEST PRINCIPAL EN CURSO · tramo B';
+      else if (psSeg && psSeg > 'B') $('testPhaseBadge').textContent = 'TEST PRINCIPAL FINALIZADO · tramo B';
+      else $('testPhaseBadge').textContent = 'Modo test activo · bloque principal B';
+    }
+  }
+
+  function refreshWaterWake(){
+    const t = machineElapsed();
+    let overdue = state.plan.waters.findIndex((w,i) => !state.plan.waterTaken[i] && w <= t + 1e-9);
+    let next = state.plan.waters.findIndex((w,i) => !state.plan.waterTaken[i] && w > t + 1e-9);
+
+    const waterCard = $('waterCard');
+    if (overdue !== -1){
+      $('waterRemain').textContent = '00:00';
+      $('waterBar').style.width = '100%';
+      waterCard.classList.add('due');
+      waterCard.classList.remove('warn');
+    } else if (next !== -1){
+      const prevMark = next > 0 ? state.plan.waters[next-1] : 0;
+      const span = Math.max(1, state.plan.waters[next] - prevMark);
+      const progress = clamp((t - prevMark) / span, 0, 1);
+      $('waterRemain').textContent = fmtTime(Math.max(0, state.plan.waters[next] - t));
+      $('waterBar').style.width = (progress * 100).toFixed(1) + '%';
+      waterCard.classList.toggle('warn', progress >= .75);
+      waterCard.classList.remove('due');
+    } else {
+      $('waterRemain').textContent = '--';
+      $('waterBar').style.width = '0%';
+      waterCard.classList.remove('warn','due');
+    }
+
+    const since = Math.max(0, t - state.plan.wakeLastTapMachine);
+    const progress = clamp(since / 40, 0, 1);
+    $('wakeRemain').textContent = fmtTime(Math.max(0, 40 - since));
+    $('wakeBar').style.width = (progress * 100).toFixed(1) + '%';
+    const wakeCard = $('wakeCard');
+    wakeCard.classList.toggle('warn', progress >= .75 && progress < 1);
+    wakeCard.classList.toggle('due', progress >= 1);
+  }
+
+  function refreshNextTable(){
+    const body = $('nextBody');
+    body.innerHTML = '';
+    const t = machineElapsed();
+    if (!state.plan.rows.length) return;
+
+    const current = state.plan.rows[idxByTime(t)];
+    const items = [];
+    items.push({ sortTime: t - 0.001, cls:'current', en:'AHORA', hour:fmtTime(t), level:current.level, seg:current.seg });
+
+    const horizon = t + 20*60;
+    const wins = buildSegmentWindows();
+    wins.forEach(w => {
+      if (w.start > t + 1e-9 && w.start <= horizon){
+        items.push({ sortTime:w.start, cls:'next', en:fmtTime(w.start - t), hour:fmtTime(w.start), level:w.level, seg:w.seg });
+      }
+    });
+
+    state.plan.waters.forEach((w,i) => {
+      if (state.plan.waterTaken[i]) return;
+      if (w <= horizon){
+        let cls = 'water';
+        if (w <= t + 1e-9) cls = 'waterDue';
+        else if (w - t <= 30) cls = 'waterSoon';
+        items.push({ sortTime:w, cls, en:w <= t ? 'YA' : fmtTime(Math.max(0, w - t)), hour:fmtTime(w), level:'Agua', seg:'💧' });
+      }
+    });
+
+    items.sort((a,b) => a.sortTime - b.sortTime);
+
+    items.forEach(r => {
+      const tr = document.createElement('tr');
+      tr.className = r.cls;
+      tr.innerHTML = '<td>' + r.en + '</td><td>' + r.hour + '</td><td>' + r.level + '</td><td>' + r.seg + '</td>';
+      body.appendChild(tr);
+    });
+
+    const rem = document.createElement('tr');
+    rem.className = 'remaining';
+    rem.innerHTML = '<td colspan="4">Cambios visibles: ' + Math.max(0, items.length - 1) + '</td>';
+    body.appendChild(rem);
+
+    const fin = document.createElement('tr');
+    fin.className = 'final';
+    fin.innerHTML = '<td>' + fmtTime(Math.max(0, state.plan.duration - t)) + '</td><td>' + fmtTime(state.plan.duration) + '</td><td>Fin</td><td>Fin</td>';
+    body.appendChild(fin);
+  }
+
+  function bleErrText(err){
+    const name = err?.name || ''; const msg = err?.message || String(err || '');
+    if (!isSecureContext) return 'Web Bluetooth requiere https o localhost.';
+    if (name === 'NotFoundError') return 'No se seleccionó dispositivo.';
+    if (name === 'NotAllowedError') return 'Permiso denegado o gesto no válido.';
+    if (name === 'SecurityError') return 'Bloqueado por seguridad del navegador.';
+    if (name === 'NetworkError') return 'No se pudo conectar por GATT.';
+    return (name ? name + ': ' : '') + msg;
+  }
+
+  function computeRr(rr){
+    if (!rr.length) return { avg:null, bpm:null, rmssd:null, sdnn:null };
+    const avg = rr.reduce((a,b)=>a+b,0)/rr.length;
+    let rmssd = null;
+    if (rr.length >= 2){
+      const diffs = [];
+      for (let i=1;i<rr.length;i++) diffs.push(rr[i]-rr[i-1]);
+      rmssd = Math.sqrt(diffs.reduce((a,b)=>a+b*b,0)/diffs.length);
+    }
+    const sdnn = Math.sqrt(rr.reduce((a,b)=>a+Math.pow(b-avg,2),0)/rr.length);
+    return { avg, bpm:avg ? 60000/avg : null, rmssd, sdnn };
+  }
+
+  function parseHrMeasurement(dv){
+    if (!dv || dv.byteLength < 2) throw new Error('Paquete corto');
+    let off = 0;
+    const flags = dv.getUint8(off++);
+    const is16 = !!(flags & 0x01);
+    const contactDetected = !!(flags & 0x02);
+    const contactSupported = !!(flags & 0x04);
+    const rrPresent = !!(flags & 0x10);
+    const bpm = is16 ? dv.getUint16(off, true) : dv.getUint8(off);
+    off += is16 ? 2 : 1;
+    const rr = [];
+    while (rrPresent && off + 1 < dv.byteLength){
+      rr.push(dv.getUint16(off, true) / 1024 * 1000);
+      off += 2;
+    }
+    const rrMeta = computeRr(rr);
+    return { bpm, contactDetected, contactSupported, rrCount:rr.length, rrAverageMs:rrMeta.avg, rrAverageBpmEstimado:rrMeta.bpm, rmssd:rrMeta.rmssd, sdnn:rrMeta.sdnn };
+  }
+
+  async function connectBle(){
+    try{
+      if (!isSecureContext){ $('bleBanner').textContent = 'BLE no disponible aquí: abre en https o localhost.'; log('BLE bloqueado por contexto no seguro', 'err'); return; }
+      if (!navigator.bluetooth){ $('bleBanner').textContent = 'Web Bluetooth no soportado.'; log('Web Bluetooth no soportado', 'err'); return; }
+      $('bleBanner').textContent = 'Abriendo selector BLE…';
+      state.ble.connectionState = 'buscando';
+      refreshBle();
+      const device = await navigator.bluetooth.requestDevice({
+        filters:[{services:['heart_rate']}],
+        optionalServices:['battery_service','device_information','generic_access']
+      });
+      if (!device){ $('bleBanner').textContent = 'Sin dispositivo seleccionado.'; return; }
+
+      try{ if (state.ble.hrChar && state.ble._hrListener) state.ble.hrChar.removeEventListener('characteristicvaluechanged', state.ble._hrListener); }catch{}
+      state.ble.device = device;
+      state.ble.connectionState = 'conectando';
+      $('bleBanner').textContent = 'Conectando con ' + (device.name || 'dispositivo') + '…';
+      refreshBle();
+
+      const server = await device.gatt.connect();
+      state.ble.server = server;
+      const hrService = await server.getPrimaryService('heart_rate');
+      const hrChar = await hrService.getCharacteristic('heart_rate_measurement');
+      state.ble.hrChar = hrChar;
+
+      state.ble._hrListener = ev => {
+        try{
+          const parsed = parseHrMeasurement(ev.target.value);
+          const now = Date.now();
+          const z = hrZone(parsed.bpm);
+          state.ble.current = { ...state.ble.current, ...parsed, zone:z, signal:'buena', receivedAt:now };
+          const firstTs = state.ble.samples.length ? state.ble.samples[0].timestampMs : now;
+          const elapsedMs = now - firstTs;
+          const machineSec = realToMachine(elapsedMs / 1000);
+          state.ble.samples.push({ timestampMs:now, elapsedMs, machineSec, bpm:parsed.bpm, rrCount:parsed.rrCount, rmssd:parsed.rmssd, sdnn:parsed.sdnn, zoneIndex:z?.index ?? null });
+          if (state.ble.samples.length > 4000) state.ble.samples.shift();
+          refreshBle();
+        }catch(err){
+          log('Paquete BLE inválido: ' + bleErrText(err), 'warn');
+        }
+      };
+      hrChar.addEventListener('characteristicvaluechanged', state.ble._hrListener);
+      await hrChar.startNotifications();
+
+      try{
+        const battService = await server.getPrimaryService('battery_service');
+        const battChar = await battService.getCharacteristic('battery_level');
+        const dv = await battChar.readValue();
+        state.ble.current.batteryLevel = dv.getUint8(0);
+      }catch{}
+
+      state.ble.connectionState = 'conectado';
+      $('bleBanner').textContent = 'Conectado a ' + (device.name || 'dispositivo') + '.';
+      refreshBle();
+      log('Pulsómetro conectado', 'ok');
+    }catch(err){
+      state.ble.connectionState = 'error';
+      $('bleBanner').textContent = 'Error BLE: ' + bleErrText(err);
+      refreshBle();
+      log('Error BLE: ' + bleErrText(err), 'err');
+    }
+  }
+
+  async function bleDiag(){
+    try{
+      const parts = [];
+      parts.push('secure context: ' + (isSecureContext ? 'sí' : 'no'));
+      parts.push('navigator.bluetooth: ' + (!!navigator.bluetooth ? 'sí' : 'no'));
+      if (!isSecureContext){
+        const msg = parts.join(' · ') + ' · usa https o localhost';
+        $('bleBanner').textContent = msg; log(msg, 'err'); return;
+      }
+      if (!navigator.bluetooth){
+        const msg = parts.join(' · ') + ' · navegador no compatible';
+        $('bleBanner').textContent = msg; log(msg, 'err'); return;
+      }
+      $('bleBanner').textContent = parts.join(' · ') + ' · abriendo selector…';
+      const device = await navigator.bluetooth.requestDevice({
+        filters:[{services:['heart_rate']}],
+        optionalServices:['battery_service','device_information','generic_access']
+      });
+      const msg = parts.join(' · ') + ' · selector OK · ' + (device?.name || '(sin nombre)');
+      $('bleBanner').textContent = msg; log(msg, 'ok');
+    }catch(err){
+      const msg = 'Diagnóstico BLE: ' + bleErrText(err);
+      $('bleBanner').textContent = msg; log(msg, 'err');
+    }
+  }
+
+  async function reconnectBle(){ return connectBle(); }
+  function disconnectBle(){
+    try{ if (state.ble.hrChar && state.ble._hrListener) state.ble.hrChar.removeEventListener('characteristicvaluechanged', state.ble._hrListener); }catch{}
+    try{ if (state.ble.device?.gatt?.connected) state.ble.device.gatt.disconnect(); }catch{}
+    state.ble.connectionState = 'desconectado';
+    $('bleBanner').textContent = 'Desconectado.';
+    refreshBle();
+  }
+
+  function refreshBle(){
+    const c = state.ble.current;
+    $('bleStateVal').textContent = state.ble.connectionState || 'desconectado';
+    $('bleDeviceVal').textContent = state.ble.device?.name || '--';
+    $('bleBpmBig').textContent = c.bpm == null ? '--' : String(Math.round(c.bpm));
+    $('bleZoneLine').textContent = c.zone ? (c.zone.index === 0 ? c.zone.name : `${c.zone.name} · ${Math.round(c.zone.min)}–${Math.round(c.zone.max)}`) : 'Zona --';
+    const pill = $('bleZonePill');
+    if (c.zone){
+      const style = zoneColorStyle(c.zone);
+      pill.style.display = '';
+      pill.style.background = style.bg;
+      pill.style.color = style.fg;
+      pill.textContent = c.zone.name;
+    } else {
+      pill.style.display = 'none';
+    }
+    $('bleSignalVal').textContent = c.receivedAt ? (Date.now() - c.receivedAt > 6000 ? 'débil' : 'buena') : '--';
+    $('bleContactVal').textContent = c.contactSupported ? (c.contactDetected ? 'detectado' : 'no detectado') : 'no disponible';
+    $('bleBatteryVal').textContent = c.batteryLevel == null ? '--' : (c.batteryLevel + '%');
+    $('bleRrStatusVal').textContent = c.rrCount ? `sí · ${c.rrCount}` : 'no disponible';
+    $('bleAvg5Val').textContent = num(avgRecent(5000));
+    $('bleAvg10Val').textContent = num(avgRecent(10000));
+    $('bleAvg30Val').textContent = num(avgRecent(30000));
+    const bpmVals = state.ble.samples.map(s => s.bpm).filter(v => Number.isFinite(v));
+    $('bleMinMaxAvgVal').textContent = bpmVals.length ? `${Math.min(...bpmVals)} / ${Math.max(...bpmVals)} / ${num(bpmVals.reduce((a,b)=>a+b,0)/bpmVals.length)}` : '--';
+    $('bleRrAvgVal').textContent = c.rrAverageMs ? `${num(c.rrAverageMs)} ms · ${num(c.rrAverageBpmEstimado)} bpm` : 'no disponible';
+    $('bleHrvVal').textContent = `${num(c.rmssd)} / ${num(c.sdnn)}`;
+    $('bleLastPacketVal').textContent = c.receivedAt ? fmtMs(Date.now() - c.receivedAt) : '--';
+  }
+
+  function applyContinue(){
+    const minuteRaw = $('continueMinuteInput').value.trim();
+    const kcalRaw = $('continueKcalInput').value.trim();
+    let minute = minuteRaw ? parseTime(minuteRaw) : null;
+    let kcal = kcalRaw ? parseFloat(kcalRaw.replace(',', '.')) : null;
+    if (minute == null && kcal == null){ log('Continuar: indica minuto, kcal o ambos', 'warn'); return; }
+    if (minute != null && kcal == null) kcal = kcalAtTime(minute);
+    if (minute == null && kcal != null) minute = machineTimeFromKcal(kcal);
+    minute = clamp(minute || 0, 0, state.plan.duration);
+    const refK = kcalAtTime(minute);
+    state.plan.continueMode = { active:true, refMinute:minute, refKcal:refK };
+    state.plan.baseMachineSec = minute;
+    if (state.plan.running) state.plan.t0 = performance.now();
+    $('continueBadge').classList.remove('hidden');
+    $('continueBadge').textContent = 'Continuando desde ' + fmtTime(minute) + ' · kcal visibles desde 0.0';
+    $('continueLine').textContent = 'Modo continuar activo · referencia ' + fmtTime(minute) + ' · visual kcal = 0.0';
+    refreshAll();
+  }
+
+  function clearContinue(){
+    state.plan.continueMode = { active:false, refMinute:0, refKcal:0 };
+    $('continueBadge').classList.add('hidden');
+    $('continueLine').textContent = 'Sin modo continuar activo. Puedes dar minuto, kcal o ambos.';
+    refreshAll();
+  }
+
+  function applyImport(){
+    const parsed = parseImportText($('importBox').value);
+    if (!parsed.rows.length){ log('No hay filas válidas para importar', 'err'); return; }
+    state.plan.rows = parsed.rows;
+    state.plan.waters = parsed.waters;
+    state.plan.waterTaken = new Array(parsed.waters.length).fill(false);
+    state.plan.duration = parsed.rows[parsed.rows.length - 1].t;
+    state.plan.goal = parsed.rows[parsed.rows.length - 1].kcalTotal;
+    $('planTitle').textContent = parsed.title;
+    $('rowsVal').textContent = String(parsed.rows.length);
+    $('durVal').textContent = fmtTime(state.plan.duration);
+    $('goalVal').textContent = state.plan.goal.toFixed(1);
+    state.plan.baseMachineSec = 0;
+    state.plan.running = false;
+    state.plan.wakeLastTapMachine = 0;
+    clearContinue();
+    refreshAll();
+    log('Plan cargado', 'ok');
+  }
+
+  function resetPlan(){
+    state.plan.running = false;
+    if (state.plan.timer) clearInterval(state.plan.timer);
+    state.plan.timer = null;
+    state.plan.baseMachineSec = 0;
+    state.plan.waterTaken = new Array(state.plan.waters.length).fill(false);
+    state.plan.wakeLastTapMachine = 0;
+    $('startBtn').textContent = '▶ Empezar';
+    $('startBtnTop').textContent = '▶ Empezar';
+    if (wakeLockSentinel) wakeLockSentinel.release().catch(()=>{});
+    refreshAll();
+  }
+
+  function toggleRun(){
+    if (!state.plan.rows.length){ log('Carga primero un plan', 'warn'); return; }
+    if (state.plan.running){
+      state.plan.baseMachineSec = machineElapsed();
+      state.plan.running = false;
+      if (state.plan.timer) clearInterval(state.plan.timer);
+      state.plan.timer = null;
+      $('startBtn').textContent = '▶ Reanudar';
+      $('startBtnTop').textContent = '▶ Reanudar';
+      refreshAll();
+      return;
+    }
+    state.plan.running = true;
+    state.plan.t0 = performance.now();
+    $('startBtn').textContent = '⏸ Pausa';
+    $('startBtnTop').textContent = '⏸ Pausa';
+    requestWakeLock(true).catch(()=>{});
+    if (state.plan.timer) clearInterval(state.plan.timer);
+    state.plan.timer = setInterval(tick, 250);
+    tick();
+  }
+
+  function seek(delta){
+    state.plan.baseMachineSec = clamp(machineElapsed() + delta, 0, state.plan.duration);
+    if (state.plan.running) state.plan.t0 = performance.now();
+    refreshAll();
+  }
+
+  function tick(){
+    const t = machineElapsed();
+    if (t >= state.plan.duration){
+      state.plan.baseMachineSec = state.plan.duration;
+      state.plan.running = false;
+      if (state.plan.timer) clearInterval(state.plan.timer);
+      state.plan.timer = null;
+      $('startBtn').textContent = '▶ Empezar';
+      $('startBtnTop').textContent = '▶ Empezar';
+      if (wakeLockSentinel) wakeLockSentinel.release().catch(()=>{});
+    }
+    refreshAll();
+  }
+
+  function refreshAll(){
+    refreshTimeline();
+    refreshTop();
+    refreshWaterWake();
+    refreshNextTable();
+  }
+
+
+  let deferredInstallPrompt = null;
+  let wakeLockSentinel = null;
+
+  async function registerPWA(){
+    const banner = $('pwaBanner');
+    try{
+      if ('serviceWorker' in navigator){
+        const reg = await navigator.serviceWorker.register('sw.js');
+        if (banner) banner.textContent = 'Service worker activo. App lista para instalar.';
+        log('Service worker registrado', 'ok');
+      } else {
+        if (banner) banner.textContent = 'Este navegador no soporta service worker.';
+      }
+    }catch(err){
+      if (banner) banner.textContent = 'Error al registrar PWA: ' + (err.message || err);
+      log('Error service worker: ' + (err.message || err), 'err');
+    }
+  }
+
+  window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    deferredInstallPrompt = e;
+    const btn = $('installBtn');
+    if (btn) btn.disabled = false;
+    const banner = $('pwaBanner');
+    if (banner) banner.textContent = 'La app es instalable. Pulsa “Instalar app”.';
+  });
+
+  window.addEventListener('appinstalled', () => {
+    deferredInstallPrompt = null;
+    const banner = $('pwaBanner');
+    if (banner) banner.textContent = 'App instalada correctamente.';
+    log('PWA instalada', 'ok');
+  });
+
+  async function promptInstall(){
+    const banner = $('pwaBanner');
+    if (!deferredInstallPrompt){
+      if (banner) banner.textContent = 'No hay aviso de instalación. Abre la web desde GitHub Pages con manifest y service worker activos.';
+      return;
+    }
+    try{
+      await deferredInstallPrompt.prompt();
+      const choice = await deferredInstallPrompt.userChoice;
+      if (banner) banner.textContent = choice.outcome === 'accepted' ? 'Instalación aceptada.' : 'Instalación cancelada.';
+      deferredInstallPrompt = null;
+    }catch(err){
+      if (banner) banner.textContent = 'Error al instalar: ' + (err.message || err);
+    }
+  }
+
+  async function requestWakeLock(force){
+    const banner = $('pwaBanner');
+    try{
+      if (!('wakeLock' in navigator)){
+        if (banner) banner.textContent = 'Wake Lock no soportado en este navegador.';
+        return;
+      }
+      if (wakeLockSentinel && !force){
+        await wakeLockSentinel.release();
+        wakeLockSentinel = null;
+        if (banner) banner.textContent = 'Pantalla encendida: desactivado.';
+        $('wakeLockBtn').textContent = 'Mantener pantalla encendida';
+        return;
+      }
+      wakeLockSentinel = await navigator.wakeLock.request('screen');
+      wakeLockSentinel.addEventListener('release', () => {
+        const b = $('pwaBanner');
+        if (b) b.textContent = 'Wake Lock liberado por el sistema.';
+        $('wakeLockBtn').textContent = 'Mantener pantalla encendida';
+      });
+      if (banner) banner.textContent = 'Pantalla encendida activada.';
+      $('wakeLockBtn').textContent = 'Desactivar pantalla encendida';
+    }catch(err){
+      if (banner) banner.textContent = 'Wake Lock falló: ' + (err.message || err);
+      log('Wake Lock error: ' + (err.message || err), 'warn');
+    }
+  }
+
+  document.addEventListener('visibilitychange', async () => {
+    if (document.visibilityState === 'visible' && wakeLockSentinel){
+      try{ wakeLockSentinel = await navigator.wakeLock.request('screen'); }catch{}
+    }
+  });
+
+  async function updateAppNow(){
+    const banner = $('pwaBanner');
+    try{
+      if ('serviceWorker' in navigator){
+        const regs = await navigator.serviceWorker.getRegistrations();
+        for (const reg of regs) await reg.update();
+        if (banner) banner.textContent = 'App actualizada. Recarga la página si no ves cambios.';
+        log('Service worker actualizado', 'ok');
+      }
+    }catch(err){
+      if (banner) banner.textContent = 'Error al actualizar la app: ' + (err.message || err);
+    }
+  }
+
+  function bind(){
+    $('applyPlanBtn').onclick = applyImport;
+    $('clearPlanBtn').onclick = () => { $('importBox').value = ''; };
+    $('copyPlanBtn').onclick = async () => {
+      const txt = $('importBox').value;
+      if (!txt) return;
+      try{ await navigator.clipboard.writeText(txt); log('Texto del plan copiado', 'ok'); }catch{}
+    };
+    $('startBtn').onclick = toggleRun;
+    $('startBtnTop').onclick = toggleRun;
+    $('resetBtn').onclick = resetPlan;
+    $('resetBtnTop').onclick = resetPlan;
+    document.querySelectorAll('.seekBtn').forEach(btn => btn.onclick = () => seek(Number(btn.dataset.seek || 0)));
+    $('continueApplyBtn').onclick = applyContinue;
+    $('continueClearBtn').onclick = clearContinue;
+
+    $('waterCard').onclick = () => {
+      const t = machineElapsed();
+      for (let i=0;i<state.plan.waters.length;i++){
+        if (!state.plan.waterTaken[i] && Math.abs(state.plan.waters[i] - t) <= 120){
+          state.plan.waterTaken[i] = true; break;
+        }
+      }
+      refreshAll();
+    };
+    $('wakeCard').onclick = () => { state.plan.wakeLastTapMachine = machineElapsed(); refreshAll(); };
+
+    document.addEventListener('pointerdown', ev => {
+      const target = ev.target;
+      if (target.closest('button') || target.closest('textarea') || target.closest('input')) return;
+      const t = machineElapsed();
+      state.plan.wakeLastTapMachine = t;
+      for (let i=0;i<state.plan.waters.length;i++){
+        if (!state.plan.waterTaken[i] && state.plan.waters[i] <= t + 1e-9){
+          state.plan.waterTaken[i] = true; break;
+        }
+      }
+      refreshAll();
+    }, { passive:true });
+
+    $('bleConnectBtn').onclick = connectBle;
+    $('bleReconnectBtn').onclick = reconnectBle;
+    $('bleDisconnectBtn').onclick = disconnectBle;
+    $('bleDiagBtn').onclick = bleDiag;
+    $('installBtn').onclick = promptInstall;
+    $('wakeLockBtn').onclick = () => requestWakeLock(false);
+    $('refreshAppBtn').onclick = updateAppNow;
+  }
+
+  bind();
+  registerPWA();
+  refreshAll();
+  refreshBle();
+  log('UI lista', 'ok');
+})();
+</script>
+</body>
+</html>
