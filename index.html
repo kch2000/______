@@ -161,7 +161,6 @@ tr.final td,tr.remaining td{font-weight:1000}
     </div>
 
     <div class="card">
-      <div class="head"><div class="title">&nbsp;</div></div>
       <div class="body" style="padding:0">
         <table>
           <thead><tr><th>En</th><th>Hora</th><th>Nivel</th><th>Tramo</th></tr></thead>
@@ -280,11 +279,11 @@ tr.final td,tr.remaining td{font-weight:1000}
     <div class="body">
       <div class="controls" style="margin-bottom:8px">
         <button id="installBtn">Instalar app</button>
-        <button id="wakeLockBtn">Mantener pantalla encendida</button>
         <button id="refreshAppBtn">Actualizar app</button>
+        <button id="exportSessionBtn">Exportar sesión</button>
       </div>
-      <div id="pwaBanner" class="badge" style="width:max-content;margin-bottom:8px">PWA lista. Instala la app y activa pantalla encendida durante la sesión.</div>
-      <div class="status">Para que se abra como app en Android, súbela con estos archivos juntos a GitHub Pages y usa Chrome.</div>
+      <div id="pwaBanner" class="badge" style="width:max-content;margin-bottom:8px">PWA lista. Instálala desde Chrome como app.</div>
+      <div class="status">Instalada con modo standalone para ocultar la barra del navegador. Si el icono abre Chrome normal, se creó un acceso directo y no una instalación real.</div>
     </div>
   </div>
 
@@ -300,7 +299,7 @@ tr.final td,tr.remaining td{font-weight:1000}
   const $ = id => document.getElementById(id);
 
   const state = {
-    plan: { rows: [], waters: [], waterTaken: [], duration: 0, goal: 0, running: false, baseMachineSec: 0, t0: 0, timer: null, wakeLastTapMachine: 0, continueMode: { active:false, refMinute:0, refKcal:0 } },
+    plan: { rows: [], waters: [], waterTaken: [], duration: 0, goal: 0, running: false, baseMachineSec: 0, t0: 0, timer: null, wakeLastTapMachine: 0, continueMode: { active:false, refMinute:0, refKcal:0 }, sessionLog: [], sessionStartedAt: null, lastRecordedSecond: -1 },
     ble: { connectionState: 'desconectado', device: null, server: null, hrChar: null, batteryChar: null, current: { bpm:null, contactSupported:null, contactDetected:null, rrCount:0, rrAverageMs:null, rrAverageBpmEstimado:null, rmssd:null, sdnn:null, batteryLevel:null, zone:null, signal:'--', receivedAt:null }, samples: [], _hrListener:null }
   };
 
@@ -787,6 +786,7 @@ tr.final td,tr.remaining td{font-weight:1000}
     $('continueBadge').textContent = 'Continuando desde ' + fmtTime(minute) + ' · kcal visibles desde 0.0';
     $('continueLine').textContent = 'Modo continuar activo · referencia ' + fmtTime(minute) + ' · visual kcal = 0.0';
     refreshAll();
+    maybeRecordSessionSecond();
   }
 
   function clearContinue(){
@@ -823,9 +823,11 @@ tr.final td,tr.remaining td{font-weight:1000}
     state.plan.baseMachineSec = 0;
     state.plan.waterTaken = new Array(state.plan.waters.length).fill(false);
     state.plan.wakeLastTapMachine = 0;
+    state.plan.sessionLog = [];
+    state.plan.sessionStartedAt = null;
+    state.plan.lastRecordedSecond = -1;
     $('startBtn').textContent = '▶ Empezar';
     $('startBtnTop').textContent = '▶ Empezar';
-    if (wakeLockSentinel) wakeLockSentinel.release().catch(()=>{});
     refreshAll();
   }
 
@@ -841,11 +843,11 @@ tr.final td,tr.remaining td{font-weight:1000}
       refreshAll();
       return;
     }
+    if (!state.plan.sessionStartedAt) state.plan.sessionStartedAt = new Date().toISOString();
     state.plan.running = true;
     state.plan.t0 = performance.now();
     $('startBtn').textContent = '⏸ Pausa';
     $('startBtnTop').textContent = '⏸ Pausa';
-    requestWakeLock(true).catch(()=>{});
     if (state.plan.timer) clearInterval(state.plan.timer);
     state.plan.timer = setInterval(tick, 250);
     tick();
@@ -866,7 +868,6 @@ tr.final td,tr.remaining td{font-weight:1000}
       state.plan.timer = null;
       $('startBtn').textContent = '▶ Empezar';
       $('startBtnTop').textContent = '▶ Empezar';
-      if (wakeLockSentinel) wakeLockSentinel.release().catch(()=>{});
     }
     refreshAll();
   }
@@ -880,13 +881,12 @@ tr.final td,tr.remaining td{font-weight:1000}
 
 
   let deferredInstallPrompt = null;
-  let wakeLockSentinel = null;
 
   async function registerPWA(){
     const banner = $('pwaBanner');
     try{
       if ('serviceWorker' in navigator){
-        const reg = await navigator.serviceWorker.register('sw.js');
+        await navigator.serviceWorker.register('sw.js');
         if (banner) banner.textContent = 'Service worker activo. App lista para instalar.';
         log('Service worker registrado', 'ok');
       } else {
@@ -901,8 +901,6 @@ tr.final td,tr.remaining td{font-weight:1000}
   window.addEventListener('beforeinstallprompt', (e) => {
     e.preventDefault();
     deferredInstallPrompt = e;
-    const btn = $('installBtn');
-    if (btn) btn.disabled = false;
     const banner = $('pwaBanner');
     if (banner) banner.textContent = 'La app es instalable. Pulsa “Instalar app”.';
   });
@@ -917,7 +915,7 @@ tr.final td,tr.remaining td{font-weight:1000}
   async function promptInstall(){
     const banner = $('pwaBanner');
     if (!deferredInstallPrompt){
-      if (banner) banner.textContent = 'No hay aviso de instalación. Abre la web desde GitHub Pages con manifest y service worker activos.';
+      if (banner) banner.textContent = 'No hay aviso de instalación. Usa Chrome Android y entra por GitHub Pages.';
       return;
     }
     try{
@@ -930,52 +928,71 @@ tr.final td,tr.remaining td{font-weight:1000}
     }
   }
 
-  async function requestWakeLock(force){
-    const banner = $('pwaBanner');
-    try{
-      if (!('wakeLock' in navigator)){
-        if (banner) banner.textContent = 'Wake Lock no soportado en este navegador.';
-        return;
-      }
-      if (wakeLockSentinel && !force){
-        await wakeLockSentinel.release();
-        wakeLockSentinel = null;
-        if (banner) banner.textContent = 'Pantalla encendida: desactivado.';
-        $('wakeLockBtn').textContent = 'Mantener pantalla encendida';
-        return;
-      }
-      wakeLockSentinel = await navigator.wakeLock.request('screen');
-      wakeLockSentinel.addEventListener('release', () => {
-        const b = $('pwaBanner');
-        if (b) b.textContent = 'Wake Lock liberado por el sistema.';
-        $('wakeLockBtn').textContent = 'Mantener pantalla encendida';
-      });
-      if (banner) banner.textContent = 'Pantalla encendida activada.';
-      $('wakeLockBtn').textContent = 'Desactivar pantalla encendida';
-    }catch(err){
-      if (banner) banner.textContent = 'Wake Lock falló: ' + (err.message || err);
-      log('Wake Lock error: ' + (err.message || err), 'warn');
-    }
-  }
-
-  document.addEventListener('visibilitychange', async () => {
-    if (document.visibilityState === 'visible' && wakeLockSentinel){
-      try{ wakeLockSentinel = await navigator.wakeLock.request('screen'); }catch{}
-    }
-  });
-
   async function updateAppNow(){
     const banner = $('pwaBanner');
     try{
       if ('serviceWorker' in navigator){
         const regs = await navigator.serviceWorker.getRegistrations();
         for (const reg of regs) await reg.update();
-        if (banner) banner.textContent = 'App actualizada. Recarga la página si no ves cambios.';
+        if (banner) banner.textContent = 'App actualizada. Cierra y vuelve a abrir la app.';
         log('Service worker actualizado', 'ok');
       }
     }catch(err){
       if (banner) banner.textContent = 'Error al actualizar la app: ' + (err.message || err);
     }
+  }
+
+  function maybeRecordSessionSecond(){
+    if (!state.plan.running) return;
+    const t = Math.floor(machineElapsed());
+    if (t === state.plan.lastRecordedSecond) return;
+    state.plan.lastRecordedSecond = t;
+    const ps = getPlanState();
+    const bpm = state.ble.current.bpm;
+    const zone = state.ble.current.zone;
+    state.plan.sessionLog.push({
+      second: t,
+      shownSecond: Math.floor(shownMachineElapsed()),
+      clock: fmtTime(shownMachineElapsed()),
+      machineClock: fmtTime(t),
+      kcalPlan: Number(shownKcalAtTime(t).toFixed(1)),
+      level: ps.level,
+      seg: ps.seg,
+      bpm: bpm == null ? null : Math.round(bpm),
+      zone: zone ? zone.name : null,
+      waterDue: state.plan.waters.some((w,i) => !state.plan.waterTaken[i] && w <= t + 1e-9),
+      timestampIso: new Date().toISOString()
+    });
+  }
+
+  function exportSessionLog(){
+    const rows = state.plan.sessionLog || [];
+    if (!rows.length){
+      log('No hay sesión grabada todavía', 'warn');
+      return;
+    }
+    const header = ['second','shownSecond','clock','machineClock','kcalPlan','level','seg','bpm','zone','waterDue','timestampIso'];
+    const csvLines = [header.join(',')];
+    for (const r of rows){
+      const line = header.map(k => {
+        const v = r[k];
+        if (v == null) return '';
+        const s = String(v).replaceAll('"','""');
+        return /[",\n]/.test(s) ? '"' + s + '"' : s;
+      }).join(',');
+      csvLines.push(line);
+    }
+    const csv = csvLines.join('\n');
+    const blob = new Blob([csv], {type:'text/csv;charset=utf-8'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'sesion_eliptica_segundo_a_segundo.csv';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1500);
+    log('Sesión exportada', 'ok');
   }
 
   function bind(){
@@ -1023,8 +1040,8 @@ tr.final td,tr.remaining td{font-weight:1000}
     $('bleDisconnectBtn').onclick = disconnectBle;
     $('bleDiagBtn').onclick = bleDiag;
     $('installBtn').onclick = promptInstall;
-    $('wakeLockBtn').onclick = () => requestWakeLock(false);
     $('refreshAppBtn').onclick = updateAppNow;
+    $('exportSessionBtn').onclick = exportSessionLog;
   }
 
   bind();
