@@ -3,7 +3,6 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-
 <meta name="theme-color" content="#0b0d10">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -11,8 +10,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
 <link rel="apple-touch-icon" href="icon-192.png">
-
-<title>Elíptica estable limpia</title>
+<title>Elíptica PWA</title>
 <style>
 :root{
   --bg:#0b0d10; --card:#141820; --line:rgba(255,255,255,.10); --text:#eef3f8; --muted:#a8b2bf;
@@ -28,9 +26,9 @@ body{min-height:100dvh}
 .body{padding:10px}
 .title{font-size:18px;font-weight:1000}
 .status{font-size:12px;color:var(--muted);font-weight:900}
-.topGrid,.bottomGrid{display:grid;grid-template-columns:1.2fr .8fr;gap:8px}
+.topGrid,.bottomGrid{display:grid;grid-template-columns:1.25fr .75fr;gap:8px}
 button,input,textarea{font:inherit}
-button{border:1px solid var(--line);background:#1d2330;color:var(--text);border-radius:10px;padding:9px 12px;font-weight:900;cursor:pointer}
+button{border:1px solid var(--line);background:#1d2330;color:var(--text);border-radius:10px;padding:10px 12px;font-weight:900;cursor:pointer}
 button.primary{background:rgba(50,140,80,.35)}
 button.danger{background:rgba(170,40,40,.35)}
 button.small{padding:7px 10px;font-size:13px}
@@ -38,8 +36,8 @@ input,textarea{background:#0e1218;border:1px solid var(--line);color:var(--text)
 textarea{width:100%;min-height:180px;resize:vertical;font-family:ui-monospace,Consolas,monospace;font-size:12px}
 .controls{display:flex;gap:8px;flex-wrap:wrap}
 .sep{height:1px;background:var(--line);margin:8px 0}
-.metrics{display:grid;grid-template-columns:1.1fr 220px 220px;gap:16px}
-.metricCol{display:grid;grid-template-rows:20px 78px 26px 26px;align-items:end}
+.metrics{display:grid;grid-template-columns:1.2fr 220px 220px;gap:16px}
+.metricCol{display:grid;grid-template-rows:20px 76px 26px 26px;align-items:end}
 .metricLabel{font-size:12px;font-weight:1000;text-transform:uppercase;color:#cfd7e2}
 .metricBig{font-size:62px;line-height:1;font-weight:1000;font-variant-numeric:tabular-nums}
 .metricBig.time.test{color:var(--bad)}
@@ -59,9 +57,10 @@ textarea{width:100%;min-height:180px;resize:vertical;font-family:ui-monospace,Co
 .badge.phase{background:rgba(255,180,80,.14);color:#ffdca6;border-color:rgba(255,180,80,.35)}
 .badge.continue{background:rgba(120,198,255,.14);color:#bfe3ff;border-color:rgba(120,198,255,.35)}
 .timeline{background:#000;border:1px solid rgba(255,255,255,.15);border-radius:14px;padding:10px}
-.timelineWrap{position:relative;height:74px}
+.timelineWrap{position:relative;height:76px}
 .timelineTrack{position:absolute;left:0;right:0;top:8px;height:18px;border-radius:999px;background:#f4f4f4;overflow:visible;border:1px solid rgba(255,255,255,.18)}
-.timelineFill{position:absolute;left:0;top:0;bottom:0;width:0;background:linear-gradient(90deg,#ff7b7b,#ff2d2d);transition:width .2s linear;box-shadow:0 0 10px rgba(255,70,70,.7)}
+.timelineFill{position:absolute;left:0;top:0;bottom:0;width:0;background:linear-gradient(90deg,#ff7b7b,#ff2d2d);transition:width .12s linear;box-shadow:0 0 10px rgba(255,70,70,.7)}
+.timelineCursor{position:absolute;top:-6px;bottom:-6px;width:4px;background:#ff2d2d;border-radius:999px;left:0;box-shadow:0 0 10px rgba(255,45,45,.95);z-index:3}
 .timelineMarks{position:absolute;inset:0}
 .segBlock{position:absolute;top:1px;height:28px;border-radius:999px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:1000;border:1px solid rgba(0,0,0,.12);padding:0 6px;white-space:nowrap}
 .segBlock.done{filter:grayscale(1) brightness(.75)}
@@ -70,7 +69,6 @@ textarea{width:100%;min-height:180px;resize:vertical;font-family:ui-monospace,Co
 .mark .line{width:3px;background:#d9d9d9;margin:0 auto 2px;box-shadow:0 0 0 1px rgba(0,0,0,.55)}
 .mark .time{display:inline-block;background:rgba(0,0,0,.88);padding:2px 5px;border-radius:7px;border:1px solid rgba(255,255,255,.12)}
 .mark.done .line{background:#ff6666;box-shadow:0 0 6px rgba(255,70,70,.8)}
-.mark.done .time{background:rgba(60,60,60,.95);color:#f2f2f2}
 .mark.r1{top:30px}.mark.r1 .line{height:18px}
 .mark.r2{top:46px}.mark.r2 .line{height:13px}
 .mark.r3{top:60px}.mark.r3 .line{height:10px}
@@ -80,7 +78,6 @@ textarea{width:100%;min-height:180px;resize:vertical;font-family:ui-monospace,Co
 .barWrap{height:7px;border-radius:999px;overflow:hidden;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.08)}
 .bar{height:100%;width:0}
 #waterBar{background:linear-gradient(90deg,#4ea8ff,#7bddff)}
-#wakeBar{background:linear-gradient(90deg,#ffbd45,#ffe08a)}
 table{width:100%;border-collapse:collapse;table-layout:fixed}
 th,td{padding:7px 6px;border-bottom:1px solid var(--line);text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:15px}
 th{font-size:14px;color:var(--muted);font-weight:1000}
@@ -107,7 +104,10 @@ tr.final td,tr.remaining td{font-weight:1000}
 <div class="app">
   <div class="timeline">
     <div class="timelineWrap">
-      <div class="timelineTrack"><div id="timelineFill" class="timelineFill"></div><div id="timelineCursor" style="position:absolute;top:-6px;bottom:-6px;width:4px;background:#ff2d2d;border-radius:999px;left:0;box-shadow:0 0 10px rgba(255,45,45,.95);z-index:3"></div></div>
+      <div class="timelineTrack">
+        <div id="timelineFill" class="timelineFill"></div>
+        <div id="timelineCursor" class="timelineCursor"></div>
+      </div>
       <div id="timelineMarks" class="timelineMarks"></div>
     </div>
   </div>
@@ -190,7 +190,7 @@ tr.final td,tr.remaining td{font-weight:1000}
         <button id="bleDisconnectBtn">Desconectar</button>
         <button id="bleDiagBtn">Diagnóstico BLE</button>
       </div>
-      <div id="bleBanner" class="badge" style="width:max-content;margin-bottom:8px">BLE listo. Usa “Conectar pulsómetro”. Si falla, usa “Diagnóstico BLE”.</div>
+      <div id="bleBanner" class="badge" style="width:max-content;margin-bottom:8px">BLE listo. Usa “Conectar pulsómetro”.</div>
       <div class="controls" style="margin-bottom:8px;gap:8px;flex-wrap:wrap">
         <div class="badge">Z0 &lt;116 · Muy suave · gris</div>
         <div class="badge">Z1 116–130 · Recuperación · azul</div>
@@ -245,6 +245,9 @@ tr.final td,tr.remaining td{font-weight:1000}
         <div class="controls" style="margin-bottom:8px">
           <button id="startBtn" class="primary" style="min-height:52px">▶ Empezar</button>
           <button id="resetBtn" class="danger" style="min-height:52px">↺ Reset</button>
+          <button id="markWaterBtn">Marcar agua</button>
+          <button id="markIncidentBtn">Marcar incidencia</button>
+          <button id="markStrongBtn">Marcar bloque fuerte</button>
         </div>
         <div class="controls">
           <div class="stat"><div class="lab">Filas</div><div id="rowsVal" class="val">0</div></div>
@@ -268,7 +271,6 @@ tr.final td,tr.remaining td{font-weight:1000}
     </div>
   </div>
 
-
   <div class="card">
     <div class="head"><div class="title">App / PWA</div></div>
     <div class="body">
@@ -283,10 +285,18 @@ tr.final td,tr.remaining td{font-weight:1000}
         <button id="compareLastBtn">Comparar con última</button>
       </div>
       <div id="pwaBanner" class="badge" style="width:max-content;margin-bottom:8px">PWA lista. Instálala desde Chrome como app.</div>
-      <div class="status">Instalada con modo standalone para ocultar la barra del navegador. Si el icono abre Chrome normal, se creó un acceso directo y no una instalación real.</div>
+      <div class="status">Modo standalone para ocultar la barra del navegador. Si el icono abre Chrome normal, era un acceso directo y no una instalación real.</div>
+      <div class="sep"></div>
+      <div class="controls" style="margin-bottom:8px">
+        <div class="stat"><div class="lab">Sesión guardada</div><div id="savedSessionVal" class="val">0</div></div>
+        <div class="stat"><div class="lab">Último resumen</div><div id="lastSummaryVal" class="val">--</div></div>
+        <div class="stat"><div class="lab">Última comparación</div><div id="lastCompareVal" class="val">--</div></div>
+      </div>
+      <textarea id="finalSummaryBox" style="width:100%;min-height:170px;resize:vertical;font-family:ui-monospace,Consolas,monospace;font-size:12px" readonly></textarea>
+      <div class="sep"></div>
+      <textarea id="tramoSummaryBox" style="width:100%;min-height:160px;resize:vertical;font-family:ui-monospace,Consolas,monospace;font-size:12px" readonly></textarea>
     </div>
   </div>
-
 
   <div class="card">
     <div class="head"><div class="title">Log</div></div>
@@ -309,9 +319,29 @@ tr.final td,tr.remaining td{font-weight:1000}
     } catch {}
   });
 
+  const STORAGE_KEYS = {
+    live:'eliptica_live_session_v2',
+    plan:'eliptica_last_plan_v2',
+    summary:'eliptica_last_summary_v2',
+    tramo:'eliptica_last_tramo_summary_v1',
+    compare:'eliptica_last_compare_v1',
+    previous:'eliptica_previous_session_v1'
+  };
+
   const state = {
-    plan: { rows: [], waters: [], waterTaken: [], duration: 0, goal: 0, running: false, baseMachineSec: 0, t0: 0, timer: null, rafId: null, wakeLastTapMachine: 0, continueMode: { active:false, refMinute:0, refKcal:0 }, sessionLog: [], minuteLog: [], sessionStartedAt: null, lastRecordedSecond: -1, lastRecordedMinute: -1, markers: [] },
-    ble: { connectionState: 'desconectado', device: null, server: null, hrChar: null, batteryChar: null, current: { bpm:null, contactSupported:null, contactDetected:null, rrCount:0, rrAverageMs:null, rrAverageBpmEstimado:null, rmssd:null, sdnn:null, batteryLevel:null, zone:null, signal:'--', receivedAt:null }, samples: [], _hrListener:null }
+    plan: {
+      rows: [], waters: [], waterTaken: [], duration: 0, goal: 0,
+      running: false, baseMachineSec: 0, t0: 0, timer: null, rafId: null,
+      wakeLastTapMachine: 0, continueMode: { active:false, refMinute:0, refKcal:0 },
+      sessionLog: [], minuteLog: [], sessionStartedAt: null,
+      lastRecordedSecond: -1, lastRecordedMinute: -1, markers: []
+    },
+    ble: {
+      connectionState: 'desconectado', device: null, server: null, hrChar: null,
+      current: { bpm:null, contactSupported:null, contactDetected:null, rrCount:0, rrAverageMs:null, rrAverageBpmEstimado:null, rmssd:null, sdnn:null, batteryLevel:null, zone:null, signal:'--', receivedAt:null },
+      samples: [], _hrListener:null
+    },
+    pwa: { deferredInstallPrompt: null, wakeLockSentinel: null }
   };
 
   function log(msg, kind=''){
@@ -320,7 +350,7 @@ tr.final td,tr.remaining td{font-weight:1000}
     div.className = 'logLine ' + kind;
     div.textContent = '[' + new Date().toLocaleTimeString() + '] ' + msg;
     box.prepend(div);
-    while (box.children.length > 80) box.removeChild(box.lastChild);
+    while (box.children.length > 120) box.removeChild(box.lastChild);
   }
 
   function fmtTime(sec){ sec = Math.max(0, Math.floor(sec)); return String(Math.floor(sec/60)).padStart(2,'0') + ':' + String(sec%60).padStart(2,'0'); }
@@ -377,7 +407,6 @@ tr.final td,tr.remaining td{font-weight:1000}
     }
     return rows[rows.length-1].kcalTotal;
   }
-
   function shownKcalAtTime(t){ const raw = kcalAtTime(t); return state.plan.continueMode.active ? Math.max(0, raw - state.plan.continueMode.refKcal) : raw; }
 
   function machineTimeFromKcal(kcal){
@@ -415,15 +444,33 @@ tr.final td,tr.remaining td{font-weight:1000}
     return { machineT:t, seg:String(row.seg).toUpperCase(), level:row.level, bpmTarget:targets[row.level] || null };
   }
 
+  function hrZone(bpm){
+    if (!bpm || !isFinite(bpm)) return null;
+    const zones = [
+      {name:'Z0 · Muy suave / Calentamiento', min:-Infinity, max:116},
+      {name:'Z1 · Recuperación', min:116, max:130},
+      {name:'Z2 · Suave / Base baja', min:131, max:138},
+      {name:'Z3 · Media / Base útil', min:139, max:145},
+      {name:'Z4 · Intensa / Umbral', min:146, max:154},
+      {name:'Z5 · Máxima / Toque corto', min:155, max:165}
+    ];
+    if (bpm < 116) return { index:0, ...zones[0] };
+    for (let i=1;i<zones.length;i++){ const z = zones[i]; if (bpm >= z.min && bpm <= z.max) return { index:i, ...z }; }
+    return { index:5, ...zones[5] };
+  }
+  function zoneColorStyle(zone){
+    if (!zone) return { bg:'#999', fg:'#111' };
+    const map = {0:{bg:'var(--z0)',fg:'#111'},1:{bg:'var(--z1)',fg:'#111'},2:{bg:'var(--z2)',fg:'#111'},3:{bg:'var(--z3)',fg:'#111'},4:{bg:'var(--z4)',fg:'#111'},5:{bg:'var(--z5)',fg:'#fff'}};
+    return map[zone.index] || { bg:'#999', fg:'#111' };
+  }
+
   function refreshTimeline(){
     const box = $('timelineMarks');
     box.innerHTML = '';
     const end = state.plan.duration;
     const progressPct = (end ? (machineElapsed() / end * 100) : 0);
     $('timelineFill').style.width = progressPct + '%';
-    const cursor = $('timelineCursor');
-    if (cursor) cursor.style.left = `calc(${progressPct}% - 2px)`;
-
+    $('timelineCursor').style.left = `calc(${progressPct}% - 2px)`;
     if (!end || !state.plan.rows.length) return;
 
     const wins = buildSegmentWindows();
@@ -458,39 +505,7 @@ tr.final td,tr.remaining td{font-weight:1000}
     });
   }
 
-  function hrZone(bpm){
-    if (!bpm || !isFinite(bpm)) return null;
-    const zones = [
-      {name:'Z0 · Muy suave / Calentamiento', min:-Infinity, max:116},
-      {name:'Z1 · Recuperación', min:116, max:130},
-      {name:'Z2 · Suave / Base baja', min:131, max:138},
-      {name:'Z3 · Media / Base útil', min:139, max:145},
-      {name:'Z4 · Intensa / Umbral', min:146, max:154},
-      {name:'Z5 · Máxima / Toque corto', min:155, max:165}
-    ];
-    if (bpm < 116) return { index:0, ...zones[0] };
-    for (let i=1;i<zones.length;i++){ const z = zones[i]; if (bpm >= z.min && bpm <= z.max) return { index:i, ...z }; }
-    return { index:5, ...zones[5] };
-  }
-
-  function zoneColorStyle(zone){
-    if (!zone) return { bg:'#999', fg:'#111' };
-    const map = {
-      0:{bg:'var(--z0)',fg:'#111'},
-      1:{bg:'var(--z1)',fg:'#111'},
-      2:{bg:'var(--z2)',fg:'#111'},
-      3:{bg:'var(--z3)',fg:'#111'},
-      4:{bg:'var(--z4)',fg:'#111'},
-      5:{bg:'var(--z5)',fg:'#fff'}
-    };
-    return map[zone.index] || { bg:'#999', fg:'#111' };
-  }
-
-  function avgRecent(msWindow){
-    const cutoff = Date.now() - msWindow;
-    const arr = state.ble.samples.filter(s => s.timestampMs >= cutoff).map(s => s.bpm).filter(v => Number.isFinite(v));
-    return arr.length ? arr.reduce((a,b)=>a+b,0)/arr.length : null;
-  }
+  function isTestPlan(){ return /TEST|ZONAS CARDIACAS|30 MIN/i.test($('planTitle').textContent || ''); }
 
   function refreshTop(){
     const machineT = machineElapsed();
@@ -515,8 +530,7 @@ tr.final td,tr.remaining td{font-weight:1000}
       $('hrBig').className = 'metricBig hrNeutral';
     }
 
-    const test = /TEST|ZONAS CARDIACAS|30 MIN/i.test($('planTitle').textContent || '');
-    const psSeg = ps.seg;
+    const test = isTestPlan(), psSeg = ps.seg;
     $('clock').classList.toggle('test', !!test);
     $('testBadge').classList.toggle('hidden', !test);
     $('testPhaseBadge').classList.toggle('hidden', !test);
@@ -528,7 +542,7 @@ tr.final td,tr.remaining td{font-weight:1000}
     }
   }
 
-  function refreshWaterWake(){
+  function refreshWater(){
     const t = machineElapsed();
     let overdue = state.plan.waters.findIndex((w,i) => !state.plan.waterTaken[i] && w <= t + 1e-9);
     let next = state.plan.waters.findIndex((w,i) => !state.plan.waterTaken[i] && w > t + 1e-9);
@@ -552,66 +566,39 @@ tr.final td,tr.remaining td{font-weight:1000}
       $('waterBar').style.width = '0%';
       waterCard.classList.remove('warn','due');
     }
-
-
   }
 
   function refreshNextTable(){
-    const body = $('nextBody');
-    body.innerHTML = '';
-    const t = machineElapsed();
-    if (!state.plan.rows.length) return;
-
+    const body = $('nextBody'); body.innerHTML = '';
+    const t = machineElapsed(); if (!state.plan.rows.length) return;
     const current = state.plan.rows[idxByTime(t)];
-    const items = [];
-    items.push({ sortTime: t - 0.001, cls:'current', en:'AHORA', hour:fmtTime(t), level:current.level, seg:current.seg });
-
+    const items = [{ sortTime:t-0.001, cls:'current', en:'AHORA', hour:fmtTime(t), level:current.level, seg:current.seg }];
     const horizon = t + 20*60;
-    const wins = buildSegmentWindows();
-    wins.forEach(w => {
-      if (w.start > t + 1e-9 && w.start <= horizon){
-        items.push({ sortTime:w.start, cls:'next', en:fmtTime(w.start - t), hour:fmtTime(w.start), level:w.level, seg:w.seg });
-      }
+    buildSegmentWindows().forEach(w => {
+      if (w.start > t + 1e-9 && w.start <= horizon) items.push({ sortTime:w.start, cls:'next', en:fmtTime(w.start-t), hour:fmtTime(w.start), level:w.level, seg:w.seg });
     });
-
     state.plan.waters.forEach((w,i) => {
       if (state.plan.waterTaken[i]) return;
       if (w <= horizon){
-        let cls = 'water';
-        if (w <= t + 1e-9) cls = 'waterDue';
-        else if (w - t <= 30) cls = 'waterSoon';
-        items.push({ sortTime:w, cls, en:w <= t ? 'YA' : fmtTime(Math.max(0, w - t)), hour:fmtTime(w), level:'Agua', seg:'💧' });
+        let cls='water'; if (w <= t + 1e-9) cls='waterDue'; else if (w-t <= 30) cls='waterSoon';
+        items.push({ sortTime:w, cls, en:w<=t?'YA':fmtTime(Math.max(0,w-t)), hour:fmtTime(w), level:'Agua', seg:'💧' });
       }
     });
-
-    items.sort((a,b) => a.sortTime - b.sortTime);
-
+    items.sort((a,b)=>a.sortTime-b.sortTime);
     items.forEach(r => {
       const tr = document.createElement('tr');
       tr.className = r.cls;
-      tr.innerHTML = '<td>' + r.en + '</td><td>' + r.hour + '</td><td>' + r.level + '</td><td>' + r.seg + '</td>';
+      tr.innerHTML = '<td>'+r.en+'</td><td>'+r.hour+'</td><td>'+r.level+'</td><td>'+r.seg+'</td>';
       body.appendChild(tr);
     });
-
-    const rem = document.createElement('tr');
-    rem.className = 'remaining';
-    rem.innerHTML = '<td colspan="4">Cambios visibles: ' + Math.max(0, items.length - 1) + '</td>';
-    body.appendChild(rem);
-
-    const fin = document.createElement('tr');
-    fin.className = 'final';
-    fin.innerHTML = '<td>' + fmtTime(Math.max(0, state.plan.duration - t)) + '</td><td>' + fmtTime(state.plan.duration) + '</td><td>Fin</td><td>Fin</td>';
-    body.appendChild(fin);
+    const rem = document.createElement('tr'); rem.className='remaining'; rem.innerHTML='<td colspan="4">Cambios visibles: '+Math.max(0, items.length-1)+'</td>'; body.appendChild(rem);
+    const fin = document.createElement('tr'); fin.className='final'; fin.innerHTML='<td>'+fmtTime(Math.max(0,state.plan.duration-t))+'</td><td>'+fmtTime(state.plan.duration)+'</td><td>Fin</td><td>Fin</td>'; body.appendChild(fin);
   }
 
-  function bleErrText(err){
-    const name = err?.name || ''; const msg = err?.message || String(err || '');
-    if (!isSecureContext) return 'Web Bluetooth requiere https o localhost.';
-    if (name === 'NotFoundError') return 'No se seleccionó dispositivo.';
-    if (name === 'NotAllowedError') return 'Permiso denegado o gesto no válido.';
-    if (name === 'SecurityError') return 'Bloqueado por seguridad del navegador.';
-    if (name === 'NetworkError') return 'No se pudo conectar por GATT.';
-    return (name ? name + ': ' : '') + msg;
+  function avgRecent(msWindow){
+    const cutoff = Date.now() - msWindow;
+    const arr = state.ble.samples.filter(s => s.timestampMs >= cutoff).map(s => s.bpm).filter(v => Number.isFinite(v));
+    return arr.length ? arr.reduce((a,b)=>a+b,0)/arr.length : null;
   }
 
   function computeRr(rr){
@@ -646,17 +633,23 @@ tr.final td,tr.remaining td{font-weight:1000}
     return { bpm, contactDetected, contactSupported, rrCount:rr.length, rrAverageMs:rrMeta.avg, rrAverageBpmEstimado:rrMeta.bpm, rmssd:rrMeta.rmssd, sdnn:rrMeta.sdnn };
   }
 
+  function bleErrText(err){
+    const name = err?.name || ''; const msg = err?.message || String(err || '');
+    if (!isSecureContext) return 'Web Bluetooth requiere https o localhost.';
+    if (name === 'NotFoundError') return 'No se seleccionó dispositivo.';
+    if (name === 'NotAllowedError') return 'Permiso denegado o gesto no válido.';
+    if (name === 'SecurityError') return 'Bloqueado por seguridad del navegador.';
+    if (name === 'NetworkError') return 'No se pudo conectar por GATT.';
+    return (name ? name + ': ' : '') + msg;
+  }
+
   async function connectBle(){
     try{
       if (!isSecureContext){ $('bleBanner').textContent = 'BLE no disponible aquí: abre en https o localhost.'; log('BLE bloqueado por contexto no seguro', 'err'); return; }
       if (!navigator.bluetooth){ $('bleBanner').textContent = 'Web Bluetooth no soportado.'; log('Web Bluetooth no soportado', 'err'); return; }
       $('bleBanner').textContent = 'Abriendo selector BLE…';
-      state.ble.connectionState = 'buscando';
-      refreshBle();
-      const device = await navigator.bluetooth.requestDevice({
-        filters:[{services:['heart_rate']}],
-        optionalServices:['battery_service','device_information','generic_access']
-      });
+      state.ble.connectionState = 'buscando'; refreshBle();
+      const device = await navigator.bluetooth.requestDevice({ filters:[{services:['heart_rate']}], optionalServices:['battery_service','device_information','generic_access'] });
       if (!device){ $('bleBanner').textContent = 'Sin dispositivo seleccionado.'; return; }
 
       try{ if (state.ble.hrChar && state.ble._hrListener) state.ble.hrChar.removeEventListener('characteristicvaluechanged', state.ble._hrListener); }catch{}
@@ -681,11 +674,9 @@ tr.final td,tr.remaining td{font-weight:1000}
           const elapsedMs = now - firstTs;
           const machineSec = realToMachine(elapsedMs / 1000);
           state.ble.samples.push({ timestampMs:now, elapsedMs, machineSec, bpm:parsed.bpm, rrCount:parsed.rrCount, rmssd:parsed.rmssd, sdnn:parsed.sdnn, zoneIndex:z?.index ?? null });
-          if (state.ble.samples.length > 4000) state.ble.samples.shift();
+          if (state.ble.samples.length > 5000) state.ble.samples.shift();
           refreshBle();
-        }catch(err){
-          log('Paquete BLE inválido: ' + bleErrText(err), 'warn');
-        }
+        }catch(err){ log('Paquete BLE inválido: ' + bleErrText(err), 'warn'); }
       };
       hrChar.addEventListener('characteristicvaluechanged', state.ble._hrListener);
       await hrChar.startNotifications();
@@ -714,34 +705,20 @@ tr.final td,tr.remaining td{font-weight:1000}
       const parts = [];
       parts.push('secure context: ' + (isSecureContext ? 'sí' : 'no'));
       parts.push('navigator.bluetooth: ' + (!!navigator.bluetooth ? 'sí' : 'no'));
-      if (!isSecureContext){
-        const msg = parts.join(' · ') + ' · usa https o localhost';
-        $('bleBanner').textContent = msg; log(msg, 'err'); return;
-      }
-      if (!navigator.bluetooth){
-        const msg = parts.join(' · ') + ' · navegador no compatible';
-        $('bleBanner').textContent = msg; log(msg, 'err'); return;
-      }
+      if (!isSecureContext){ const msg = parts.join(' · ') + ' · usa https o localhost'; $('bleBanner').textContent = msg; log(msg, 'err'); return; }
+      if (!navigator.bluetooth){ const msg = parts.join(' · ') + ' · navegador no compatible'; $('bleBanner').textContent = msg; log(msg, 'err'); return; }
       $('bleBanner').textContent = parts.join(' · ') + ' · abriendo selector…';
-      const device = await navigator.bluetooth.requestDevice({
-        filters:[{services:['heart_rate']}],
-        optionalServices:['battery_service','device_information','generic_access']
-      });
+      const device = await navigator.bluetooth.requestDevice({ filters:[{services:['heart_rate']}], optionalServices:['battery_service','device_information','generic_access'] });
       const msg = parts.join(' · ') + ' · selector OK · ' + (device?.name || '(sin nombre)');
       $('bleBanner').textContent = msg; log(msg, 'ok');
-    }catch(err){
-      const msg = 'Diagnóstico BLE: ' + bleErrText(err);
-      $('bleBanner').textContent = msg; log(msg, 'err');
-    }
+    }catch(err){ const msg = 'Diagnóstico BLE: ' + bleErrText(err); $('bleBanner').textContent = msg; log(msg, 'err'); }
   }
 
   async function reconnectBle(){ return connectBle(); }
   function disconnectBle(){
     try{ if (state.ble.hrChar && state.ble._hrListener) state.ble.hrChar.removeEventListener('characteristicvaluechanged', state.ble._hrListener); }catch{}
     try{ if (state.ble.device?.gatt?.connected) state.ble.device.gatt.disconnect(); }catch{}
-    state.ble.connectionState = 'desconectado';
-    $('bleBanner').textContent = 'Desconectado.';
-    refreshBle();
+    state.ble.connectionState = 'desconectado'; $('bleBanner').textContent = 'Desconectado.'; refreshBle();
   }
 
   function refreshBle(){
@@ -757,9 +734,7 @@ tr.final td,tr.remaining td{font-weight:1000}
       pill.style.background = style.bg;
       pill.style.color = style.fg;
       pill.textContent = c.zone.name;
-    } else {
-      pill.style.display = 'none';
-    }
+    } else pill.style.display = 'none';
     $('bleSignalVal').textContent = c.receivedAt ? (Date.now() - c.receivedAt > 6000 ? 'débil' : 'buena') : '--';
     $('bleContactVal').textContent = c.contactSupported ? (c.contactDetected ? 'detectado' : 'no detectado') : 'no disponible';
     $('bleBatteryVal').textContent = c.batteryLevel == null ? '--' : (c.batteryLevel + '%');
@@ -773,205 +748,6 @@ tr.final td,tr.remaining td{font-weight:1000}
     $('bleHrvVal').textContent = `${num(c.rmssd)} / ${num(c.sdnn)}`;
     $('bleLastPacketVal').textContent = c.receivedAt ? fmtMs(Date.now() - c.receivedAt) : '--';
   }
-
-  function applyContinue(){
-    const minuteRaw = $('continueMinuteInput').value.trim();
-    const kcalRaw = $('continueKcalInput').value.trim();
-    let minute = minuteRaw ? parseTime(minuteRaw) : null;
-    let kcal = kcalRaw ? parseFloat(kcalRaw.replace(',', '.')) : null;
-    if (minute == null && kcal == null){ log('Continuar: indica minuto, kcal o ambos', 'warn'); return; }
-    if (minute != null && kcal == null) kcal = kcalAtTime(minute);
-    if (minute == null && kcal != null) minute = machineTimeFromKcal(kcal);
-    minute = clamp(minute || 0, 0, state.plan.duration);
-    const refK = kcalAtTime(minute);
-    state.plan.continueMode = { active:true, refMinute:minute, refKcal:refK };
-    state.plan.baseMachineSec = minute;
-    if (state.plan.running) state.plan.t0 = performance.now();
-    $('continueBadge').classList.remove('hidden');
-    $('continueBadge').textContent = 'Continuando desde ' + fmtTime(minute) + ' · kcal visibles desde 0.0';
-    $('continueLine').textContent = 'Modo continuar activo · referencia ' + fmtTime(minute) + ' · visual kcal = 0.0';
-    refreshAll();
-    maybeRecordSessionSecond();
-  }
-
-  function clearContinue(){
-    state.plan.continueMode = { active:false, refMinute:0, refKcal:0 };
-    $('continueBadge').classList.add('hidden');
-    $('continueLine').textContent = 'Sin modo continuar activo. Puedes dar minuto, kcal o ambos.';
-    refreshAll();
-  }
-
-  function applyImport(){
-    const parsed = parseImportText($('importBox').value);
-    if (!parsed.rows.length){ log('No hay filas válidas para importar', 'err'); return; }
-    state.plan.rows = parsed.rows;
-    state.plan.waters = parsed.waters;
-    state.plan.waterTaken = new Array(parsed.waters.length).fill(false);
-    state.plan.duration = parsed.rows[parsed.rows.length - 1].t;
-    state.plan.goal = parsed.rows[parsed.rows.length - 1].kcalTotal;
-    $('planTitle').textContent = parsed.title;
-    $('rowsVal').textContent = String(parsed.rows.length);
-    $('durVal').textContent = fmtTime(state.plan.duration);
-    $('goalVal').textContent = state.plan.goal.toFixed(1);
-    state.plan.baseMachineSec = 0;
-    state.plan.running = false;
-    state.plan.wakeLastTapMachine = 0;
-    clearContinue();
-    refreshAll();
-    log('Plan cargado', 'ok');
-  }
-
-  function resetPlan(){
-    state.plan.running = false;
-    stopRunLoop();
-    state.plan.baseMachineSec = 0;
-    state.plan.waterTaken = new Array(state.plan.waters.length).fill(false);
-    state.plan.wakeLastTapMachine = 0;
-    buildFinalSummary();
-    if (typeof buildTramoSummary === 'function') buildTramoSummary();
-    if (typeof compareWithPrevious === 'function') compareWithPrevious();
-    if (typeof savePreviousSession === 'function') savePreviousSession();
-    clearLiveSession();
-    state.plan.sessionLog = [];
-    state.plan.minuteLog = [];
-    state.plan.sessionStartedAt = null;
-    state.plan.lastRecordedSecond = -1;
-    state.plan.lastRecordedMinute = -1;
-    $('startBtn').textContent = '▶ Empezar';
-    $('startBtnTop').textContent = '▶ Empezar';
-    $('statusLine').textContent = 'Lista';
-    refreshAll();
-  }
-
-
-  function stopRunLoop(){
-    try{
-      if (state.plan.timer) clearInterval(state.plan.timer);
-      state.plan.timer = null;
-      if (state.plan.rafId) cancelAnimationFrame(state.plan.rafId);
-      state.plan.rafId = null;
-    }catch{}
-  }
-
-  function runLoop(){
-    if (!state.plan.running) return;
-    tick();
-    state.plan.rafId = requestAnimationFrame(runLoop);
-  }
-
-  function toggleRun(){
-    if (!state.plan.rows.length){ log('Carga primero un plan', 'warn'); return; }
-    if (state.plan.running){
-      state.plan.baseMachineSec = machineElapsed();
-      state.plan.running = false;
-      stopRunLoop();
-      $('startBtn').textContent = '▶ Reanudar';
-      $('startBtnTop').textContent = '▶ Reanudar';
-      $('statusLine').textContent = 'Pausada';
-      refreshAll();
-      saveLiveSession();
-      log('Sesión pausada', 'warn');
-      return;
-    }
-    if (!state.plan.sessionStartedAt) state.plan.sessionStartedAt = new Date().toISOString();
-    state.plan.running = true;
-    state.plan.t0 = performance.now();
-    $('startBtn').textContent = '⏸ Pausa';
-    $('startBtnTop').textContent = '⏸ Pausa';
-    $('statusLine').textContent = 'Corriendo';
-    stopRunLoop();
-    enableInternalWakeLock().catch(()=>{});
-    state.plan.timer = window.setInterval(() => tick(), 1000);
-    state.plan.rafId = requestAnimationFrame(runLoop);
-    log('Sesión iniciada', 'ok');
-    tick();
-  }
-
-  function seek(delta){
-    state.plan.baseMachineSec = clamp(machineElapsed() + delta, 0, state.plan.duration);
-    if (state.plan.running) state.plan.t0 = performance.now();
-    refreshAll();
-  }
-
-  function tick(){
-    try{
-      const t = machineElapsed();
-      if (t >= state.plan.duration){
-        state.plan.baseMachineSec = state.plan.duration;
-        state.plan.running = false;
-        stopRunLoop();
-        $('startBtn').textContent = '▶ Empezar';
-        $('startBtnTop').textContent = '▶ Empezar';
-        $('statusLine').textContent = 'Finalizada';
-        maybeRecordSessionSecond();
-        finalizeMinuteLogs();
-        buildFinalSummary();
-        if (typeof buildTramoSummary === 'function') buildTramoSummary();
-        if (typeof compareWithPrevious === 'function') compareWithPrevious();
-        if (typeof savePreviousSession === 'function') savePreviousSession();
-        clearLiveSession();
-        try{ disableInternalWakeLock().catch(()=>{}); }catch{}
-      }
-      refreshAll();
-      maybeRecordSessionSecond();
-      if (typeof maybeRecordMinuteSummary === 'function') maybeRecordMinuteSummary();
-      saveLiveSession();
-    }catch(err){
-      stopRunLoop();
-      state.plan.running = false;
-      $('startBtn').textContent = '▶ Empezar';
-      $('startBtnTop').textContent = '▶ Empezar';
-      $('statusLine').textContent = 'Error';
-      log('Error en tick: ' + (err.message || err), 'err');
-      console.error(err);
-    }
-  }
-
-  function refreshAll(){
-    refreshTimeline();
-    refreshTop();
-    refreshWaterWake();
-    refreshNextTable();
-  }
-
-
-
-  let deferredInstallPrompt = null;
-  let wakeLockSentinel = null;
-
-  async function enableInternalWakeLock(){
-    try{
-      if (!('wakeLock' in navigator)) return false;
-      if (wakeLockSentinel) return true;
-      wakeLockSentinel = await navigator.wakeLock.request('screen');
-      wakeLockSentinel.addEventListener('release', () => {
-        wakeLockSentinel = null;
-        try{
-          if (state.plan.running) log('Wake lock liberado por el sistema', 'warn');
-        }catch{}
-      });
-      return true;
-    }catch(err){
-      log('Wake lock no disponible: ' + (err.message || err), 'warn');
-      return false;
-    }
-  }
-
-  async function disableInternalWakeLock(){
-    try{
-      if (wakeLockSentinel){
-        await wakeLockSentinel.release();
-        wakeLockSentinel = null;
-      }
-    }catch{}
-  }
-
-  document.addEventListener('visibilitychange', async () => {
-    if (document.visibilityState === 'visible' && state.plan?.running){
-      try{ await enableInternalWakeLock(); }catch{}
-    }
-  });
-
 
   async function registerPWA(){
     const banner = $('pwaBanner');
@@ -991,34 +767,26 @@ tr.final td,tr.remaining td{font-weight:1000}
 
   window.addEventListener('beforeinstallprompt', (e) => {
     e.preventDefault();
-    deferredInstallPrompt = e;
+    state.pwa.deferredInstallPrompt = e;
     const banner = $('pwaBanner');
     if (banner) banner.textContent = 'La app es instalable. Pulsa “Instalar app”.';
   });
-
   window.addEventListener('appinstalled', () => {
-    deferredInstallPrompt = null;
+    state.pwa.deferredInstallPrompt = null;
     const banner = $('pwaBanner');
     if (banner) banner.textContent = 'App instalada correctamente.';
     log('PWA instalada', 'ok');
   });
-
   async function promptInstall(){
     const banner = $('pwaBanner');
-    if (!deferredInstallPrompt){
-      if (banner) banner.textContent = 'No hay aviso de instalación. Usa Chrome Android y entra por GitHub Pages.';
-      return;
-    }
+    if (!state.pwa.deferredInstallPrompt){ if (banner) banner.textContent = 'No hay aviso de instalación. Usa Chrome Android y entra por GitHub Pages.'; return; }
     try{
-      await deferredInstallPrompt.prompt();
-      const choice = await deferredInstallPrompt.userChoice;
+      await state.pwa.deferredInstallPrompt.prompt();
+      const choice = await state.pwa.deferredInstallPrompt.userChoice;
       if (banner) banner.textContent = choice.outcome === 'accepted' ? 'Instalación aceptada.' : 'Instalación cancelada.';
-      deferredInstallPrompt = null;
-    }catch(err){
-      if (banner) banner.textContent = 'Error al instalar: ' + (err.message || err);
-    }
+      state.pwa.deferredInstallPrompt = null;
+    }catch(err){ if (banner) banner.textContent = 'Error al instalar: ' + (err.message || err); }
   }
-
   async function updateAppNow(){
     const banner = $('pwaBanner');
     try{
@@ -1028,228 +796,62 @@ tr.final td,tr.remaining td{font-weight:1000}
         if (banner) banner.textContent = 'App actualizada. Cierra y vuelve a abrir la app.';
         log('Service worker actualizado', 'ok');
       }
+    }catch(err){ if (banner) banner.textContent = 'Error al actualizar la app: ' + (err.message || err); }
+  }
+
+  async function enableInternalWakeLock(){
+    try{
+      if (!('wakeLock' in navigator)) return false;
+      if (state.pwa.wakeLockSentinel) return true;
+      state.pwa.wakeLockSentinel = await navigator.wakeLock.request('screen');
+      state.pwa.wakeLockSentinel.addEventListener('release', () => {
+        state.pwa.wakeLockSentinel = null;
+        try{ if (state.plan.running) log('Wake lock liberado por el sistema', 'warn'); }catch{}
+      });
+      return true;
     }catch(err){
-      if (banner) banner.textContent = 'Error al actualizar la app: ' + (err.message || err);
+      log('Wake lock no disponible: ' + (err.message || err), 'warn');
+      return false;
     }
   }
-
-  function maybeRecordSessionSecond(){
-    if (!state.plan.running) return;
-    const t = Math.floor(machineElapsed());
-    if (t === state.plan.lastRecordedSecond) return;
-    state.plan.lastRecordedSecond = t;
-    const ps = getPlanState();
-    const bpm = state.ble.current.bpm;
-    const zone = state.ble.current.zone;
-    state.plan.sessionLog.push({
-      second: t,
-      shownSecond: Math.floor(shownMachineElapsed()),
-      clock: fmtTime(shownMachineElapsed()),
-      machineClock: fmtTime(t),
-      kcalPlan: Number(shownKcalAtTime(t).toFixed(1)),
-      level: ps.level,
-      seg: ps.seg,
-      bpm: bpm == null ? null : Math.round(bpm),
-      zone: zone ? zone.name : null,
-      waterDue: state.plan.waters.some((w,i) => !state.plan.waterTaken[i] && w <= t + 1e-9),
-      timestampIso: new Date().toISOString()
-    });
-  }
-
-  function buildMinuteRow(minuteIndex){
-    const rows = state.plan.sessionLog || [];
-    const start = minuteIndex * 60;
-    const end = start + 59;
-    const slice = rows.filter(r => r.second >= start && r.second <= end);
-    if (!slice.length) return null;
-
-    const bpmVals = slice.map(r => r.bpm).filter(v => Number.isFinite(v));
-    const bpmAvg = bpmVals.length ? bpmVals.reduce((a,b)=>a+b,0)/bpmVals.length : null;
-    const bpmMax = bpmVals.length ? Math.max(...bpmVals) : null;
-    const bpmMin = bpmVals.length ? Math.min(...bpmVals) : null;
-
-    const levelCounts = {};
-    const segCounts = {};
-    const zoneCounts = {};
-    slice.forEach(r => {
-      levelCounts[r.level] = (levelCounts[r.level] || 0) + 1;
-      segCounts[r.seg] = (segCounts[r.seg] || 0) + 1;
-      const z = r.zone || 'Sin zona';
-      zoneCounts[z] = (zoneCounts[z] || 0) + 1;
-    });
-    const levelDom = Object.entries(levelCounts).sort((a,b)=>b[1]-a[1])[0]?.[0] || '';
-    const segDom = Object.entries(segCounts).sort((a,b)=>b[1]-a[1])[0]?.[0] || '';
-    const zoneDom = Object.entries(zoneCounts).sort((a,b)=>b[1]-a[1])[0]?.[0] || '';
-
-    const zSecs = {};
-    ['Z0 · Muy suave / Calentamiento','Z1 · Recuperación','Z2 · Suave / Base baja','Z3 · Media / Base útil','Z4 · Intensa / Umbral','Z5 · Máxima / Toque corto','Sin zona'].forEach(z => zSecs[z] = 0);
-    slice.forEach(r => { zSecs[r.zone || 'Sin zona'] += 1; });
-
-    const kcalStart = Number(slice[0].kcalPlan || 0);
-    const kcalEnd = Number(slice[slice.length-1].kcalPlan || 0);
-    const kcalMinute = Math.max(0, kcalEnd - kcalStart);
-    const markers = (state.plan.markers || []).filter(m => Math.floor((m.second||0)/60) === minuteIndex).map(m => m.type).join('|');
-    const water = slice.some(r => r.waterDue) ? 'sí' : 'no';
-
-    return {
-      minute: minuteIndex + 1,
-      clock: slice[slice.length-1].clock,
-      machineClock: slice[slice.length-1].machineClock,
-      seg: segDom,
-      level: levelDom,
-      kcalStart: Number(kcalStart.toFixed(1)),
-      kcalEnd: Number(kcalEnd.toFixed(1)),
-      kcalMinute: Number(kcalMinute.toFixed(1)),
-      kcalPerMin: Number(kcalMinute.toFixed(2)),
-      bpmAvg: bpmAvg == null ? null : Number(bpmAvg.toFixed(1)),
-      bpmMax: bpmMax == null ? null : bpmMax,
-      bpmMin: bpmMin == null ? null : bpmMin,
-      zoneDominant: zoneDom,
-      z0: zSecs['Z0 · Muy suave / Calentamiento'],
-      z1: zSecs['Z1 · Recuperación'],
-      z2: zSecs['Z2 · Suave / Base baja'],
-      z3: zSecs['Z3 · Media / Base útil'],
-      z4: zSecs['Z4 · Intensa / Umbral'],
-      z5: zSecs['Z5 · Máxima / Toque corto'],
-      water,
-      markers
-    };
-  }
-
-  function maybeRecordMinuteSummary(){
-    if (!state.plan.running) return;
-    const minuteIndex = Math.floor(machineElapsed() / 60);
-    if (minuteIndex === state.plan.lastRecordedMinute || minuteIndex <= 0) return;
-    const completedMinuteIndex = minuteIndex - 1;
-    if (completedMinuteIndex < 0) return;
-    const row = buildMinuteRow(completedMinuteIndex);
-    if (!row) return;
-    state.plan.minuteLog.push(row);
-    state.plan.lastRecordedMinute = minuteIndex;
-  }
-
-  function finalizeMinuteLogs(){
-    const currentMinute = Math.floor(machineElapsed() / 60);
-    const lastBuilt = state.plan.minuteLog.length ? state.plan.minuteLog[state.plan.minuteLog.length - 1].minute - 1 : -1;
-    for (let i = lastBuilt + 1; i <= currentMinute; i++){
-      const row = buildMinuteRow(i);
-      if (row && !state.plan.minuteLog.some(r => r.minute === row.minute)){
-        state.plan.minuteLog.push(row);
+  async function disableInternalWakeLock(){
+    try{
+      if (state.pwa.wakeLockSentinel){
+        await state.pwa.wakeLockSentinel.release();
+        state.pwa.wakeLockSentinel = null;
       }
-    }
+    }catch{}
   }
-
-  function exportMinuteLog(){
-    const rows = state.plan.minuteLog || [];
-    if (!rows.length){
-      log('No hay datos minuto a minuto todavía', 'warn');
-      return;
+  document.addEventListener('visibilitychange', async () => {
+    if (document.visibilityState === 'visible' && state.plan.running){
+      try{ await enableInternalWakeLock(); }catch{}
     }
-    const header = ['minute','clock','machineClock','seg','level','kcalStart','kcalEnd','kcalMinute','kcalPerMin','bpmAvg','bpmMax','bpmMin','zoneDominant','z0','z1','z2','z3','z4','z5','water','markers'];
-    const csvLines = [header.join(',')];
-    for (const r of rows){
-      const line = header.map(k => {
-        const v = r[k];
-        if (v == null) return '';
-        const s = String(v).replaceAll('"','""');
-        return /[",\n]/.test(s) ? '"' + s + '"' : s;
-      }).join(',');
-      csvLines.push(line);
-    }
-    const csv = csvLines.join('\n');
-    const blob = new Blob([csv], {type:'text/csv;charset=utf-8'});
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'sesion_eliptica_minuto_a_minuto.csv';
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 1500);
-    log('Exportado minuto a minuto', 'ok');
-  }
-
-
-  function exportSessionLog(){
-    const rows = state.plan.sessionLog || [];
-    if (!rows.length){
-      log('No hay sesión grabada todavía', 'warn');
-      return;
-    }
-    const header = ['second','shownSecond','clock','machineClock','kcalPlan','level','seg','bpm','zone','waterDue','timestampIso'];
-    const csvLines = [header.join(',')];
-    for (const r of rows){
-      const line = header.map(k => {
-        const v = r[k];
-        if (v == null) return '';
-        const s = String(v).replaceAll('"','""');
-        return /[",\n]/.test(s) ? '"' + s + '"' : s;
-      }).join(',');
-      csvLines.push(line);
-    }
-    const csv = csvLines.join('\n');
-    const blob = new Blob([csv], {type:'text/csv;charset=utf-8'});
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'sesion_eliptica_segundo_a_segundo.csv';
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 1500);
-    log('Sesión exportada', 'ok');
-  }
-
-
-
-  const STORAGE_KEYS = {
-    live:'eliptica_live_session_v1',
-    plan:'eliptica_last_plan_v1',
-    summary:'eliptica_last_summary_v1'
-  };
+  });
 
   function saveLiveSession(){
     try{
       const payload = {
         plan: {
-          rows: state.plan.rows,
-          waters: state.plan.waters,
-          waterTaken: state.plan.waterTaken,
-          duration: state.plan.duration,
-          goal: state.plan.goal,
-          baseMachineSec: state.plan.baseMachineSec,
-          continueMode: state.plan.continueMode,
-          wakeLastTapMachine: state.plan.wakeLastTapMachine,
-          sessionLog: state.plan.sessionLog,
-          minuteLog: state.plan.minuteLog,
-          sessionStartedAt: state.plan.sessionStartedAt,
-          lastRecordedSecond: state.plan.lastRecordedSecond,
-          lastRecordedMinute: state.plan.lastRecordedMinute,
-          markers: state.plan.markers,
-          title: $('planTitle')?.textContent || 'Plan cargado',
-          importText: $('importBox')?.value || ''
+          rows: state.plan.rows, waters: state.plan.waters, waterTaken: state.plan.waterTaken,
+          duration: state.plan.duration, goal: state.plan.goal, baseMachineSec: state.plan.baseMachineSec,
+          continueMode: state.plan.continueMode, wakeLastTapMachine: state.plan.wakeLastTapMachine,
+          sessionLog: state.plan.sessionLog, minuteLog: state.plan.minuteLog,
+          sessionStartedAt: state.plan.sessionStartedAt, lastRecordedSecond: state.plan.lastRecordedSecond,
+          lastRecordedMinute: state.plan.lastRecordedMinute, markers: state.plan.markers,
+          title: $('planTitle')?.textContent || 'Plan cargado', importText: $('importBox')?.value || ''
         },
-        ble: {
-          samples: state.ble.samples,
-          current: state.ble.current
-        },
+        ble: { samples: state.ble.samples, current: state.ble.current },
         savedAt: new Date().toISOString()
       };
       localStorage.setItem(STORAGE_KEYS.live, JSON.stringify(payload));
       localStorage.setItem(STORAGE_KEYS.plan, $('importBox')?.value || '');
       updateSavedSessionInfo();
-    }catch(err){
-      log('No se pudo guardar sesión local', 'warn');
-    }
+    }catch(err){ log('No se pudo guardar sesión local', 'warn'); }
   }
-
   function loadLiveSession(){
     try{
-      const raw = localStorage.getItem(STORAGE_KEYS.live);
-      if (!raw) return false;
-      const payload = JSON.parse(raw);
-      if (!payload?.plan) return false;
-
+      const raw = localStorage.getItem(STORAGE_KEYS.live); if (!raw) return false;
+      const payload = JSON.parse(raw); if (!payload?.plan) return false;
       state.plan.rows = payload.plan.rows || [];
       state.plan.waters = payload.plan.waters || [];
       state.plan.waterTaken = payload.plan.waterTaken || new Array(state.plan.waters.length).fill(false);
@@ -1270,30 +872,17 @@ tr.final td,tr.remaining td{font-weight:1000}
       if ($('rowsVal')) $('rowsVal').textContent = String(state.plan.rows.length);
       if ($('durVal')) $('durVal').textContent = fmtTime(state.plan.duration || 0);
       if ($('goalVal')) $('goalVal').textContent = Number(state.plan.goal || 0).toFixed(1);
-
       state.ble.samples = payload.ble?.samples || [];
       state.ble.current = { ...state.ble.current, ...(payload.ble?.current || {}) };
-
-      refreshAll();
-      refreshBle();
-      updateSavedSessionInfo();
-      log('Sesión recuperada desde almacenamiento local', 'ok');
+      refreshAll(); refreshBle(); updateSavedSessionInfo(); updateExtraSavedInfo();
+      log('Sesión recuperada', 'ok');
       return true;
-    }catch(err){
-      log('Error al recuperar sesión guardada', 'err');
-      return false;
-    }
+    }catch(err){ log('Error al recuperar sesión guardada', 'err'); return false; }
   }
-
-  function clearLiveSession(){
-    try{ localStorage.removeItem(STORAGE_KEYS.live); }catch{}
-    updateSavedSessionInfo();
-  }
-
+  function clearLiveSession(){ try{ localStorage.removeItem(STORAGE_KEYS.live); }catch{} updateSavedSessionInfo(); }
   function updateSavedSessionInfo(){
     try{
-      const raw = localStorage.getItem(STORAGE_KEYS.live);
-      const saved = raw ? JSON.parse(raw) : null;
+      const raw = localStorage.getItem(STORAGE_KEYS.live); const saved = raw ? JSON.parse(raw) : null;
       if ($('savedSessionVal')) $('savedSessionVal').textContent = saved?.savedAt ? new Date(saved.savedAt).toLocaleTimeString() : '0';
       const summary = localStorage.getItem(STORAGE_KEYS.summary);
       if ($('lastSummaryVal')) $('lastSummaryVal').textContent = summary ? 'sí' : '--';
@@ -1301,21 +890,119 @@ tr.final td,tr.remaining td{font-weight:1000}
     }catch{}
   }
 
+  function maybeRecordSessionSecond(){
+    if (!state.plan.running) return;
+    const t = Math.floor(machineElapsed());
+    if (t === state.plan.lastRecordedSecond) return;
+    state.plan.lastRecordedSecond = t;
+    const ps = getPlanState();
+    const bpm = state.ble.current.bpm;
+    const zone = state.ble.current.zone;
+    state.plan.sessionLog.push({
+      second: t, shownSecond: Math.floor(shownMachineElapsed()),
+      clock: fmtTime(shownMachineElapsed()), machineClock: fmtTime(t),
+      kcalPlan: Number(shownKcalAtTime(t).toFixed(1)),
+      level: ps.level, seg: ps.seg, bpm: bpm == null ? null : Math.round(bpm),
+      zone: zone ? zone.name : null,
+      waterDue: state.plan.waters.some((w,i) => !state.plan.waterTaken[i] && w <= t + 1e-9),
+      timestampIso: new Date().toISOString()
+    });
+  }
+
+  function buildMinuteRow(minuteIndex){
+    const rows = state.plan.sessionLog || [];
+    const start = minuteIndex * 60, end = start + 59;
+    const slice = rows.filter(r => r.second >= start && r.second <= end);
+    if (!slice.length) return null;
+
+    const bpmVals = slice.map(r => r.bpm).filter(v => Number.isFinite(v));
+    const bpmAvg = bpmVals.length ? bpmVals.reduce((a,b)=>a+b,0)/bpmVals.length : null;
+    const bpmMax = bpmVals.length ? Math.max(...bpmVals) : null;
+    const bpmMin = bpmVals.length ? Math.min(...bpmVals) : null;
+    const levelCounts = {}, segCounts = {}, zoneCounts = {};
+    slice.forEach(r => {
+      levelCounts[r.level] = (levelCounts[r.level] || 0) + 1;
+      segCounts[r.seg] = (segCounts[r.seg] || 0) + 1;
+      const z = r.zone || 'Sin zona';
+      zoneCounts[z] = (zoneCounts[z] || 0) + 1;
+    });
+    const levelDom = Object.entries(levelCounts).sort((a,b)=>b[1]-a[1])[0]?.[0] || '';
+    const segDom = Object.entries(segCounts).sort((a,b)=>b[1]-a[1])[0]?.[0] || '';
+    const zoneDom = Object.entries(zoneCounts).sort((a,b)=>b[1]-a[1])[0]?.[0] || '';
+
+    const zSecs = {'Z0 · Muy suave / Calentamiento':0,'Z1 · Recuperación':0,'Z2 · Suave / Base baja':0,'Z3 · Media / Base útil':0,'Z4 · Intensa / Umbral':0,'Z5 · Máxima / Toque corto':0,'Sin zona':0};
+    slice.forEach(r => { zSecs[r.zone || 'Sin zona'] += 1; });
+
+    const kcalStart = Number(slice[0].kcalPlan || 0), kcalEnd = Number(slice[slice.length-1].kcalPlan || 0);
+    const kcalMinute = Math.max(0, kcalEnd - kcalStart);
+    const markers = (state.plan.markers || []).filter(m => Math.floor((m.second||0)/60) === minuteIndex).map(m => m.type).join('|');
+    const water = slice.some(r => r.waterDue) ? 'sí' : 'no';
+
+    return { minute: minuteIndex + 1, clock: slice[slice.length-1].clock, machineClock: slice[slice.length-1].machineClock, seg: segDom, level: levelDom,
+      kcalStart: Number(kcalStart.toFixed(1)), kcalEnd: Number(kcalEnd.toFixed(1)), kcalMinute: Number(kcalMinute.toFixed(1)), kcalPerMin: Number(kcalMinute.toFixed(2)),
+      bpmAvg: bpmAvg == null ? null : Number(bpmAvg.toFixed(1)), bpmMax, bpmMin, zoneDominant: zoneDom,
+      z0:zSecs['Z0 · Muy suave / Calentamiento'], z1:zSecs['Z1 · Recuperación'], z2:zSecs['Z2 · Suave / Base baja'], z3:zSecs['Z3 · Media / Base útil'], z4:zSecs['Z4 · Intensa / Umbral'], z5:zSecs['Z5 · Máxima / Toque corto'],
+      water, markers
+    };
+  }
+
+  function maybeRecordMinuteSummary(){
+    if (!state.plan.running) return;
+    const minuteIndex = Math.floor(machineElapsed() / 60);
+    if (minuteIndex === state.plan.lastRecordedMinute || minuteIndex <= 0) return;
+    const completedMinuteIndex = minuteIndex - 1; if (completedMinuteIndex < 0) return;
+    const row = buildMinuteRow(completedMinuteIndex); if (!row) return;
+    state.plan.minuteLog.push(row); state.plan.lastRecordedMinute = minuteIndex;
+  }
+  function finalizeMinuteLogs(){
+    const currentMinute = Math.floor(machineElapsed() / 60);
+    const lastBuilt = state.plan.minuteLog.length ? state.plan.minuteLog[state.plan.minuteLog.length - 1].minute - 1 : -1;
+    for (let i = lastBuilt + 1; i <= currentMinute; i++){
+      const row = buildMinuteRow(i);
+      if (row && !state.plan.minuteLog.some(r => r.minute === row.minute)) state.plan.minuteLog.push(row);
+    }
+  }
+
+  function exportSessionLog(){
+    const rows = state.plan.sessionLog || []; if (!rows.length){ log('No hay sesión grabada todavía', 'warn'); return; }
+    const header = ['second','shownSecond','clock','machineClock','kcalPlan','level','seg','bpm','zone','waterDue','timestampIso'];
+    const lines = [header.join(',')];
+    for (const r of rows){
+      const line = header.map(k => { const v = r[k]; if (v == null) return ''; const s = String(v).replaceAll('"','""'); return /[",\n]/.test(s) ? `"${s}"` : s; }).join(',');
+      lines.push(line);
+    }
+    const csv = lines.join('\n'); downloadBlob(csv, 'sesion_eliptica_segundo_a_segundo.csv', 'text/csv;charset=utf-8'); log('Sesión exportada', 'ok');
+  }
+  function exportMinuteLog(){
+    const rows = state.plan.minuteLog || []; if (!rows.length){ log('No hay datos minuto a minuto todavía', 'warn'); return; }
+    const header = ['minute','clock','machineClock','seg','level','kcalStart','kcalEnd','kcalMinute','kcalPerMin','bpmAvg','bpmMax','bpmMin','zoneDominant','z0','z1','z2','z3','z4','z5','water','markers'];
+    const lines = [header.join(',')];
+    for (const r of rows){
+      const line = header.map(k => { const v = r[k]; if (v == null) return ''; const s = String(v).replaceAll('"','""'); return /[",\n]/.test(s) ? `"${s}"` : s; }).join(',');
+      lines.push(line);
+    }
+    const csv = lines.join('\n'); downloadBlob(csv, 'sesion_eliptica_minuto_a_minuto.csv', 'text/csv;charset=utf-8'); log('Exportado minuto a minuto', 'ok');
+  }
+  function exportSessionJson(){
+    const payload = { meta:{ startedAt: state.plan.sessionStartedAt, durationVisible: fmtTime(shownMachineElapsed()), durationMachine: fmtTime(machineElapsed()), goalKcal: state.plan.goal }, plan:{ rows: state.plan.rows, waters: state.plan.waters }, sessionLog: state.plan.sessionLog, minuteLog: state.plan.minuteLog, markers: state.plan.markers };
+    downloadBlob(JSON.stringify(payload, null, 2), 'sesion_eliptica.json', 'application/json;charset=utf-8'); log('Sesión JSON exportada', 'ok');
+  }
+  function downloadBlob(content, filename, mime){
+    const blob = new Blob([content], {type:mime});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href=url; a.download=filename; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url), 1500);
+  }
+
   function buildFinalSummary(){
     const rows = state.plan.sessionLog || [];
-    if (!rows.length){
-      const txt = 'No hay sesión grabada.';
-      if ($('finalSummaryBox')) $('finalSummaryBox').value = txt;
-      return txt;
-    }
+    if (!rows.length){ const txt='No hay sesión grabada.'; $('finalSummaryBox').value = txt; return txt; }
     const kcalMax = Math.max(...rows.map(r => Number(r.kcalPlan || 0)));
     const bpmVals = rows.map(r => r.bpm).filter(v => Number.isFinite(v));
     const bpmAvg = bpmVals.length ? bpmVals.reduce((a,b)=>a+b,0)/bpmVals.length : null;
     const bpmMax = bpmVals.length ? Math.max(...bpmVals) : null;
-    const zoneCounts = {};
-    rows.forEach(r => { const z = r.zone || 'Sin zona'; zoneCounts[z] = (zoneCounts[z] || 0) + 1; });
+    const zoneCounts = {}; rows.forEach(r => { const z=r.zone || 'Sin zona'; zoneCounts[z] = (zoneCounts[z] || 0) + 1; });
     const zoneLines = Object.entries(zoneCounts).sort((a,b)=>b[1]-a[1]).map(([z,s]) => `- ${z}: ${fmtTime(s)}`).join('\n');
-
     const byLevel = {};
     rows.forEach(r => {
       if (!r.level) return;
@@ -1326,52 +1013,17 @@ tr.final td,tr.remaining td{font-weight:1000}
       if (Number.isFinite(r.bpm)) byLevel[r.level].bpm.push(r.bpm);
     });
     const effLines = Object.keys(byLevel).sort((a,b)=>Number(a)-Number(b)).map(level => {
-      const d = byLevel[level];
-      const kcal = Math.max(0, d.kcalEnd - (d.kcalStart || 0));
-      const mins = Math.max(1e-9, d.secs / 60);
-      const bpm = d.bpm.length ? d.bpm.reduce((a,b)=>a+b,0)/d.bpm.length : null;
-      const eff = bpm ? (kcal / mins) / bpm : null;
+      const d = byLevel[level], kcal = Math.max(0, d.kcalEnd - (d.kcalStart || 0)), mins = Math.max(1e-9, d.secs / 60);
+      const bpm = d.bpm.length ? d.bpm.reduce((a,b)=>a+b,0)/d.bpm.length : null, eff = bpm ? (kcal / mins) / bpm : null;
       return `- nivel ${level}: ${num(kcal,1)} kcal | ${num(kcal/mins,2)} kcal/min | bpm medio ${num(bpm,1)} | relación pulso/rendimiento ${num(eff,4)}`;
     }).join('\n');
-
-    const summary = [
-      'RESUMEN FINAL DE SESIÓN',
-      '',
-      'Inicio: ' + (state.plan.sessionStartedAt || '--'),
-      'Duración visible final: ' + fmtTime(shownMachineElapsed()),
-      'Duración máquina final: ' + fmtTime(machineElapsed()),
-      'Kcal finales: ' + num(kcalMax,1),
-      'FC media: ' + (bpmAvg == null ? '--' : `${num(bpmAvg,1)} bpm`),
-      'FC máxima: ' + (bpmMax == null ? '--' : `${num(bpmMax,0)} bpm`),
-      '',
-      'Tiempo por zonas:',
-      zoneLines || '- sin datos',
-      '',
-      'Eficiencia por nivel:',
-      effLines || '- sin datos',
-      '',
-      'Filas registradas segundo a segundo: ' + rows.length,
-      'Minutos resumidos: ' + ((state.plan.minuteLog || []).length)
-    ].join('\n');
-
-    if ($('finalSummaryBox')) $('finalSummaryBox').value = summary;
-    try{ localStorage.setItem(STORAGE_KEYS.summary, summary); }catch{}
-    updateSavedSessionInfo();
-    return summary;
+    const summary = ['RESUMEN FINAL DE SESIÓN','', 'Inicio: ' + (state.plan.sessionStartedAt || '--'),'Duración visible final: ' + fmtTime(shownMachineElapsed()),'Duración máquina final: ' + fmtTime(machineElapsed()),'Kcal finales: ' + num(kcalMax,1),'FC media: ' + (bpmAvg == null ? '--' : `${num(bpmAvg,1)} bpm`),'FC máxima: ' + (bpmMax == null ? '--' : `${num(bpmMax,0)} bpm`),'','Tiempo por zonas:', zoneLines || '- sin datos','','Eficiencia por nivel:', effLines || '- sin datos','','Filas registradas segundo a segundo: ' + rows.length,'Minutos resumidos: ' + ((state.plan.minuteLog || []).length)].join('\n');
+    $('finalSummaryBox').value = summary; try{ localStorage.setItem(STORAGE_KEYS.summary, summary); }catch{} updateSavedSessionInfo(); return summary;
   }
-
-  const STORAGE_KEYS_EXTRA = {
-    tramo:'eliptica_last_tramo_summary_v1',
-    compare:'eliptica_last_compare_v1',
-    previous:'eliptica_previous_session_v1'
-  };
 
   function buildTramoSummary(){
     const rows = state.plan.sessionLog || [];
-    if (!rows.length){
-      if ($('tramoSummaryBox')) $('tramoSummaryBox').value = 'No hay datos por tramo.';
-      return 'No hay datos por tramo.';
-    }
+    if (!rows.length){ $('tramoSummaryBox').value = 'No hay datos por tramo.'; return 'No hay datos por tramo.'; }
     const bySeg = {};
     rows.forEach(r => {
       const key = r.seg || 'Sin tramo';
@@ -1380,189 +1032,161 @@ tr.final td,tr.remaining td{font-weight:1000}
       if (bySeg[key].kcalStart == null) bySeg[key].kcalStart = Number(r.kcalPlan || 0);
       bySeg[key].kcalEnd = Number(r.kcalPlan || 0);
       if (Number.isFinite(r.bpm)) bySeg[key].bpm.push(r.bpm);
-      const z = r.zone || 'Sin zona';
-      bySeg[key].zones[z] = (bySeg[key].zones[z] || 0) + 1;
+      const z = r.zone || 'Sin zona'; bySeg[key].zones[z] = (bySeg[key].zones[z] || 0) + 1;
     });
     const lines = ['RESUMEN POR TRAMO',''];
     Object.keys(bySeg).sort().forEach(seg => {
-      const d = bySeg[seg];
-      const kcal = Math.max(0, d.kcalEnd - (d.kcalStart || 0));
-      const mins = Math.max(1e-9, d.secs / 60);
-      const bpmAvg = d.bpm.length ? d.bpm.reduce((a,b)=>a+b,0)/d.bpm.length : null;
-      const domZone = Object.entries(d.zones).sort((a,b)=>b[1]-a[1])[0]?.[0] || '--';
-      lines.push(`Tramo ${seg} · nivel ${d.level}`);
-      lines.push(`- duración: ${fmtTime(d.secs)}`);
-      lines.push(`- kcal: ${num(kcal,1)}`);
-      lines.push(`- kcal/min: ${num(kcal/mins,2)}`);
-      lines.push(`- bpm medio: ${num(bpmAvg,1)}`);
-      lines.push(`- zona dominante: ${domZone}`);
-      lines.push('');
+      const d = bySeg[seg], kcal = Math.max(0, d.kcalEnd - (d.kcalStart || 0)), mins = Math.max(1e-9, d.secs / 60);
+      const bpmAvg = d.bpm.length ? d.bpm.reduce((a,b)=>a+b,0)/d.bpm.length : null, domZone = Object.entries(d.zones).sort((a,b)=>b[1]-a[1])[0]?.[0] || '--';
+      lines.push(`Tramo ${seg} · nivel ${d.level}`); lines.push(`- duración: ${fmtTime(d.secs)}`); lines.push(`- kcal: ${num(kcal,1)}`); lines.push(`- kcal/min: ${num(kcal/mins,2)}`); lines.push(`- bpm medio: ${num(bpmAvg,1)}`); lines.push(`- zona dominante: ${domZone}`); lines.push('');
     });
-    const out = lines.join('\n');
-    if ($('tramoSummaryBox')) $('tramoSummaryBox').value = out;
-    try{ localStorage.setItem(STORAGE_KEYS_EXTRA.tramo, out); }catch{}
-    return out;
-  }
-
-  function exportSessionJson(){
-    const payload = {
-      meta: {
-        startedAt: state.plan.sessionStartedAt,
-        durationVisible: fmtTime(shownMachineElapsed()),
-        durationMachine: fmtTime(machineElapsed()),
-        goalKcal: state.plan.goal
-      },
-      plan: { rows: state.plan.rows, waters: state.plan.waters },
-      sessionLog: state.plan.sessionLog,
-      markers: state.plan.markers
-    };
-    const blob = new Blob([JSON.stringify(payload, null, 2)], {type:'application/json;charset=utf-8'});
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'sesion_eliptica.json';
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 1500);
-    log('Sesión JSON exportada', 'ok');
+    const out = lines.join('\n'); $('tramoSummaryBox').value = out; try{ localStorage.setItem(STORAGE_KEYS.tramo, out); }catch{} return out;
   }
 
   function addMarker(type){
     const ps = getPlanState();
-    state.plan.markers.push({
-      type,
-      second: Math.floor(machineElapsed()),
-      shownSecond: Math.floor(shownMachineElapsed()),
-      clock: fmtTime(shownMachineElapsed()),
-      machineClock: fmtTime(machineElapsed()),
-      kcalPlan: Number(shownKcalAtTime(machineElapsed()).toFixed(1)),
-      bpm: state.ble.current.bpm == null ? null : Math.round(state.ble.current.bpm),
-      seg: ps.seg,
-      level: ps.level,
-      timestampIso: new Date().toISOString()
-    });
-    saveLiveSession();
-    log('Marcador: ' + type, 'ok');
+    state.plan.markers.push({ type, second: Math.floor(machineElapsed()), shownSecond: Math.floor(shownMachineElapsed()), clock: fmtTime(shownMachineElapsed()), machineClock: fmtTime(machineElapsed()), kcalPlan: Number(shownKcalAtTime(machineElapsed()).toFixed(1)), bpm: state.ble.current.bpm == null ? null : Math.round(state.ble.current.bpm), seg: ps.seg, level: ps.level, timestampIso: new Date().toISOString() });
+    saveLiveSession(); log('Marcador: ' + type, 'ok');
   }
-
-  function savePreviousSession(){
+  function savePreviousSession(){ try{ localStorage.setItem(STORAGE_KEYS.previous, JSON.stringify({ savedAt:new Date().toISOString(), sessionLog: state.plan.sessionLog, minuteLog: state.plan.minuteLog, markers: state.plan.markers })); }catch{} }
+  function compareWithPrevious(){
     try{
-      localStorage.setItem(STORAGE_KEYS_EXTRA.previous, JSON.stringify({
-        savedAt: new Date().toISOString(),
-        sessionLog: state.plan.sessionLog,
-        markers: state.plan.markers
-      }));
+      const prevRaw = localStorage.getItem(STORAGE_KEYS.previous);
+      if (!prevRaw){ $('lastCompareVal').textContent = 'sin previa'; return 'Sin sesión previa'; }
+      const prev = JSON.parse(prevRaw), currRows = state.plan.sessionLog || [], prevRows = prev.sessionLog || [];
+      const currK = currRows.length ? Math.max(...currRows.map(r => Number(r.kcalPlan || 0))) : 0;
+      const prevK = prevRows.length ? Math.max(...prevRows.map(r => Number(r.kcalPlan || 0))) : 0;
+      const currB = currRows.map(r => r.bpm).filter(v => Number.isFinite(v)), prevB = prevRows.map(r => r.bpm).filter(v => Number.isFinite(v));
+      const currAvg = currB.length ? currB.reduce((a,b)=>a+b,0)/currB.length : null, prevAvg = prevB.length ? prevB.reduce((a,b)=>a+b,0)/prevB.length : null;
+      const txt = `Comparación con última · kcal ${num(currK,1)} vs ${num(prevK,1)} · FC media ${num(currAvg,1)} vs ${num(prevAvg,1)}`;
+      $('lastCompareVal').textContent = 'sí'; try{ localStorage.setItem(STORAGE_KEYS.compare, txt); }catch{} return txt;
+    }catch{ return 'Error en comparación'; }
+  }
+  function updateExtraSavedInfo(){
+    try{
+      const cmp = localStorage.getItem(STORAGE_KEYS.compare); $('lastCompareVal').textContent = cmp ? 'sí' : '--';
+      const tramo = localStorage.getItem(STORAGE_KEYS.tramo); if (tramo) $('tramoSummaryBox').value = tramo;
     }catch{}
   }
 
-  function compareWithPrevious(){
+  function savePlanMetaUI(title){
+    $('planTitle').textContent = title;
+    $('rowsVal').textContent = String(state.plan.rows.length);
+    $('durVal').textContent = fmtTime(state.plan.duration);
+    $('goalVal').textContent = state.plan.goal.toFixed(1);
+  }
+
+  function applyImport(){
+    const parsed = parseImportText($('importBox').value);
+    if (!parsed.rows.length){ log('No hay filas válidas para importar', 'err'); return; }
+    state.plan.rows = parsed.rows; state.plan.waters = parsed.waters; state.plan.waterTaken = new Array(parsed.waters.length).fill(false);
+    state.plan.duration = parsed.rows[parsed.rows.length - 1].t; state.plan.goal = parsed.rows[parsed.rows.length - 1].kcalTotal;
+    state.plan.baseMachineSec = 0; state.plan.running = false; state.plan.wakeLastTapMachine = 0;
+    state.plan.sessionLog = []; state.plan.minuteLog = []; state.plan.sessionStartedAt = null; state.plan.lastRecordedSecond = -1; state.plan.lastRecordedMinute = -1; state.plan.markers = [];
+    savePlanMetaUI(parsed.title);
+    clearContinue();
+    refreshAll(); saveLiveSession(); log('Plan cargado', 'ok');
+  }
+
+  function applyContinue(){
+    const minuteRaw = $('continueMinuteInput').value.trim(), kcalRaw = $('continueKcalInput').value.trim();
+    let minute = minuteRaw ? parseTime(minuteRaw) : null, kcal = kcalRaw ? parseFloat(kcalRaw.replace(',', '.')) : null;
+    if (minute == null && kcal == null){ log('Continuar: indica minuto, kcal o ambos', 'warn'); return; }
+    if (minute != null && kcal == null) kcal = kcalAtTime(minute);
+    if (minute == null && kcal != null) minute = machineTimeFromKcal(kcal);
+    minute = clamp(minute || 0, 0, state.plan.duration);
+    const refK = kcalAtTime(minute);
+    state.plan.continueMode = { active:true, refMinute:minute, refKcal:refK };
+    state.plan.baseMachineSec = minute; if (state.plan.running) state.plan.t0 = performance.now();
+    $('continueBadge').classList.remove('hidden'); $('continueBadge').textContent = 'Continuando desde ' + fmtTime(minute) + ' · kcal visibles desde 0.0';
+    $('continueLine').textContent = 'Modo continuar activo · referencia ' + fmtTime(minute) + ' · visual kcal = 0.0';
+    refreshAll(); saveLiveSession();
+  }
+  function clearContinue(){
+    state.plan.continueMode = { active:false, refMinute:0, refKcal:0 };
+    $('continueBadge').classList.add('hidden');
+    $('continueLine').textContent = 'Sin modo continuar activo. Puedes dar minuto, kcal o ambos.';
+    refreshAll();
+  }
+
+  function refreshAll(){ refreshTimeline(); refreshTop(); refreshWater(); refreshNextTable(); }
+
+  function stopRunLoop(){
     try{
-      const prevRaw = localStorage.getItem(STORAGE_KEYS_EXTRA.previous);
-      if (!prevRaw){
-        if ($('lastCompareVal')) $('lastCompareVal').textContent = 'sin previa';
-        if ($('tramoSummaryBox')) $('tramoSummaryBox').value += '\n\nCOMPARACIÓN\n- sin sesión previa guardada';
-        return 'Sin sesión previa';
+      if (state.plan.timer) clearInterval(state.plan.timer); state.plan.timer = null;
+      if (state.plan.rafId) cancelAnimationFrame(state.plan.rafId); state.plan.rafId = null;
+    }catch{}
+  }
+  function runLoop(){ if (!state.plan.running) return; tick(); state.plan.rafId = requestAnimationFrame(runLoop); }
+
+  function toggleRun(){
+    if (!state.plan.rows.length){ log('Carga primero un plan', 'warn'); return; }
+    if (state.plan.running){
+      state.plan.baseMachineSec = machineElapsed(); state.plan.running = false; stopRunLoop();
+      $('startBtn').textContent = '▶ Reanudar'; $('startBtnTop').textContent = '▶ Reanudar'; $('statusLine').textContent = 'Pausada';
+      refreshAll(); saveLiveSession(); log('Sesión pausada', 'warn'); return;
+    }
+    if (!state.plan.sessionStartedAt) state.plan.sessionStartedAt = new Date().toISOString();
+    state.plan.running = true; state.plan.t0 = performance.now();
+    $('startBtn').textContent = '⏸ Pausa'; $('startBtnTop').textContent = '⏸ Pausa'; $('statusLine').textContent = 'Corriendo';
+    stopRunLoop(); enableInternalWakeLock().catch(()=>{}); state.plan.timer = window.setInterval(() => tick(), 1000); state.plan.rafId = requestAnimationFrame(runLoop);
+    log('Sesión iniciada', 'ok'); tick();
+  }
+
+  function seek(delta){ state.plan.baseMachineSec = clamp(machineElapsed() + delta, 0, state.plan.duration); if (state.plan.running) state.plan.t0 = performance.now(); refreshAll(); saveLiveSession(); }
+
+  function tick(){
+    try{
+      const t = machineElapsed();
+      if (t >= state.plan.duration){
+        state.plan.baseMachineSec = state.plan.duration; state.plan.running = false; stopRunLoop();
+        $('startBtn').textContent = '▶ Empezar'; $('startBtnTop').textContent = '▶ Empezar'; $('statusLine').textContent = 'Finalizada';
+        maybeRecordSessionSecond(); finalizeMinuteLogs(); buildFinalSummary(); buildTramoSummary(); compareWithPrevious(); savePreviousSession(); clearLiveSession(); disableInternalWakeLock().catch(()=>{});
       }
-      const prev = JSON.parse(prevRaw);
-      const currRows = state.plan.sessionLog || [];
-      const prevRows = prev.sessionLog || [];
-      const currK = currRows.length ? Math.max(...currRows.map(r => Number(r.kcalPlan || 0))) : 0;
-      const prevK = prevRows.length ? Math.max(...prevRows.map(r => Number(r.kcalPlan || 0))) : 0;
-      const currB = currRows.map(r => r.bpm).filter(v => Number.isFinite(v));
-      const prevB = prevRows.map(r => r.bpm).filter(v => Number.isFinite(v));
-      const currAvg = currB.length ? currB.reduce((a,b)=>a+b,0)/currB.length : null;
-      const prevAvg = prevB.length ? prevB.reduce((a,b)=>a+b,0)/prevB.length : null;
-      const txt = `Comparación con última · kcal ${num(currK,1)} vs ${num(prevK,1)} · FC media ${num(currAvg,1)} vs ${num(prevAvg,1)}`;
-      if ($('lastCompareVal')) $('lastCompareVal').textContent = 'sí';
-      if ($('tramoSummaryBox')) $('tramoSummaryBox').value += '\n\nCOMPARACIÓN\n' + txt;
-      localStorage.setItem(STORAGE_KEYS_EXTRA.compare, txt);
-      return txt;
-    }catch{
-      return 'Error en comparación';
+      refreshAll(); maybeRecordSessionSecond(); maybeRecordMinuteSummary(); saveLiveSession();
+    }catch(err){
+      stopRunLoop(); state.plan.running = false; $('startBtn').textContent = '▶ Empezar'; $('startBtnTop').textContent = '▶ Empezar'; $('statusLine').textContent = 'Error';
+      log('Error en tick: ' + (err.message || err), 'err'); console.error(err);
     }
   }
 
-  function updateExtraSavedInfo(){
-    try{
-      const cmp = localStorage.getItem(STORAGE_KEYS_EXTRA.compare);
-      if ($('lastCompareVal')) $('lastCompareVal').textContent = cmp ? 'sí' : '--';
-      const tramo = localStorage.getItem(STORAGE_KEYS_EXTRA.tramo);
-      if ($('tramoSummaryBox') && tramo) $('tramoSummaryBox').value = tramo;
-    }catch{}
+  function resetPlan(){
+    state.plan.running = false; stopRunLoop(); state.plan.baseMachineSec = 0; state.plan.waterTaken = new Array(state.plan.waters.length).fill(false); state.plan.wakeLastTapMachine = 0;
+    buildFinalSummary(); buildTramoSummary(); compareWithPrevious(); savePreviousSession(); clearLiveSession(); disableInternalWakeLock().catch(()=>{});
+    state.plan.sessionLog = []; state.plan.minuteLog = []; state.plan.sessionStartedAt = null; state.plan.lastRecordedSecond = -1; state.plan.lastRecordedMinute = -1; state.plan.markers = [];
+    $('startBtn').textContent = '▶ Empezar'; $('startBtnTop').textContent = '▶ Empezar'; $('statusLine').textContent = 'Lista'; refreshAll();
   }
 
   function bind(){
     $('applyPlanBtn').onclick = applyImport;
     $('clearPlanBtn').onclick = () => { $('importBox').value = ''; };
-    $('copyPlanBtn').onclick = async () => {
-      const txt = $('importBox').value;
-      if (!txt) return;
-      try{ await navigator.clipboard.writeText(txt); log('Texto del plan copiado', 'ok'); }catch{}
-    };
-
-    $('startBtn').onclick = toggleRun;
-    $('startBtnTop').onclick = toggleRun;
-    $('resetBtn').onclick = resetPlan;
-    $('resetBtnTop').onclick = resetPlan;
-
-    document.querySelectorAll('.seekBtn').forEach(btn => {
-      btn.onclick = () => seek(Number(btn.dataset.seek || 0));
-    });
-
-    $('continueApplyBtn').onclick = applyContinue;
-    $('continueClearBtn').onclick = clearContinue;
-
+    $('copyPlanBtn').onclick = async () => { const txt = $('importBox').value; if (!txt) return; try{ await navigator.clipboard.writeText(txt); log('Texto del plan copiado', 'ok'); }catch{} };
+    $('startBtn').onclick = toggleRun; $('startBtnTop').onclick = toggleRun; $('resetBtn').onclick = resetPlan; $('resetBtnTop').onclick = resetPlan;
+    document.querySelectorAll('.seekBtn').forEach(btn => { btn.onclick = () => seek(Number(btn.dataset.seek || 0)); });
+    $('continueApplyBtn').onclick = applyContinue; $('continueClearBtn').onclick = clearContinue;
     $('waterCard').onclick = () => {
       const t = machineElapsed();
-      for (let i=0;i<state.plan.waters.length;i++){
-        if (!state.plan.waterTaken[i] && Math.abs(state.plan.waters[i] - t) <= 120){
-          state.plan.waterTaken[i] = true;
-          break;
-        }
-      }
-      refreshAll();
-      saveLiveSession();
+      for (let i=0;i<state.plan.waters.length;i++){ if (!state.plan.waterTaken[i] && Math.abs(state.plan.waters[i] - t) <= 120){ state.plan.waterTaken[i] = true; break; } }
+      refreshAll(); saveLiveSession();
     };
-
     document.addEventListener('pointerdown', ev => {
-      const target = ev.target;
-      if (target.closest('button') || target.closest('textarea') || target.closest('input')) return;
-      const t = machineElapsed();
-      state.plan.wakeLastTapMachine = t;
-      for (let i=0;i<state.plan.waters.length;i++){
-        if (!state.plan.waterTaken[i] && state.plan.waters[i] <= t + 1e-9){
-          state.plan.waterTaken[i] = true;
-          break;
-        }
-      }
-      refreshAll();
-      saveLiveSession();
+      const target = ev.target; if (target.closest('button') || target.closest('textarea') || target.closest('input')) return;
+      const t = machineElapsed(); state.plan.wakeLastTapMachine = t;
+      for (let i=0;i<state.plan.waters.length;i++){ if (!state.plan.waterTaken[i] && state.plan.waters[i] <= t + 1e-9){ state.plan.waterTaken[i] = true; break; } }
+      refreshAll(); saveLiveSession();
     }, { passive:true });
 
-    $('bleConnectBtn').onclick = connectBle;
-    $('bleReconnectBtn').onclick = reconnectBle;
-    $('bleDisconnectBtn').onclick = disconnectBle;
-    $('bleDiagBtn').onclick = bleDiag;
-    $('installBtn').onclick = promptInstall;
-    $('refreshAppBtn').onclick = updateAppNow;
-    $('exportSessionBtn').onclick = exportSessionLog;
-    if ($('exportMinuteBtn')) $('exportMinuteBtn').onclick = exportMinuteLog;
-    if ($('resumeSessionBtn')) $('resumeSessionBtn').onclick = loadLiveSession;
-    if ($('finalSummaryBtn')) $('finalSummaryBtn').onclick = () => { buildFinalSummary(); if (typeof buildTramoSummary === 'function') buildTramoSummary(); if (typeof compareWithPrevious === 'function') compareWithPrevious(); };
-    if ($('exportSessionJsonBtn')) $('exportSessionJsonBtn').onclick = exportSessionJson;
-    if ($('compareLastBtn')) $('compareLastBtn').onclick = compareWithPrevious;
-    if ($('markWaterBtn')) $('markWaterBtn').onclick = () => addMarker('agua');
-    if ($('markIncidentBtn')) $('markIncidentBtn').onclick = () => addMarker('incidencia');
-    if ($('markStrongBtn')) $('markStrongBtn').onclick = () => addMarker('bloque fuerte');
+    $('bleConnectBtn').onclick = connectBle; $('bleReconnectBtn').onclick = reconnectBle; $('bleDisconnectBtn').onclick = disconnectBle; $('bleDiagBtn').onclick = bleDiag;
+    $('installBtn').onclick = promptInstall; $('refreshAppBtn').onclick = updateAppNow; $('exportSessionBtn').onclick = exportSessionLog; $('exportMinuteBtn').onclick = exportMinuteLog;
+    $('resumeSessionBtn').onclick = loadLiveSession; $('finalSummaryBtn').onclick = () => { buildFinalSummary(); buildTramoSummary(); compareWithPrevious(); };
+    $('exportSessionJsonBtn').onclick = exportSessionJson; $('compareLastBtn').onclick = compareWithPrevious;
+    $('markWaterBtn').onclick = () => addMarker('agua'); $('markIncidentBtn').onclick = () => addMarker('incidencia'); $('markStrongBtn').onclick = () => addMarker('bloque fuerte');
   }
 
-  bind();
-  registerPWA();
-  updateSavedSessionInfo();
-  refreshAll();
-  refreshBle();
-  log('UI lista', 'ok');
+  bind(); registerPWA(); updateSavedSessionInfo(); updateExtraSavedInfo();
+  try{ const lastPlan = localStorage.getItem(STORAGE_KEYS.plan); if (lastPlan && $('importBox')) $('importBox').value = lastPlan; }catch{}
+  try{ if (localStorage.getItem(STORAGE_KEYS.live)) loadLiveSession(); }catch{}
+  refreshAll(); refreshBle(); log('UI lista', 'ok');
 })();
 </script>
 </body>

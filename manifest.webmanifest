@@ -2,7 +2,7 @@
   "id": "./index.html",
   "name": "Elíptica",
   "short_name": "Elíptica",
-  "description": "Seguimiento de elíptica con BLE, zonas cardiacas y grabación de sesión.",
+  "description": "Seguimiento de elíptica con BLE, autoguardado y grabación de sesión.",
   "lang": "es",
   "start_url": "./index.html",
   "scope": "./",
