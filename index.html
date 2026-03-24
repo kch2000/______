@@ -276,6 +276,7 @@ tr.final td,tr.remaining td{font-weight:1000}
         <button id="installBtn">Instalar app</button>
         <button id="refreshAppBtn">Actualizar app</button>
         <button id="exportSessionBtn">Exportar sesión</button>
+        <button id="exportMinuteBtn">Exportar minuto a minuto</button>
         <button id="resumeSessionBtn">Reanudar sesión guardada</button>
         <button id="finalSummaryBtn">Resumen final</button>
         <button id="exportSessionJsonBtn">Exportar JSON</button>
@@ -298,7 +299,7 @@ tr.final td,tr.remaining td{font-weight:1000}
   const $ = id => document.getElementById(id);
 
   const state = {
-    plan: { rows: [], waters: [], waterTaken: [], duration: 0, goal: 0, running: false, baseMachineSec: 0, t0: 0, timer: null, wakeLastTapMachine: 0, continueMode: { active:false, refMinute:0, refKcal:0 }, sessionLog: [], sessionStartedAt: null, lastRecordedSecond: -1, markers: [] },
+    plan: { rows: [], waters: [], waterTaken: [], duration: 0, goal: 0, running: false, baseMachineSec: 0, t0: 0, timer: null, wakeLastTapMachine: 0, continueMode: { active:false, refMinute:0, refKcal:0 }, sessionLog: [], minuteLog: [], sessionStartedAt: null, lastRecordedSecond: -1, lastRecordedMinute: -1, markers: [] },
     ble: { connectionState: 'desconectado', device: null, server: null, hrChar: null, batteryChar: null, current: { bpm:null, contactSupported:null, contactDetected:null, rrCount:0, rrAverageMs:null, rrAverageBpmEstimado:null, rmssd:null, sdnn:null, batteryLevel:null, zone:null, signal:'--', receivedAt:null }, samples: [], _hrListener:null }
   };
 
@@ -817,8 +818,10 @@ tr.final td,tr.remaining td{font-weight:1000}
     state.plan.waterTaken = new Array(state.plan.waters.length).fill(false);
     state.plan.wakeLastTapMachine = 0;
     state.plan.sessionLog = [];
+    state.plan.minuteLog = [];
     state.plan.sessionStartedAt = null;
     state.plan.lastRecordedSecond = -1;
+    state.plan.lastRecordedMinute = -1;
     $('startBtn').textContent = '▶ Empezar';
     $('startBtnTop').textContent = '▶ Empezar';
     refreshAll();
@@ -839,6 +842,7 @@ tr.final td,tr.remaining td{font-weight:1000}
     if (!state.plan.sessionStartedAt) state.plan.sessionStartedAt = new Date().toISOString();
     state.plan.running = true;
     state.plan.t0 = performance.now();
+    enableInternalWakeLock().catch(()=>{});
     $('startBtn').textContent = '⏸ Pausa';
     $('startBtnTop').textContent = '⏸ Pausa';
     if (state.plan.timer) clearInterval(state.plan.timer);
@@ -861,8 +865,20 @@ tr.final td,tr.remaining td{font-weight:1000}
       state.plan.timer = null;
       $('startBtn').textContent = '▶ Empezar';
       $('startBtnTop').textContent = '▶ Empezar';
+      maybeRecordSessionSecond();
+      finalizeMinuteLogs();
+      finalizeMinuteLogs();
+    buildFinalSummary();
+      buildTramoSummary();
+      compareWithPrevious();
+      savePreviousSession();
+      clearLiveSession();
+      disableInternalWakeLock().catch(()=>{});
     }
     refreshAll();
+    maybeRecordSessionSecond();
+    maybeRecordMinuteSummary();
+    saveLiveSession();
   }
 
   function refreshAll(){
@@ -957,6 +973,120 @@ tr.final td,tr.remaining td{font-weight:1000}
       timestampIso: new Date().toISOString()
     });
   }
+
+  function buildMinuteRow(minuteIndex){
+    const rows = state.plan.sessionLog || [];
+    const start = minuteIndex * 60;
+    const end = start + 59;
+    const slice = rows.filter(r => r.second >= start && r.second <= end);
+    if (!slice.length) return null;
+
+    const bpmVals = slice.map(r => r.bpm).filter(v => Number.isFinite(v));
+    const bpmAvg = bpmVals.length ? bpmVals.reduce((a,b)=>a+b,0)/bpmVals.length : null;
+    const bpmMax = bpmVals.length ? Math.max(...bpmVals) : null;
+    const bpmMin = bpmVals.length ? Math.min(...bpmVals) : null;
+
+    const levelCounts = {};
+    const segCounts = {};
+    const zoneCounts = {};
+    slice.forEach(r => {
+      levelCounts[r.level] = (levelCounts[r.level] || 0) + 1;
+      segCounts[r.seg] = (segCounts[r.seg] || 0) + 1;
+      const z = r.zone || 'Sin zona';
+      zoneCounts[z] = (zoneCounts[z] || 0) + 1;
+    });
+    const levelDom = Object.entries(levelCounts).sort((a,b)=>b[1]-a[1])[0]?.[0] || '';
+    const segDom = Object.entries(segCounts).sort((a,b)=>b[1]-a[1])[0]?.[0] || '';
+    const zoneDom = Object.entries(zoneCounts).sort((a,b)=>b[1]-a[1])[0]?.[0] || '';
+
+    const zSecs = {};
+    ['Z0 · Muy suave / Calentamiento','Z1 · Recuperación','Z2 · Suave / Base baja','Z3 · Media / Base útil','Z4 · Intensa / Umbral','Z5 · Máxima / Toque corto','Sin zona'].forEach(z => zSecs[z] = 0);
+    slice.forEach(r => { zSecs[r.zone || 'Sin zona'] += 1; });
+
+    const kcalStart = Number(slice[0].kcalPlan || 0);
+    const kcalEnd = Number(slice[slice.length-1].kcalPlan || 0);
+    const kcalMinute = Math.max(0, kcalEnd - kcalStart);
+    const markers = (state.plan.markers || []).filter(m => Math.floor((m.second||0)/60) === minuteIndex).map(m => m.type).join('|');
+    const water = slice.some(r => r.waterDue) ? 'sí' : 'no';
+
+    return {
+      minute: minuteIndex + 1,
+      clock: slice[slice.length-1].clock,
+      machineClock: slice[slice.length-1].machineClock,
+      seg: segDom,
+      level: levelDom,
+      kcalStart: Number(kcalStart.toFixed(1)),
+      kcalEnd: Number(kcalEnd.toFixed(1)),
+      kcalMinute: Number(kcalMinute.toFixed(1)),
+      kcalPerMin: Number(kcalMinute.toFixed(2)),
+      bpmAvg: bpmAvg == null ? null : Number(bpmAvg.toFixed(1)),
+      bpmMax: bpmMax == null ? null : bpmMax,
+      bpmMin: bpmMin == null ? null : bpmMin,
+      zoneDominant: zoneDom,
+      z0: zSecs['Z0 · Muy suave / Calentamiento'],
+      z1: zSecs['Z1 · Recuperación'],
+      z2: zSecs['Z2 · Suave / Base baja'],
+      z3: zSecs['Z3 · Media / Base útil'],
+      z4: zSecs['Z4 · Intensa / Umbral'],
+      z5: zSecs['Z5 · Máxima / Toque corto'],
+      water,
+      markers
+    };
+  }
+
+  function maybeRecordMinuteSummary(){
+    if (!state.plan.running) return;
+    const minuteIndex = Math.floor(machineElapsed() / 60);
+    if (minuteIndex === state.plan.lastRecordedMinute || minuteIndex <= 0) return;
+    const completedMinuteIndex = minuteIndex - 1;
+    if (completedMinuteIndex < 0) return;
+    const row = buildMinuteRow(completedMinuteIndex);
+    if (!row) return;
+    state.plan.minuteLog.push(row);
+    state.plan.lastRecordedMinute = minuteIndex;
+  }
+
+  function finalizeMinuteLogs(){
+    const currentMinute = Math.floor(machineElapsed() / 60);
+    const lastBuilt = state.plan.minuteLog.length ? state.plan.minuteLog[state.plan.minuteLog.length - 1].minute - 1 : -1;
+    for (let i = lastBuilt + 1; i <= currentMinute; i++){
+      const row = buildMinuteRow(i);
+      if (row && !state.plan.minuteLog.some(r => r.minute === row.minute)){
+        state.plan.minuteLog.push(row);
+      }
+    }
+  }
+
+  function exportMinuteLog(){
+    const rows = state.plan.minuteLog || [];
+    if (!rows.length){
+      log('No hay datos minuto a minuto todavía', 'warn');
+      return;
+    }
+    const header = ['minute','clock','machineClock','seg','level','kcalStart','kcalEnd','kcalMinute','kcalPerMin','bpmAvg','bpmMax','bpmMin','zoneDominant','z0','z1','z2','z3','z4','z5','water','markers'];
+    const csvLines = [header.join(',')];
+    for (const r of rows){
+      const line = header.map(k => {
+        const v = r[k];
+        if (v == null) return '';
+        const s = String(v).replaceAll('"','""');
+        return /[",\n]/.test(s) ? '"' + s + '"' : s;
+      }).join(',');
+      csvLines.push(line);
+    }
+    const csv = csvLines.join('\n');
+    const blob = new Blob([csv], {type:'text/csv;charset=utf-8'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'sesion_eliptica_minuto_a_minuto.csv';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1500);
+    log('Exportado minuto a minuto', 'ok');
+  }
+
 
   function exportSessionLog(){
     const rows = state.plan.sessionLog || [];
@@ -1168,6 +1298,7 @@ tr.final td,tr.remaining td{font-weight:1000}
     $('installBtn').onclick = promptInstall;
     $('refreshAppBtn').onclick = updateAppNow;
     $('exportSessionBtn').onclick = exportSessionLog;
+    $('exportMinuteBtn').onclick = exportMinuteLog;
   }
 
   bind();
