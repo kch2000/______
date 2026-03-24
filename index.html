@@ -310,7 +310,7 @@ tr.final td,tr.remaining td{font-weight:1000}
   });
 
   const state = {
-    plan: { rows: [], waters: [], waterTaken: [], duration: 0, goal: 0, running: false, baseMachineSec: 0, t0: 0, timer: null, wakeLastTapMachine: 0, continueMode: { active:false, refMinute:0, refKcal:0 }, sessionLog: [], minuteLog: [], sessionStartedAt: null, lastRecordedSecond: -1, lastRecordedMinute: -1, markers: [] },
+    plan: { rows: [], waters: [], waterTaken: [], duration: 0, goal: 0, running: false, baseMachineSec: 0, t0: 0, timer: null, rafId: null, wakeLastTapMachine: 0, continueMode: { active:false, refMinute:0, refKcal:0 }, sessionLog: [], minuteLog: [], sessionStartedAt: null, lastRecordedSecond: -1, lastRecordedMinute: -1, markers: [] },
     ble: { connectionState: 'desconectado', device: null, server: null, hrChar: null, batteryChar: null, current: { bpm:null, contactSupported:null, contactDetected:null, rrCount:0, rrAverageMs:null, rrAverageBpmEstimado:null, rmssd:null, sdnn:null, batteryLevel:null, zone:null, signal:'--', receivedAt:null }, samples: [], _hrListener:null }
   };
 
@@ -823,11 +823,15 @@ tr.final td,tr.remaining td{font-weight:1000}
 
   function resetPlan(){
     state.plan.running = false;
-    if (state.plan.timer) clearInterval(state.plan.timer);
-    state.plan.timer = null;
+    stopRunLoop();
     state.plan.baseMachineSec = 0;
     state.plan.waterTaken = new Array(state.plan.waters.length).fill(false);
     state.plan.wakeLastTapMachine = 0;
+    buildFinalSummary();
+    if (typeof buildTramoSummary === 'function') buildTramoSummary();
+    if (typeof compareWithPrevious === 'function') compareWithPrevious();
+    if (typeof savePreviousSession === 'function') savePreviousSession();
+    clearLiveSession();
     state.plan.sessionLog = [];
     state.plan.minuteLog = [];
     state.plan.sessionStartedAt = null;
@@ -835,7 +839,24 @@ tr.final td,tr.remaining td{font-weight:1000}
     state.plan.lastRecordedMinute = -1;
     $('startBtn').textContent = '▶ Empezar';
     $('startBtnTop').textContent = '▶ Empezar';
+    $('statusLine').textContent = 'Lista';
     refreshAll();
+  }
+
+
+  function stopRunLoop(){
+    try{
+      if (state.plan.timer) clearInterval(state.plan.timer);
+      state.plan.timer = null;
+      if (state.plan.rafId) cancelAnimationFrame(state.plan.rafId);
+      state.plan.rafId = null;
+    }catch{}
+  }
+
+  function runLoop(){
+    if (!state.plan.running) return;
+    tick();
+    state.plan.rafId = requestAnimationFrame(runLoop);
   }
 
   function toggleRun(){
@@ -843,12 +864,13 @@ tr.final td,tr.remaining td{font-weight:1000}
     if (state.plan.running){
       state.plan.baseMachineSec = machineElapsed();
       state.plan.running = false;
-      if (state.plan.timer) clearInterval(state.plan.timer);
-      state.plan.timer = null;
+      stopRunLoop();
       $('startBtn').textContent = '▶ Reanudar';
       $('startBtnTop').textContent = '▶ Reanudar';
+      $('statusLine').textContent = 'Pausada';
       refreshAll();
       saveLiveSession();
+      log('Sesión pausada', 'warn');
       return;
     }
     if (!state.plan.sessionStartedAt) state.plan.sessionStartedAt = new Date().toISOString();
@@ -857,8 +879,10 @@ tr.final td,tr.remaining td{font-weight:1000}
     enableInternalWakeLock().catch(()=>{});
     $('startBtn').textContent = '⏸ Pausa';
     $('startBtnTop').textContent = '⏸ Pausa';
-    if (state.plan.timer) clearInterval(state.plan.timer);
-    state.plan.timer = window.setInterval(tick, 250);
+    $('statusLine').textContent = 'Corriendo';
+    stopRunLoop();
+    state.plan.timer = window.setInterval(tick, 1000);
+    state.plan.rafId = requestAnimationFrame(runLoop);
     log('Sesión iniciada', 'ok');
     tick();
   }
@@ -875,10 +899,10 @@ tr.final td,tr.remaining td{font-weight:1000}
       if (t >= state.plan.duration){
         state.plan.baseMachineSec = state.plan.duration;
         state.plan.running = false;
-        if (state.plan.timer) clearInterval(state.plan.timer);
-        state.plan.timer = null;
+        stopRunLoop();
         $('startBtn').textContent = '▶ Empezar';
         $('startBtnTop').textContent = '▶ Empezar';
+        $('statusLine').textContent = 'Finalizada';
         maybeRecordSessionSecond();
         finalizeMinuteLogs();
         buildFinalSummary();
@@ -893,11 +917,11 @@ tr.final td,tr.remaining td{font-weight:1000}
       if (typeof maybeRecordMinuteSummary === 'function') maybeRecordMinuteSummary();
       saveLiveSession();
     }catch(err){
-      if (state.plan.timer) clearInterval(state.plan.timer);
-      state.plan.timer = null;
+      stopRunLoop();
       state.plan.running = false;
       $('startBtn').textContent = '▶ Empezar';
       $('startBtnTop').textContent = '▶ Empezar';
+      $('statusLine').textContent = 'Error';
       log('Error en tick: ' + (err.message || err), 'err');
       console.error(err);
     }
@@ -1441,9 +1465,13 @@ tr.final td,tr.remaining td{font-weight:1000}
       try{ await navigator.clipboard.writeText(txt); log('Texto del plan copiado', 'ok'); }catch{}
     };
     $('startBtn').onclick = toggleRun;
+    $('startBtn').onpointerup = (e) => { e.preventDefault(); toggleRun(); };
     $('startBtnTop').onclick = toggleRun;
+    $('startBtnTop').onpointerup = (e) => { e.preventDefault(); toggleRun(); };
     $('resetBtn').onclick = resetPlan;
+    $('resetBtn').onpointerup = (e) => { e.preventDefault(); resetPlan(); };
     $('resetBtnTop').onclick = resetPlan;
+    $('resetBtnTop').onpointerup = (e) => { e.preventDefault(); resetPlan(); };
     document.querySelectorAll('.seekBtn').forEach(btn => btn.onclick = () => seek(Number(btn.dataset.seek || 0)));
     $('continueApplyBtn').onclick = applyContinue;
     $('continueClearBtn').onclick = clearContinue;
