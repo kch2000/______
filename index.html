@@ -1500,11 +1500,16 @@ tr.final td,tr.remaining td{font-weight:1000}
       if (!txt) return;
       try{ await navigator.clipboard.writeText(txt); log('Texto del plan copiado', 'ok'); }catch{}
     };
-    $('startBtn').onclick = toggleRun; toggleRun(); };
-    $('startBtnTop').onclick = toggleRun; toggleRun(); };
-    $('resetBtn').onclick = resetPlan; resetPlan(); };
-    $('resetBtnTop').onclick = resetPlan; resetPlan(); };
-    document.querySelectorAll('.seekBtn').forEach(btn => btn.onclick = () => seek(Number(btn.dataset.seek || 0)));
+
+    $('startBtn').onclick = toggleRun;
+    $('startBtnTop').onclick = toggleRun;
+    $('resetBtn').onclick = resetPlan;
+    $('resetBtnTop').onclick = resetPlan;
+
+    document.querySelectorAll('.seekBtn').forEach(btn => {
+      btn.onclick = () => seek(Number(btn.dataset.seek || 0));
+    });
+
     $('continueApplyBtn').onclick = applyContinue;
     $('continueClearBtn').onclick = clearContinue;
 
@@ -1512,7 +1517,8 @@ tr.final td,tr.remaining td{font-weight:1000}
       const t = machineElapsed();
       for (let i=0;i<state.plan.waters.length;i++){
         if (!state.plan.waterTaken[i] && Math.abs(state.plan.waters[i] - t) <= 120){
-          state.plan.waterTaken[i] = true; break;
+          state.plan.waterTaken[i] = true;
+          break;
         }
       }
       refreshAll();
@@ -1526,7 +1532,8 @@ tr.final td,tr.remaining td{font-weight:1000}
       state.plan.wakeLastTapMachine = t;
       for (let i=0;i<state.plan.waters.length;i++){
         if (!state.plan.waterTaken[i] && state.plan.waters[i] <= t + 1e-9){
-          state.plan.waterTaken[i] = true; break;
+          state.plan.waterTaken[i] = true;
+          break;
         }
       }
       refreshAll();
@@ -1542,12 +1549,12 @@ tr.final td,tr.remaining td{font-weight:1000}
     $('exportSessionBtn').onclick = exportSessionLog;
     if ($('exportMinuteBtn')) $('exportMinuteBtn').onclick = exportMinuteLog;
     if ($('resumeSessionBtn')) $('resumeSessionBtn').onclick = loadLiveSession;
-    if ($('finalSummaryBtn')) $('finalSummaryBtn').onclick = () => { buildFinalSummary(); buildTramoSummary(); compareWithPrevious(); };
+    if ($('finalSummaryBtn')) $('finalSummaryBtn').onclick = () => { buildFinalSummary(); if (typeof buildTramoSummary === 'function') buildTramoSummary(); if (typeof compareWithPrevious === 'function') compareWithPrevious(); };
     if ($('exportSessionJsonBtn')) $('exportSessionJsonBtn').onclick = exportSessionJson;
     if ($('compareLastBtn')) $('compareLastBtn').onclick = compareWithPrevious;
-    if ($('markWaterBtn') && typeof addMarker === 'function') $('markWaterBtn').onclick = () => addMarker('agua');
-    if ($('markIncidentBtn') && typeof addMarker === 'function') $('markIncidentBtn').onclick = () => addMarker('incidencia');
-    if ($('markStrongBtn') && typeof addMarker === 'function') $('markStrongBtn').onclick = () => addMarker('bloque fuerte');
+    if ($('markWaterBtn')) $('markWaterBtn').onclick = () => addMarker('agua');
+    if ($('markIncidentBtn')) $('markIncidentBtn').onclick = () => addMarker('incidencia');
+    if ($('markStrongBtn')) $('markStrongBtn').onclick = () => addMarker('bloque fuerte');
   }
 
   bind();
