@@ -297,6 +297,17 @@ tr.final td,tr.remaining td{font-weight:1000}
 <script>
 (() => {
   const $ = id => document.getElementById(id);
+  window.addEventListener('error', (e) => {
+    try {
+      const box = document.getElementById('logBox');
+      if (box) {
+        const div = document.createElement('div');
+        div.className = 'logLine err';
+        div.textContent = '[ERROR] ' + (e.message || 'Error JS');
+        box.prepend(div);
+      }
+    } catch {}
+  });
 
   const state = {
     plan: { rows: [], waters: [], waterTaken: [], duration: 0, goal: 0, running: false, baseMachineSec: 0, t0: 0, timer: null, wakeLastTapMachine: 0, continueMode: { active:false, refMinute:0, refKcal:0 }, sessionLog: [], minuteLog: [], sessionStartedAt: null, lastRecordedSecond: -1, lastRecordedMinute: -1, markers: [] },
@@ -837,6 +848,7 @@ tr.final td,tr.remaining td{font-weight:1000}
       $('startBtn').textContent = '▶ Reanudar';
       $('startBtnTop').textContent = '▶ Reanudar';
       refreshAll();
+      saveLiveSession();
       return;
     }
     if (!state.plan.sessionStartedAt) state.plan.sessionStartedAt = new Date().toISOString();
@@ -846,7 +858,8 @@ tr.final td,tr.remaining td{font-weight:1000}
     $('startBtn').textContent = '⏸ Pausa';
     $('startBtnTop').textContent = '⏸ Pausa';
     if (state.plan.timer) clearInterval(state.plan.timer);
-    state.plan.timer = setInterval(tick, 250);
+    state.plan.timer = window.setInterval(tick, 250);
+    log('Sesión iniciada', 'ok');
     tick();
   }
 
@@ -857,28 +870,37 @@ tr.final td,tr.remaining td{font-weight:1000}
   }
 
   function tick(){
-    const t = machineElapsed();
-    if (t >= state.plan.duration){
-      state.plan.baseMachineSec = state.plan.duration;
-      state.plan.running = false;
+    try{
+      const t = machineElapsed();
+      if (t >= state.plan.duration){
+        state.plan.baseMachineSec = state.plan.duration;
+        state.plan.running = false;
+        if (state.plan.timer) clearInterval(state.plan.timer);
+        state.plan.timer = null;
+        $('startBtn').textContent = '▶ Empezar';
+        $('startBtnTop').textContent = '▶ Empezar';
+        maybeRecordSessionSecond();
+        finalizeMinuteLogs();
+        buildFinalSummary();
+        if (typeof buildTramoSummary === 'function') buildTramoSummary();
+        if (typeof compareWithPrevious === 'function') compareWithPrevious();
+        if (typeof savePreviousSession === 'function') savePreviousSession();
+        clearLiveSession();
+        disableInternalWakeLock().catch(()=>{});
+      }
+      refreshAll();
+      maybeRecordSessionSecond();
+      if (typeof maybeRecordMinuteSummary === 'function') maybeRecordMinuteSummary();
+      saveLiveSession();
+    }catch(err){
       if (state.plan.timer) clearInterval(state.plan.timer);
       state.plan.timer = null;
+      state.plan.running = false;
       $('startBtn').textContent = '▶ Empezar';
       $('startBtnTop').textContent = '▶ Empezar';
-      maybeRecordSessionSecond();
-      finalizeMinuteLogs();
-      finalizeMinuteLogs();
-    buildFinalSummary();
-      buildTramoSummary();
-      compareWithPrevious();
-      savePreviousSession();
-      clearLiveSession();
-      disableInternalWakeLock().catch(()=>{});
+      log('Error en tick: ' + (err.message || err), 'err');
+      console.error(err);
     }
-    refreshAll();
-    maybeRecordSessionSecond();
-    maybeRecordMinuteSummary();
-    saveLiveSession();
   }
 
   function refreshAll(){
@@ -1463,9 +1485,9 @@ tr.final td,tr.remaining td{font-weight:1000}
     if ($('finalSummaryBtn')) $('finalSummaryBtn').onclick = () => { buildFinalSummary(); buildTramoSummary(); compareWithPrevious(); };
     if ($('exportSessionJsonBtn')) $('exportSessionJsonBtn').onclick = exportSessionJson;
     if ($('compareLastBtn')) $('compareLastBtn').onclick = compareWithPrevious;
-    if ($('markWaterBtn')) $('markWaterBtn').onclick = () => addMarker('agua');
-    if ($('markIncidentBtn')) $('markIncidentBtn').onclick = () => addMarker('incidencia');
-    if ($('markStrongBtn')) $('markStrongBtn').onclick = () => addMarker('bloque fuerte');
+    if ($('markWaterBtn') && typeof addMarker === 'function') $('markWaterBtn').onclick = () => addMarker('agua');
+    if ($('markIncidentBtn') && typeof addMarker === 'function') $('markIncidentBtn').onclick = () => addMarker('incidencia');
+    if ($('markStrongBtn') && typeof addMarker === 'function') $('markStrongBtn').onclick = () => addMarker('bloque fuerte');
   }
 
   bind();
