@@ -1119,6 +1119,165 @@ tr.final td,tr.remaining td{font-weight:1000}
   }
 
 
+
+  const STORAGE_KEYS = {
+    live:'eliptica_live_session_v1',
+    plan:'eliptica_last_plan_v1',
+    summary:'eliptica_last_summary_v1'
+  };
+
+  function saveLiveSession(){
+    try{
+      const payload = {
+        plan: {
+          rows: state.plan.rows,
+          waters: state.plan.waters,
+          waterTaken: state.plan.waterTaken,
+          duration: state.plan.duration,
+          goal: state.plan.goal,
+          baseMachineSec: state.plan.baseMachineSec,
+          continueMode: state.plan.continueMode,
+          wakeLastTapMachine: state.plan.wakeLastTapMachine,
+          sessionLog: state.plan.sessionLog,
+          minuteLog: state.plan.minuteLog,
+          sessionStartedAt: state.plan.sessionStartedAt,
+          lastRecordedSecond: state.plan.lastRecordedSecond,
+          lastRecordedMinute: state.plan.lastRecordedMinute,
+          markers: state.plan.markers,
+          title: $('planTitle')?.textContent || 'Plan cargado',
+          importText: $('importBox')?.value || ''
+        },
+        ble: {
+          samples: state.ble.samples,
+          current: state.ble.current
+        },
+        savedAt: new Date().toISOString()
+      };
+      localStorage.setItem(STORAGE_KEYS.live, JSON.stringify(payload));
+      localStorage.setItem(STORAGE_KEYS.plan, $('importBox')?.value || '');
+      updateSavedSessionInfo();
+    }catch(err){
+      log('No se pudo guardar sesión local', 'warn');
+    }
+  }
+
+  function loadLiveSession(){
+    try{
+      const raw = localStorage.getItem(STORAGE_KEYS.live);
+      if (!raw) return false;
+      const payload = JSON.parse(raw);
+      if (!payload?.plan) return false;
+
+      state.plan.rows = payload.plan.rows || [];
+      state.plan.waters = payload.plan.waters || [];
+      state.plan.waterTaken = payload.plan.waterTaken || new Array(state.plan.waters.length).fill(false);
+      state.plan.duration = payload.plan.duration || 0;
+      state.plan.goal = payload.plan.goal || 0;
+      state.plan.baseMachineSec = payload.plan.baseMachineSec || 0;
+      state.plan.continueMode = payload.plan.continueMode || { active:false, refMinute:0, refKcal:0 };
+      state.plan.wakeLastTapMachine = payload.plan.wakeLastTapMachine || 0;
+      state.plan.sessionLog = payload.plan.sessionLog || [];
+      state.plan.minuteLog = payload.plan.minuteLog || [];
+      state.plan.sessionStartedAt = payload.plan.sessionStartedAt || null;
+      state.plan.lastRecordedSecond = payload.plan.lastRecordedSecond ?? -1;
+      state.plan.lastRecordedMinute = payload.plan.lastRecordedMinute ?? -1;
+      state.plan.markers = payload.plan.markers || [];
+      state.plan.running = false;
+      if ($('planTitle')) $('planTitle').textContent = payload.plan.title || 'Plan recuperado';
+      if ($('importBox')) $('importBox').value = payload.plan.importText || '';
+      if ($('rowsVal')) $('rowsVal').textContent = String(state.plan.rows.length);
+      if ($('durVal')) $('durVal').textContent = fmtTime(state.plan.duration || 0);
+      if ($('goalVal')) $('goalVal').textContent = Number(state.plan.goal || 0).toFixed(1);
+
+      state.ble.samples = payload.ble?.samples || [];
+      state.ble.current = { ...state.ble.current, ...(payload.ble?.current || {}) };
+
+      refreshAll();
+      refreshBle();
+      updateSavedSessionInfo();
+      log('Sesión recuperada desde almacenamiento local', 'ok');
+      return true;
+    }catch(err){
+      log('Error al recuperar sesión guardada', 'err');
+      return false;
+    }
+  }
+
+  function clearLiveSession(){
+    try{ localStorage.removeItem(STORAGE_KEYS.live); }catch{}
+    updateSavedSessionInfo();
+  }
+
+  function updateSavedSessionInfo(){
+    try{
+      const raw = localStorage.getItem(STORAGE_KEYS.live);
+      const saved = raw ? JSON.parse(raw) : null;
+      if ($('savedSessionVal')) $('savedSessionVal').textContent = saved?.savedAt ? new Date(saved.savedAt).toLocaleTimeString() : '0';
+      const summary = localStorage.getItem(STORAGE_KEYS.summary);
+      if ($('lastSummaryVal')) $('lastSummaryVal').textContent = summary ? 'sí' : '--';
+      if ($('finalSummaryBox') && summary) $('finalSummaryBox').value = summary;
+    }catch{}
+  }
+
+  function buildFinalSummary(){
+    const rows = state.plan.sessionLog || [];
+    if (!rows.length){
+      const txt = 'No hay sesión grabada.';
+      if ($('finalSummaryBox')) $('finalSummaryBox').value = txt;
+      return txt;
+    }
+    const kcalMax = Math.max(...rows.map(r => Number(r.kcalPlan || 0)));
+    const bpmVals = rows.map(r => r.bpm).filter(v => Number.isFinite(v));
+    const bpmAvg = bpmVals.length ? bpmVals.reduce((a,b)=>a+b,0)/bpmVals.length : null;
+    const bpmMax = bpmVals.length ? Math.max(...bpmVals) : null;
+    const zoneCounts = {};
+    rows.forEach(r => { const z = r.zone || 'Sin zona'; zoneCounts[z] = (zoneCounts[z] || 0) + 1; });
+    const zoneLines = Object.entries(zoneCounts).sort((a,b)=>b[1]-a[1]).map(([z,s]) => `- ${z}: ${fmtTime(s)}`).join('\n');
+
+    const byLevel = {};
+    rows.forEach(r => {
+      if (!r.level) return;
+      byLevel[r.level] = byLevel[r.level] || { secs:0, kcalStart:null, kcalEnd:0, bpm:[] };
+      byLevel[r.level].secs += 1;
+      if (byLevel[r.level].kcalStart == null) byLevel[r.level].kcalStart = Number(r.kcalPlan || 0);
+      byLevel[r.level].kcalEnd = Number(r.kcalPlan || 0);
+      if (Number.isFinite(r.bpm)) byLevel[r.level].bpm.push(r.bpm);
+    });
+    const effLines = Object.keys(byLevel).sort((a,b)=>Number(a)-Number(b)).map(level => {
+      const d = byLevel[level];
+      const kcal = Math.max(0, d.kcalEnd - (d.kcalStart || 0));
+      const mins = Math.max(1e-9, d.secs / 60);
+      const bpm = d.bpm.length ? d.bpm.reduce((a,b)=>a+b,0)/d.bpm.length : null;
+      const eff = bpm ? (kcal / mins) / bpm : null;
+      return `- nivel ${level}: ${num(kcal,1)} kcal | ${num(kcal/mins,2)} kcal/min | bpm medio ${num(bpm,1)} | relación pulso/rendimiento ${num(eff,4)}`;
+    }).join('\n');
+
+    const summary = [
+      'RESUMEN FINAL DE SESIÓN',
+      '',
+      'Inicio: ' + (state.plan.sessionStartedAt || '--'),
+      'Duración visible final: ' + fmtTime(shownMachineElapsed()),
+      'Duración máquina final: ' + fmtTime(machineElapsed()),
+      'Kcal finales: ' + num(kcalMax,1),
+      'FC media: ' + (bpmAvg == null ? '--' : `${num(bpmAvg,1)} bpm`),
+      'FC máxima: ' + (bpmMax == null ? '--' : `${num(bpmMax,0)} bpm`),
+      '',
+      'Tiempo por zonas:',
+      zoneLines || '- sin datos',
+      '',
+      'Eficiencia por nivel:',
+      effLines || '- sin datos',
+      '',
+      'Filas registradas segundo a segundo: ' + rows.length,
+      'Minutos resumidos: ' + ((state.plan.minuteLog || []).length)
+    ].join('\n');
+
+    if ($('finalSummaryBox')) $('finalSummaryBox').value = summary;
+    try{ localStorage.setItem(STORAGE_KEYS.summary, summary); }catch{}
+    updateSavedSessionInfo();
+    return summary;
+  }
+
   const STORAGE_KEYS_EXTRA = {
     tramo:'eliptica_last_tramo_summary_v1',
     compare:'eliptica_last_compare_v1',
@@ -1275,8 +1434,8 @@ tr.final td,tr.remaining td{font-weight:1000}
         }
       }
       refreshAll();
+      saveLiveSession();
     };
-    
 
     document.addEventListener('pointerdown', ev => {
       const target = ev.target;
@@ -1289,6 +1448,7 @@ tr.final td,tr.remaining td{font-weight:1000}
         }
       }
       refreshAll();
+      saveLiveSession();
     }, { passive:true });
 
     $('bleConnectBtn').onclick = connectBle;
@@ -1298,11 +1458,19 @@ tr.final td,tr.remaining td{font-weight:1000}
     $('installBtn').onclick = promptInstall;
     $('refreshAppBtn').onclick = updateAppNow;
     $('exportSessionBtn').onclick = exportSessionLog;
-    $('exportMinuteBtn').onclick = exportMinuteLog;
+    if ($('exportMinuteBtn')) $('exportMinuteBtn').onclick = exportMinuteLog;
+    if ($('resumeSessionBtn')) $('resumeSessionBtn').onclick = loadLiveSession;
+    if ($('finalSummaryBtn')) $('finalSummaryBtn').onclick = () => { buildFinalSummary(); buildTramoSummary(); compareWithPrevious(); };
+    if ($('exportSessionJsonBtn')) $('exportSessionJsonBtn').onclick = exportSessionJson;
+    if ($('compareLastBtn')) $('compareLastBtn').onclick = compareWithPrevious;
+    if ($('markWaterBtn')) $('markWaterBtn').onclick = () => addMarker('agua');
+    if ($('markIncidentBtn')) $('markIncidentBtn').onclick = () => addMarker('incidencia');
+    if ($('markStrongBtn')) $('markStrongBtn').onclick = () => addMarker('bloque fuerte');
   }
 
   bind();
   registerPWA();
+  updateSavedSessionInfo();
   refreshAll();
   refreshBle();
   log('UI lista', 'ok');
