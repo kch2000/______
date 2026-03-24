@@ -876,12 +876,12 @@ tr.final td,tr.remaining td{font-weight:1000}
     if (!state.plan.sessionStartedAt) state.plan.sessionStartedAt = new Date().toISOString();
     state.plan.running = true;
     state.plan.t0 = performance.now();
-    enableInternalWakeLock().catch(()=>{});
     $('startBtn').textContent = '⏸ Pausa';
     $('startBtnTop').textContent = '⏸ Pausa';
     $('statusLine').textContent = 'Corriendo';
     stopRunLoop();
-    state.plan.timer = window.setInterval(tick, 1000);
+    enableInternalWakeLock().catch(()=>{});
+    state.plan.timer = window.setInterval(() => tick(), 1000);
     state.plan.rafId = requestAnimationFrame(runLoop);
     log('Sesión iniciada', 'ok');
     tick();
@@ -910,7 +910,7 @@ tr.final td,tr.remaining td{font-weight:1000}
         if (typeof compareWithPrevious === 'function') compareWithPrevious();
         if (typeof savePreviousSession === 'function') savePreviousSession();
         clearLiveSession();
-        disableInternalWakeLock().catch(()=>{});
+        try{ disableInternalWakeLock().catch(()=>{}); }catch{}
       }
       refreshAll();
       maybeRecordSessionSecond();
@@ -935,7 +935,43 @@ tr.final td,tr.remaining td{font-weight:1000}
   }
 
 
+
   let deferredInstallPrompt = null;
+  let wakeLockSentinel = null;
+
+  async function enableInternalWakeLock(){
+    try{
+      if (!('wakeLock' in navigator)) return false;
+      if (wakeLockSentinel) return true;
+      wakeLockSentinel = await navigator.wakeLock.request('screen');
+      wakeLockSentinel.addEventListener('release', () => {
+        wakeLockSentinel = null;
+        try{
+          if (state.plan.running) log('Wake lock liberado por el sistema', 'warn');
+        }catch{}
+      });
+      return true;
+    }catch(err){
+      log('Wake lock no disponible: ' + (err.message || err), 'warn');
+      return false;
+    }
+  }
+
+  async function disableInternalWakeLock(){
+    try{
+      if (wakeLockSentinel){
+        await wakeLockSentinel.release();
+        wakeLockSentinel = null;
+      }
+    }catch{}
+  }
+
+  document.addEventListener('visibilitychange', async () => {
+    if (document.visibilityState === 'visible' && state.plan?.running){
+      try{ await enableInternalWakeLock(); }catch{}
+    }
+  });
+
 
   async function registerPWA(){
     const banner = $('pwaBanner');
@@ -1464,14 +1500,10 @@ tr.final td,tr.remaining td{font-weight:1000}
       if (!txt) return;
       try{ await navigator.clipboard.writeText(txt); log('Texto del plan copiado', 'ok'); }catch{}
     };
-    $('startBtn').onclick = toggleRun;
-    $('startBtn').onpointerup = (e) => { e.preventDefault(); toggleRun(); };
-    $('startBtnTop').onclick = toggleRun;
-    $('startBtnTop').onpointerup = (e) => { e.preventDefault(); toggleRun(); };
-    $('resetBtn').onclick = resetPlan;
-    $('resetBtn').onpointerup = (e) => { e.preventDefault(); resetPlan(); };
-    $('resetBtnTop').onclick = resetPlan;
-    $('resetBtnTop').onpointerup = (e) => { e.preventDefault(); resetPlan(); };
+    $('startBtn').onclick = toggleRun; toggleRun(); };
+    $('startBtnTop').onclick = toggleRun; toggleRun(); };
+    $('resetBtn').onclick = resetPlan; resetPlan(); };
+    $('resetBtnTop').onclick = resetPlan; resetPlan(); };
     document.querySelectorAll('.seekBtn').forEach(btn => btn.onclick = () => seek(Number(btn.dataset.seek || 0)));
     $('continueApplyBtn').onclick = applyContinue;
     $('continueClearBtn').onclick = clearContinue;
