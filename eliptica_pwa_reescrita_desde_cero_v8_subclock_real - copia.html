@@ -148,6 +148,7 @@ tr.final td,tr.remaining td{font-weight:1000}
             <div class="metricLabel">Tiempo</div>
             <div id="clock" class="metricBig time">00:00</div>
             <div id="subClock" class="metricSub">Real: 00:00</div>
+            <div id="realClock" class="metricSub">Real: 00:00</div>
           </div>
           <div class="metricCol kcalMetric">
             <div class="metricLabel">Kcal plan y reales</div>
@@ -645,6 +646,7 @@ tr.final td,tr.remaining td{font-weight:1000}
     const realT = machineToReal(shownT);
     $('clock').textContent = fmtTime(shownT);
     $('subClock').textContent = 'Real: ' + fmtTime(state.plan.duration);
+    $('realClock').textContent = 'Real: ' + fmtTime(realT);
     $('kPlanBig').textContent = kPlan.toFixed(1);
     $('kRealBig').textContent = kReal.toFixed(1);
     const deltaPrefix = kDelta > 0 ? '+' : (kDelta < 0 ? '' : '±');
