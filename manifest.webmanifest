@@ -1,5 +1,5 @@
 {
-  "id": "./index.html",
+  "id": "./",
   "name": "Elíptica",
   "short_name": "Elíptica",
   "description": "Seguimiento de elíptica con BLE, autoguardado y grabación de sesión.",
@@ -7,6 +7,10 @@
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
+  "display_override": [
+    "standalone",
+    "minimal-ui"
+  ],
   "orientation": "landscape",
   "background_color": "#0b0d10",
   "theme_color": "#0b0d10",
