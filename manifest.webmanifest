@@ -1,8 +1,8 @@
 {
   "name": "Elíptica PWA",
   "short_name": "Elíptica",
-  "id": "/eliptica-pwa-v13",
-  "start_url": "./eliptica_pwa_reescrita_desde_cero_v13_botones_fix_chart_zoom_status_diag.html",
+  "id": "/eliptica-pwa-v15",
+  "start_url": "./eliptica_pwa_reescrita_desde_cero_v15_funciones_restauradas.html",
   "display": "standalone",
   "background_color": "#0b0d10",
   "theme_color": "#0b0d10",
