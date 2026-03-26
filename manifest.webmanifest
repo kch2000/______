@@ -1,7 +1,7 @@
 {
-  "name": "Eliptica PWA v17",
-  "short_name": "Eliptica v17",
-  "id": "/eliptica-pwa-v17",
+  "name": "Eliptica PWA v18",
+  "short_name": "Eliptica v18",
+  "id": "/eliptica-pwa-v18",
   "start_url": "./index.html",
   "display": "standalone",
   "background_color": "#0b0d10",

@@ -10,7 +10,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
 <link rel="apple-touch-icon" href="icon-192.png">
-<title>Eliptica PWA v17</title>
+<title>Eliptica PWA v18</title>
 <style>
 :root{
   --bg:#0b0d10; --card:#141820; --line:rgba(255,255,255,.10); --text:#eef3f8; --muted:#a8b2bf;
@@ -391,7 +391,7 @@ body.alert-test .timeline{border-color: rgba(255,90,95,.55)}
       </div>
       <div id="pwaBanner" class="badge" style="width:max-content;margin-bottom:8px">PWA lista. Instálala desde Chrome como app.</div>
       <div class="appInfoGrid">
-        <div class="stat"><div class="lab">Versión</div><div id="appVersionVal" class="val">v17</div></div>
+        <div class="stat"><div class="lab">Versión</div><div id="appVersionVal" class="val">v18</div></div>
         <div class="stat"><div class="lab">Modo app</div><div id="displayModeVal" class="val">--</div></div>
         <div class="stat"><div class="lab">Cache</div><div id="cacheStatusVal" class="val">--</div></div>
         <div class="stat"><div class="lab">Último BLE</div><div id="lastBleVal" class="val">--</div></div>
@@ -483,7 +483,7 @@ body.alert-test .timeline{border-color: rgba(255,90,95,.55)}
     } catch {}
   });
 
-  const APP_VERSION = 'v17';
+  const APP_VERSION = 'v18';
   const STORAGE_KEYS = {
     live:'eliptica_live_session_v2',
     plan:'eliptica_last_plan_v2',
@@ -739,12 +739,13 @@ body.alert-test .timeline{border-color: rgba(255,90,95,.55)}
     log('Plan normalizado', 'ok');
   }
 
+
   function drawCompareChart(){
     const cv = $('compareCanvas');
     const legend = $('chartLegend');
     if (!cv || !cv.getContext) return;
     const cssW = Math.max(320, Math.round(cv.clientWidth || 320));
-    const cssH = Math.max(180, Math.round(cv.clientHeight || 220));
+    const cssH = Math.max(190, Math.round(cv.clientHeight || 240));
     const dpr = Math.max(1, Math.min(3, window.devicePixelRatio || 1));
     if (cv.width !== Math.round(cssW * dpr) || cv.height !== Math.round(cssH * dpr)){
       cv.width = Math.round(cssW * dpr);
@@ -754,33 +755,42 @@ body.alert-test .timeline{border-color: rgba(255,90,95,.55)}
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, cssW, cssH);
 
-    const pad = { l: 52, r: 18, t: 16, b: 28 };
+    const pad = { l: 54, r: 22, t: 16, b: 30 };
     const plotW = Math.max(10, cssW - pad.l - pad.r);
     const plotH = Math.max(10, cssH - pad.t - pad.b);
-    const nowT = machineElapsed();
+    const nowT = Math.max(0, machineElapsed());
     const totalT = Math.max(1, state.plan.duration || 1);
-    const windowSec = Math.min(totalT, Math.max(120, Math.ceil(plotW / 5)));
-    const startT = Math.max(0, nowT - windowSec);
-    const endT = Math.min(totalT, Math.max(startT + 1, startT + windowSec));
-    const series = [];
-    const step = Math.max(1, Math.ceil((endT - startT) / Math.max(40, Math.floor(plotW / 6))));
-    for (let t = startT; t <= endT + 0.0001; t += step){
-      const tt = Math.min(endT, t);
-      series.push({ t:tt, plan: shownKcalAtTime(tt), real: shownRealKcalAtTime(tt) });
+    const windowSec = Math.min(totalT, Math.max(120, Math.ceil(plotW / 4)));
+    const endT = clamp(nowT, 0, totalT);
+    const startT = Math.max(0, endT - windowSec);
+
+    let hist = (state.plan.sessionLog || [])
+      .filter(r => Number.isFinite(r.second) && r.second >= Math.floor(startT) && r.second <= Math.ceil(endT))
+      .map(r => ({ t:Number(r.second), plan:Number(r.kcalPlan || 0), real:Number((r.kcalReal ?? r.kcalPlan) || 0) }));
+
+    if (!hist.length && state.plan.rows.length){
+      for (let s = Math.floor(startT); s <= Math.floor(endT); s++){
+        hist.push({ t:s, plan:Number(shownKcalAtTime(s).toFixed(1)), real:Number(shownRealKcalAtTime(s).toFixed(1)) });
+      }
     }
-    if (!series.length) series.push({ t:0, plan:0, real:0 });
-    const nowPlan = shownKcalAtTime(nowT);
-    const nowReal = shownRealKcalAtTime(nowT);
-    const vals = series.flatMap(p => [p.plan, p.real]).filter(v => Number.isFinite(v));
-    vals.push(nowPlan, nowReal);
+
+    const nowPoint = { t:endT, plan:Number(shownKcalAtTime(endT).toFixed(1)), real:Number(shownRealKcalAtTime(endT).toFixed(1)) };
+    if (!hist.length || Math.abs(hist[hist.length-1].t - nowPoint.t) > 0.001 || Math.abs(hist[hist.length-1].real - nowPoint.real) > 0.001 || Math.abs(hist[hist.length-1].plan - nowPoint.plan) > 0.001){
+      hist.push(nowPoint);
+    }
+
+    if (!hist.length) hist = [{ t:0, plan:0, real:0 }];
+    hist.sort((a,b) => a.t - b.t);
+
+    const vals = hist.flatMap(p => [p.plan, p.real]).filter(v => Number.isFinite(v));
     let yMin = Math.min(...vals), yMax = Math.max(...vals);
-    const spread = Math.max(2, yMax - yMin);
-    const padY = Math.max(1.5, spread * 0.22);
+    const spread = Math.max(0.6, yMax - yMin);
+    const padY = Math.max(0.4, spread * 0.30);
     yMin -= padY;
     yMax += padY;
-    if (Math.abs(yMax - yMin) < 4){ yMin -= 2; yMax += 2; }
+    if (Math.abs(yMax - yMin) < 2){ yMin -= 1; yMax += 1; }
 
-    const xFor = t => pad.l + ((t - startT) / Math.max(1e-9, endT - startT)) * plotW;
+    const xFor = t => pad.l + ((t - startT) / Math.max(1e-9, endT - startT || 1)) * plotW;
     const yFor = v => pad.t + (1 - ((v - yMin) / Math.max(1e-9, yMax - yMin))) * plotH;
 
     ctx.fillStyle = 'rgba(255,255,255,0.03)';
@@ -819,7 +829,7 @@ body.alert-test .timeline{border-color: rgba(255,90,95,.55)}
 
     const drawLine = (key, color, width) => {
       ctx.beginPath();
-      series.forEach((p, idx) => {
+      hist.forEach((p, idx) => {
         const x = xFor(p.t), y = yFor(p[key]);
         if (idx === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
       });
@@ -830,7 +840,7 @@ body.alert-test .timeline{border-color: rgba(255,90,95,.55)}
     drawLine('plan', '#d6d6d6', 2.2);
     drawLine('real', '#4ea8ff', 2.8);
 
-    const nowX = xFor(nowT), yPlan = yFor(nowPlan), yReal = yFor(nowReal);
+    const nowX = xFor(nowPoint.t), yPlan = yFor(nowPoint.plan), yReal = yFor(nowPoint.real);
     ctx.strokeStyle = 'rgba(255,92,92,0.95)';
     ctx.lineWidth = 1.5;
     ctx.beginPath();
@@ -841,7 +851,9 @@ body.alert-test .timeline{border-color: rgba(255,90,95,.55)}
     ctx.fillStyle = '#4ea8ff';
     ctx.beginPath(); ctx.arc(nowX, yReal, 4.4, 0, Math.PI*2); ctx.fill();
 
-    if (legend) legend.textContent = 'Plan ' + num(nowPlan,1) + ' · Real ' + num(nowReal,1) + ' · Ventana ' + fmtTime(startT) + '–' + fmtTime(endT);
+    if (legend){
+      legend.textContent = 'Plan ' + num(nowPoint.plan,1) + ' · Real ' + num(nowPoint.real,1) + ' · Ventana fija ' + fmtTime(startT) + '–' + fmtTime(endT);
+    }
   }
 
   function machineElapsed(){
@@ -1593,17 +1605,130 @@ body.alert-test .timeline{border-color: rgba(255,90,95,.55)}
     downloadBlob(JSON.stringify(payload, null, 2), 'sesion_eliptica.json', 'application/json;charset=utf-8');
     log('Sesión JSON exportada', 'ok');
   }
+
   function downloadBlob(content, filename, mime){
-    const normalized = typeof content === 'string' ? content.normalize('NFC') : content;
-    const blob = new Blob([normalized], {type:mime});
+    let normalized = content;
+    if (typeof normalized === 'string') normalized = normalized.normalize('NFC');
+    const needsBom = /^text\/(csv|plain)|application\/json/.test(String(mime || ''));
+    const blob = needsBom ? new Blob(['﻿', normalized], {type:mime}) : new Blob([normalized], {type:mime});
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
     a.download = filename;
+    a.style.display = 'none';
     document.body.appendChild(a);
     a.click();
-    a.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 1500);
+    setTimeout(() => {
+      try{ document.body.removeChild(a); }catch{}
+      try{ URL.revokeObjectURL(url); }catch{}
+    }, 800);
+    return filename;
+  }
+
+  async function copyTextSafe(text){
+    const value = String(text || '');
+    if (!value.trim()) throw new Error('No hay texto para copiar');
+    try{
+      if (navigator.clipboard && window.isSecureContext){
+        await navigator.clipboard.writeText(value);
+        return true;
+      }
+    }catch(err){
+      log('Clipboard API falló, uso fallback: ' + ((err && err.message) || err), 'warn');
+    }
+    const ta = document.createElement('textarea');
+    ta.value = value;
+    ta.setAttribute('readonly','');
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    ta.style.left = '-9999px';
+    ta.style.top = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    ta.setSelectionRange(0, ta.value.length);
+    const ok = document.execCommand('copy');
+    document.body.removeChild(ta);
+    if (!ok) throw new Error('No se pudo copiar al portapapeles');
+    return true;
+  }
+
+  function buildComparisonText(){
+    return compareWithPrevious();
+  }
+
+  function buildChatgptSummaryText(){
+    const final = buildFinalSummary();
+    const tramo = buildTramoSummary();
+    const compare = buildComparisonText();
+    return [
+      'RESUMEN PARA CHATGPT',
+      '',
+      final,
+      '',
+      tramo,
+      '',
+      'COMPARACIÓN CON ÚLTIMA',
+      compare
+    ].join('\n');
+  }
+
+  async function copySummary(){
+    const txt = [buildFinalSummary(), '', buildTramoSummary(), '', buildComparisonText()].join('\n');
+    $('finalSummaryBox').value = txt;
+    await copyTextSafe(txt);
+    log('Resumen copiado al portapapeles', 'ok');
+    return txt;
+  }
+
+  async function copyChatgptSummary(){
+    const txt = buildChatgptSummaryText();
+    $('finalSummaryBox').value = txt;
+    await copyTextSafe(txt);
+    log('Texto para ChatGPT copiado', 'ok');
+    return txt;
+  }
+
+  function exportPlanTxt(){
+    const txt = String(($('importBox') && $('importBox').value) || '').trim();
+    if (!txt) throw new Error('No hay plan cargado para exportar');
+    const name = 'plan_eliptica_' + new Date().toISOString().replace(/[:.]/g,'-') + '.txt';
+    downloadBlob(txt, name, 'text/plain;charset=utf-8');
+    log('Plan exportado: ' + name, 'ok');
+    return name;
+  }
+
+  async function clearAppData(){
+    const ok = confirm('Se borrarán caché, datos locales y sesión guardada. ¿Continuar?');
+    if (!ok){ log('Limpieza cancelada por el usuario', 'warn'); return false; }
+    try{ localStorage.clear(); }catch{}
+    try{ sessionStorage.clear(); }catch{}
+    if ('caches' in window){
+      const keys = await caches.keys();
+      await Promise.all(keys.map(k => caches.delete(k)));
+    }
+    if ('serviceWorker' in navigator){
+      const regs = await navigator.serviceWorker.getRegistrations();
+      await Promise.all(regs.map(r => r.unregister()));
+    }
+    log('Caché y datos locales eliminados', 'ok');
+    setTimeout(() => location.reload(), 700);
+    return true;
+  }
+
+  function finalSummaryAction(){
+    const final = buildFinalSummary();
+    const tramo = buildTramoSummary();
+    const compare = buildComparisonText();
+    $('finalSummaryBox').value = [final, '', tramo, '', 'COMPARACIÓN CON ÚLTIMA', compare].join('\n');
+    log('Resumen final generado', 'ok');
+    return $('finalSummaryBox').value;
+  }
+
+  function compareLastAction(){
+    const txt = buildComparisonText();
+    $('finalSummaryBox').value = ['COMPARACIÓN CON ÚLTIMA', '', txt].join('\n');
+    log('Comparación con última generada', 'ok');
+    return txt;
   }
 
   function buildFinalSummary(){
@@ -1716,10 +1841,16 @@ body.alert-test .timeline{border-color: rgba(255,90,95,.55)}
     saveLiveSession(); log('Marcador: ' + type, 'ok');
   }
   function savePreviousSession(){ try{ localStorage.setItem(STORAGE_KEYS.previous, JSON.stringify({ savedAt:new Date().toISOString(), sessionLog: state.plan.sessionLog, minuteLog: state.plan.minuteLog, markers: state.plan.markers })); }catch{} }
+
   function compareWithPrevious(){
     try{
       const prevRaw = localStorage.getItem(STORAGE_KEYS.previous);
-      if (!prevRaw){ $('lastCompareVal').textContent = 'sin previa'; return 'Sin sesión previa'; }
+      if (!prevRaw){
+        $('lastCompareVal').textContent = 'sin previa';
+        const txt = 'No hay sesión anterior guardada para comparar';
+        try{ localStorage.setItem(STORAGE_KEYS.compare, txt); }catch{}
+        return txt;
+      }
       const prev = JSON.parse(prevRaw), currRows = state.plan.sessionLog || [], prevRows = prev.sessionLog || [];
       const currKPlan = currRows.length ? Math.max(...currRows.map(r => Number(r.kcalPlan || 0))) : 0;
       const prevKPlan = prevRows.length ? Math.max(...prevRows.map(r => Number(r.kcalPlan || 0))) : 0;
@@ -1727,10 +1858,28 @@ body.alert-test .timeline{border-color: rgba(255,90,95,.55)}
       const prevKReal = prevRows.length ? Math.max(...prevRows.map(r => Number((r.kcalReal ?? r.kcalPlan) || 0))) : 0;
       const currB = currRows.map(r => r.bpm).filter(v => Number.isFinite(v)), prevB = prevRows.map(r => r.bpm).filter(v => Number.isFinite(v));
       const currAvg = currB.length ? currB.reduce((a,b)=>a+b,0)/currB.length : null, prevAvg = prevB.length ? prevB.reduce((a,b)=>a+b,0)/prevB.length : null;
-      const txt = `Comparación con última · plan ${num(currKPlan,1)} vs ${num(prevKPlan,1)} · real ${num(currKReal,1)} vs ${num(prevKReal,1)} · FC media ${num(currAvg,1)} vs ${num(prevAvg,1)}`;
-      $('lastCompareVal').textContent = 'sí'; try{ localStorage.setItem(STORAGE_KEYS.compare, txt); }catch{} return txt;
-    }catch{ return 'Error en comparación'; }
+      const currDur = currRows.length ? currRows[currRows.length-1].second + 1 : 0;
+      const prevDur = prevRows.length ? prevRows[prevRows.length-1].second + 1 : 0;
+      const txt = [
+        'Duración actual: ' + fmtTime(currDur),
+        'Duración previa: ' + fmtTime(prevDur),
+        'Kcal plan actual: ' + num(currKPlan,1),
+        'Kcal plan previa: ' + num(prevKPlan,1),
+        'Kcal real actual: ' + num(currKReal,1),
+        'Kcal real previa: ' + num(prevKReal,1),
+        'Diferencia real actual vs previa: ' + num(currKReal - prevKReal,1),
+        'FC media actual: ' + num(currAvg,1),
+        'FC media previa: ' + num(prevAvg,1),
+        'Diferencia FC media: ' + num((currAvg ?? 0) - (prevAvg ?? 0),1)
+      ].join('\n');
+      $('lastCompareVal').textContent = 'sí';
+      try{ localStorage.setItem(STORAGE_KEYS.compare, txt); }catch{}
+      return txt;
+    }catch(err){
+      return 'Error en comparación: ' + ((err && err.message) || err);
+    }
   }
+
   function updateExtraSavedInfo(){
     try{
       const cmp = localStorage.getItem(STORAGE_KEYS.compare); $('lastCompareVal').textContent = cmp ? 'sí' : '--';
@@ -2126,7 +2275,7 @@ body.alert-test .timeline{border-color: rgba(255,90,95,.55)}
       if (el._boundClickHandler) el.removeEventListener('click', el._boundClickHandler);
       const handler = withTapGuard(key, async (ev) => {
         log('[BTN ' + key + '] #' + id + ' pulsado', 'ok');
-        try{ return await fn(ev); }
+        try{ const result = await fn(ev); log('[BTN ' + key + '] OK', 'ok'); return result; }
         catch(err){ log('Error en botón #' + id + ': ' + ((err && err.message) || err), 'err'); return false; }
       }, ms);
       el._boundClickHandler = handler;
@@ -2144,7 +2293,7 @@ body.alert-test .timeline{border-color: rgba(255,90,95,.55)}
   function bindSeekButtons(){ const list = Array.from(document.querySelectorAll('.seekBtn')); if (!list.length){ log('[CHECK] No hay botones seek visibles', 'warn'); return 0; } list.forEach(btn => { btn.onclick = null; const code='seek'+btn.dataset.seek; btn.addEventListener('click', withTapGuard(code, () => { log('[BTN ' + code + '] .seekBtn pulsado', 'ok'); return seek(Number(btn.dataset.seek || 0)); }, 120)); btn.dataset.bound='ok'; }); log('[CHECK] Seek enlazados: ' + list.length, 'ok'); return list.length; }
   function runStartupDiagnostics(){
     const requiredIds=['startBtn','resetBtn','startBtnTop','resetBtnTop','applyPlanBtn','previewPlanBtn','normalizePlanBtn','kRealPlusBtn','kRealPlusHalfBtn','kRealPlusTenthBtn','kRealMinusTenthBtn','kRealMinusHalfBtn','kRealMinusBtn','waterCard','compareCanvas','nextBody','chipBle','chipHr','chipRun','chipSave','chipWater','chipAlert','chipPwa','chipTest'];
-    const fnMap = {withTapGuard, bindAction, drawCompareChart, refreshAll, toggleRun, applyImport, previewImport, normalizeCurrentImport, refreshStatusStrip, renderHistory, refreshSessionAlert, exportTramoCsv, updateAppStatus}; let ok=0, fail=0;
+    const fnMap = {withTapGuard, bindAction, drawCompareChart, refreshAll, toggleRun, applyImport, previewImport, normalizeCurrentImport, refreshStatusStrip, renderHistory, refreshSessionAlert, exportTramoCsv, updateAppStatus, copySummary, copyChatgptSummary, exportPlanTxt, clearAppData, compareLastAction, finalSummaryAction}; let ok=0, fail=0;
     requiredIds.forEach(id => { if ($(id)){ log('[CHECK] DOM #' + id + ': ok', 'ok'); ok++; } else { log('[CHECK] DOM #' + id + ': falta', 'err'); fail++; } });
     Object.entries(fnMap).forEach(([name, fn]) => { if (typeof fn === 'function'){ log('[CHECK] Función ' + name + ': ok', 'ok'); ok++; } else { log('[CHECK] Función ' + name + ': falta', 'err'); fail++; } });
     try{ const cv=$('compareCanvas'); if (cv && cv.getContext && cv.getContext('2d')){ log('[CHECK] Canvas gráfica: ok', 'ok'); ok++; } else { log('[CHECK] Canvas gráfica: fallo', 'err'); fail++; } }catch(err){ log('[CHECK] Canvas gráfica: ' + ((err&&err.message)||err), 'err'); fail++; }
@@ -2155,7 +2304,7 @@ body.alert-test .timeline{border-color: rgba(255,90,95,.55)}
     log('[CHECK] Resumen arranque: ' + ok + ' OK · ' + fail + ' fallo(s)', fail ? 'warn' : 'ok');
   }
   function bind(){
-    bindAction('applyPlanBtn','applyPlan',applyImport); bindAction('previewPlanBtn','previewPlan',()=>{ previewImport(); log('Vista previa del plan actualizada','ok'); }); bindAction('normalizePlanBtn','normalizePlan',normalizeCurrentImport); bindAction('clearPlanBtn','clearPlan',()=>{ $('importBox').value=''; renderImportPreview(null); }); bindAction('copyPlanBtn','copyPlan',async()=>{ const txt=$('importBox').value; if(!txt) return; try{ await navigator.clipboard.writeText(txt); log('Texto del plan copiado','ok'); }catch(err){ log('No se pudo copiar el plan: '+((err&&err.message)||err),'warn'); } });
+    bindAction('applyPlanBtn','applyPlan',applyImport); bindAction('previewPlanBtn','previewPlan',()=>{ previewImport(); log('Vista previa del plan actualizada','ok'); }); bindAction('normalizePlanBtn','normalizePlan',normalizeCurrentImport); bindAction('clearPlanBtn','clearPlan',()=>{ $('importBox').value=''; renderImportPreview(null); }); bindAction('copyPlanBtn','copyPlan',async()=>{ const txt=$('importBox').value; if(!txt) throw new Error('No hay texto para copiar'); await copyTextSafe(txt); log('Texto del plan copiado','ok'); });
     bindAction('startBtn','toggleRun1',toggleRun); bindAction('startBtnTop','toggleRun2',toggleRun); bindAction('resetBtn','reset1',resetPlan); bindAction('resetBtnTop','reset2',resetPlan); bindSeekButtons();
     bindAction('continueApplyBtn','continueApply',applyContinue); bindAction('continueClearBtn','continueClear',clearContinue);
     bindAction('kRealPlusBtn','kplus',()=>adjustRealKcal(1),120); bindAction('kRealPlusHalfBtn','kplushalf',()=>adjustRealKcal(0.5),120); bindAction('kRealPlusTenthBtn','kplustenth',()=>adjustRealKcal(0.1),120); bindAction('kRealMinusTenthBtn','kminustenth',()=>adjustRealKcal(-0.1),120); bindAction('kRealMinusHalfBtn','kminushalf',()=>adjustRealKcal(-0.5),120); bindAction('kRealMinusBtn','kminus',()=>adjustRealKcal(-1),120);
