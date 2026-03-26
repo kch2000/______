@@ -1,31 +1,21 @@
 {
-  "id": "./",
-  "name": "Elíptica",
+  "name": "Elíptica PWA",
   "short_name": "Elíptica",
-  "description": "Seguimiento de elíptica con BLE, autoguardado y grabación de sesión.",
-  "lang": "es",
-  "start_url": "./index.html",
-  "scope": "./",
+  "id": "/eliptica-pwa-v11",
+  "start_url": "./eliptica_pwa_reescrita_desde_cero_v11_mejoras_total_sin_punto6.html",
   "display": "standalone",
-  "display_override": [
-    "standalone",
-    "minimal-ui"
-  ],
-  "orientation": "landscape",
   "background_color": "#0b0d10",
   "theme_color": "#0b0d10",
   "icons": [
     {
       "src": "icon-192.png",
       "sizes": "192x192",
-      "type": "image/png",
-      "purpose": "any maskable"
+      "type": "image/png"
     },
     {
       "src": "icon-512.png",
       "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "any maskable"
+      "type": "image/png"
     }
   ]
 }
