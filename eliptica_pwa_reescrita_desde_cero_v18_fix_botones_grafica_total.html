@@ -1,3 +1,462 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0b0d10">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Elíptica">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<title>Eliptica PWA v18</title>
+<style>
+:root{
+  --bg:#0b0d10; --card:#141820; --line:rgba(255,255,255,.10); --text:#eef3f8; --muted:#a8b2bf;
+  --ok:#66e28a; --warn:#ffd166; --bad:#ff5a5f; --blue:#78c6ff;
+  --z0:#8c8c8c; --z1:#4ea8ff; --z2:#43c26b; --z3:#f2d64b; --z4:#ff9f43; --z5:#ff4d4f;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif}
+body{min-height:100dvh}
+.app{padding:8px;display:flex;flex-direction:column;gap:8px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+.head{display:flex;justify-content:space-between;align-items:center;padding:8px 10px;border-bottom:1px solid var(--line);gap:8px}
+.body{padding:10px}
+.title{font-size:18px;font-weight:1000}
+.status{font-size:12px;color:var(--muted);font-weight:900}
+.topGrid{display:grid;grid-template-columns:1.25fr .75fr 92px;gap:8px;align-items:stretch}
+.bottomGrid{display:grid;grid-template-columns:1.25fr .75fr;gap:8px}
+button,input,textarea{font:inherit}
+button{border:1px solid var(--line);background:#1d2330;color:var(--text);border-radius:10px;padding:10px 12px;font-weight:900;cursor:pointer}
+button.primary{background:rgba(50,140,80,.35)}
+button.danger{background:rgba(170,40,40,.35)}
+button.small{padding:7px 10px;font-size:13px}
+.applyGreen{background:rgba(40,170,80,.58)!important;border-color:rgba(120,240,150,.38)!important;color:#f4fff7}
+input,textarea{background:#0e1218;border:1px solid var(--line);color:var(--text);border-radius:10px;padding:8px}
+textarea{width:100%;min-height:180px;resize:vertical;font-family:ui-monospace,Consolas,monospace;font-size:12px}
+.controls{display:flex;gap:8px;flex-wrap:wrap}
+.sep{height:1px;background:var(--line);margin:8px 0}
+.metrics{display:grid;grid-template-columns:minmax(0,1.25fr) 280px 150px;gap:18px}
+.metricCol{display:grid;grid-template-rows:20px 76px 26px 26px;align-items:end;min-width:0}
+.metricLabel{font-size:12px;font-weight:1000;text-transform:uppercase;color:#cfd7e2}
+.metricBig{font-size:62px;line-height:1;font-weight:1000;font-variant-numeric:tabular-nums}
+.metricBig.time.test{color:var(--bad)}
+.metricBig.kcal{color:var(--blue)}
+.metricBig.kcalPlan{color:var(--blue)}
+.metricBig.kcalReal{color:#ffd166}
+.metricSub{font-size:16px;color:var(--muted)}
+.targetVal{font-size:24px;font-weight:1000}
+.metricCol.kcalMetric{grid-template-rows:20px auto 26px 26px;align-items:start}
+.kcalStack{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:28px;align-items:center}
+.kcalValueBox{min-width:0}
+.kcalMiniLabel{font-size:11px;font-weight:1000;text-transform:uppercase;color:#cfd7e2;margin-bottom:4px}
+.kcalValueBox .metricBig{font-size:44px;line-height:1;letter-spacing:.01em}
+.sideKcalCol{display:flex;flex-direction:column;min-height:100%}
+.sideKcalCol .body{padding:0;display:flex;flex-direction:column;flex:1;min-height:100%}
+.sideKcalBtn{flex:1;min-height:0;border-radius:0;font-size:28px;font-weight:1000;padding:0 6px;display:flex;align-items:center;justify-content:center}
+.sideKcalBtn:first-child{border-top-left-radius:14px;border-top-right-radius:14px}
+.sideKcalBtn:last-child{border-bottom-left-radius:14px;border-bottom-right-radius:14px;border-top:1px solid var(--line)}
+.kcalDelta{font-size:15px;font-weight:1000;margin-top:6px}
+.kcalDelta.pos{color:var(--ok)}
+.kcalDelta.neg{color:var(--bad)}
+.kcalDelta.neu{color:var(--muted)}
+.metricCol.hrMetric{grid-template-rows:20px 76px 18px 26px;max-width:150px}
+.metricCol.hrMetric .metricBig{font-size:54px}
+.metricCol.hrMetric .targetVal{font-size:22px}
+.metricCol.hrMetric .metricLabel.smallish{font-size:10px}
+.hrBad{color:#fff;background:var(--bad);padding:4px 10px;border-radius:12px;display:inline-block}
+.hrGood{color:var(--ok)}
+.hrNeutral{color:#d8e2ef}
+.quickStats{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+.stat{padding:8px;border:1px solid var(--line);border-radius:10px;background:rgba(255,255,255,.03)}
+.stat .lab{font-size:10px;font-weight:1000;color:var(--muted);text-transform:uppercase}
+.stat .val{font-size:18px;font-weight:1000}
+.badges{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 8px 0}
+.badge{padding:8px 10px;border-radius:999px;border:1px solid var(--line);font-size:13px;font-weight:950;background:rgba(255,255,255,.04)}
+.badge.test{background:rgba(255,90,95,.14);color:#ffb0b5;border-color:rgba(255,90,95,.35)}
+.badge.phase{background:rgba(255,180,80,.14);color:#ffdca6;border-color:rgba(255,180,80,.35)}
+.badge.continue{background:rgba(120,198,255,.14);color:#bfe3ff;border-color:rgba(120,198,255,.35)}
+.timeline{background:#000;border:1px solid rgba(255,255,255,.15);border-radius:14px;padding:10px}
+.timelineWrap{position:relative;height:76px}
+.timelineTrack{position:absolute;left:0;right:0;top:8px;height:18px;border-radius:999px;background:#f4f4f4;overflow:visible;border:1px solid rgba(255,255,255,.18)}
+.timelineFill{position:absolute;left:0;top:0;bottom:0;width:0;background:linear-gradient(90deg,#ff7b7b,#ff2d2d);transition:width .12s linear;box-shadow:0 0 10px rgba(255,70,70,.7)}
+.timelineCursor{position:absolute;top:-6px;bottom:-6px;width:4px;background:#ff2d2d;border-radius:999px;left:0;box-shadow:0 0 10px rgba(255,45,45,.95);z-index:3}
+.timelineMarks{position:absolute;inset:0}
+.segBlock{position:absolute;top:1px;height:28px;border-radius:999px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:1000;border:1px solid rgba(0,0,0,.12);padding:0 6px;white-space:nowrap}
+.segBlock.done{filter:grayscale(1) brightness(.75)}
+.l10{background:#f1f1f1;color:#111}.l11{background:#72ad68;color:#111}.l12{background:#ffe07a;color:#111}.l13{background:#ff9d9d;color:#111}
+.mark{position:absolute;transform:translateX(-50%);text-align:center;font-size:11px;font-weight:1000}
+.mark .line{width:3px;background:#d9d9d9;margin:0 auto 2px;box-shadow:0 0 0 1px rgba(0,0,0,.55)}
+.mark .time{display:inline-block;background:rgba(0,0,0,.88);padding:2px 5px;border-radius:7px;border:1px solid rgba(255,255,255,.12)}
+.mark.done .line{background:#ff6666;box-shadow:0 0 6px rgba(255,70,70,.8)}
+.mark.r1{top:30px}.mark.r1 .line{height:18px}
+.mark.r2{top:46px}.mark.r2 .line{height:13px}
+.mark.r3{top:60px}.mark.r3 .line{height:10px}
+.tapCard{border:1px solid var(--line);border-radius:10px;padding:8px;background:rgba(255,255,255,.03);cursor:pointer}
+.tapCard.warn{background:rgba(255,210,80,.18)} .tapCard.due{background:rgba(255,90,95,.18)}
+.tapHead{display:flex;justify-content:space-between;gap:8px;margin-bottom:6px}
+.barWrap{height:7px;border-radius:999px;overflow:hidden;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.08)}
+.bar{height:100%;width:0}
+#waterBar{background:linear-gradient(90deg,#4ea8ff,#7bddff)}
+table{width:100%;border-collapse:collapse;table-layout:fixed}
+th,td{padding:7px 6px;border-bottom:1px solid var(--line);text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:15px}
+th{font-size:14px;color:var(--muted);font-weight:1000}
+tr.current td{background:rgba(255,210,80,.18)}
+tr.next td{background:rgba(120,198,255,.15)}
+tr.water td{background:rgba(78,168,255,.12);color:#9fd2ff}
+tr.waterSoon td{background:rgba(255,210,80,.22)}
+tr.waterDue td{background:rgba(255,90,95,.22)}
+tr.final td,tr.remaining td{font-weight:1000}
+.bleGrid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.panel{border:1px solid var(--line);border-radius:12px;padding:10px;background:rgba(255,255,255,.03)}
+.bigBpm{font-size:56px;font-weight:1000;line-height:1}
+.kv{display:grid;grid-template-columns:165px 1fr;gap:6px 10px;font-size:13px}
+.kv .k{color:var(--muted)}
+.logBox{display:flex;flex-direction:column;gap:6px;max-height:280px;overflow:auto}
+.logLine{padding:6px 8px;border-radius:8px;background:rgba(255,255,255,.04);font-size:12px}
+.logLine.ok{background:rgba(102,226,138,.12)} .logLine.warn{background:rgba(255,209,102,.14)} .logLine.err{background:rgba(255,90,95,.14)}
+.zonePill{padding:6px 10px;border-radius:999px;color:#111;font-weight:1000;display:inline-block}
+.hidden{display:none !important}
+
+.alertBanner{padding:10px 12px;border-radius:12px;border:1px solid var(--line);font-weight:1000;background:rgba(255,255,255,.04);margin-top:8px}
+.alertBanner.ok{background:rgba(102,226,138,.12);color:#b8f4cb}
+.alertBanner.warn{background:rgba(255,209,102,.16);color:#ffe7a6}
+.alertBanner.err{background:rgba(255,90,95,.16);color:#ffb9bc}
+.alertBanner.info{background:rgba(120,198,255,.14);color:#cde9ff}
+.miniGrid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:8px}
+.chartCard{margin-top:8px;border:1px solid var(--line);border-radius:12px;padding:8px;background:rgba(255,255,255,.03)}
+.chartHead{display:flex;justify-content:space-between;gap:8px;align-items:center;margin-bottom:6px;font-size:12px;color:var(--muted);font-weight:900}
+#compareCanvas{width:100%;height:96px;display:block;background:rgba(0,0,0,.18);border-radius:8px}
+.importPreview,.importIssues{border:1px solid var(--line);border-radius:12px;padding:10px;background:rgba(255,255,255,.03);font-size:12px;white-space:pre-wrap}
+.importIssues.warn{background:rgba(255,209,102,.12)}
+.importPreview strong,.importIssues strong{display:block;margin-bottom:6px;color:#fff}
+.modalBack{position:fixed;inset:0;background:rgba(0,0,0,.65);display:flex;align-items:center;justify-content:center;padding:16px;z-index:50}
+.modalCard{width:min(760px,100%);max-height:92dvh;overflow:auto;background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px}
+.formGrid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.formGrid .full{grid-column:1/-1}
+.formGrid label{display:flex;flex-direction:column;gap:6px;font-size:12px;color:var(--muted);font-weight:900}
+.smallMono{font-family:ui-monospace,Consolas,monospace}
+.historyList{display:flex;flex-direction:column;gap:8px}
+.historyItem{border:1px solid var(--line);border-radius:12px;padding:10px;background:rgba(255,255,255,.03)}
+.historyTop{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:6px}
+.historyMeta{font-size:12px;color:var(--muted)}
+.historyBtns{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+.kicker{font-size:11px;text-transform:uppercase;color:var(--muted);font-weight:1000;letter-spacing:.04em}
+.inlineStats{display:flex;gap:12px;flex-wrap:wrap;font-size:12px;color:var(--muted)}
+.appInfoGrid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:8px}
+.sessionCtl{display:flex;gap:8px;flex-wrap:wrap}
+.thinBtn{padding:8px 10px;font-size:12px}
+.alertPulse{animation:alertPulse 1s ease-in-out infinite alternate}
+@keyframes alertPulse{from{box-shadow:0 0 0 rgba(255,90,95,.1)}to{box-shadow:0 0 14px rgba(255,90,95,.55)}}
+body.alert-change .timeline, body.alert-water .timeline {border-color: rgba(255,209,102,.45)}
+body.alert-test .timeline{border-color: rgba(255,90,95,.55)}
+@media (max-width:1100px){ .miniGrid,.formGrid,.appInfoGrid{grid-template-columns:1fr 1fr} }
+@media (max-width:680px){ .miniGrid,.formGrid,.appInfoGrid{grid-template-columns:1fr} }
+
+@media (max-width:1100px){ .topGrid,.bottomGrid,.bleGrid,.metrics,.quickStats{grid-template-columns:1fr} }
+
+/* v14 overrides */
+.topGrid{display:grid !important;grid-template-columns:minmax(0,1.35fr) minmax(280px,.8fr) 112px !important;gap:8px;align-items:stretch}
+.rightStack{display:grid;grid-template-rows:auto minmax(0,1fr) auto auto;gap:8px;min-height:100%}
+.statusStrip{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
+.statusChip{min-height:30px;border:1px solid var(--line);border-radius:10px;background:rgba(255,255,255,.04);display:flex;align-items:center;justify-content:center;gap:5px;padding:4px 6px;font-size:10px;font-weight:1000;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.statusChip .ico{font-size:13px;line-height:1}
+.statusChip.ok{color:#b8f4cb;border-color:rgba(102,226,138,.35);background:rgba(102,226,138,.12)}
+.statusChip.warn{color:#ffe7a6;border-color:rgba(255,209,102,.35);background:rgba(255,209,102,.12)}
+.statusChip.err{color:#ffb9bc;border-color:rgba(255,90,95,.35);background:rgba(255,90,95,.12)}
+.statusChip.neu{color:#d9e2ef}
+.nextCardBody{padding:0;display:flex;flex-direction:column;min-height:0}
+.nextTableWrap{min-height:0;overflow:auto}
+.smallWater{min-height:92px}
+.miniCtlCard .body{padding:8px}
+.miniCtlGrid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.sideKcalCol{display:flex;flex-direction:column;min-height:100%}
+.sideKcalCol .body{padding:0 !important;display:grid !important;grid-template-columns:1fr !important;grid-template-rows:repeat(6,1fr) !important;flex:1;min-height:100%}
+.sideKcalBtn{min-height:0;border-radius:0;font-size:24px;font-weight:1000;padding:0 6px;display:flex;align-items:center;justify-content:center}
+.sideKcalBtn:first-child{border-top-left-radius:14px;border-top-right-radius:14px}
+.sideKcalBtn:last-child{border-bottom-left-radius:14px;border-bottom-right-radius:14px}
+#waterCard{cursor:pointer}
+.chartWideCard .body{padding:10px}
+.chartCard.wide{margin-top:0}
+#compareCanvas{width:100% !important;height:260px !important;display:block;background:rgba(0,0,0,.18);border-radius:8px}
+@media (max-width:1100px){
+  .topGrid{grid-template-columns:1fr !important}
+  .rightStack{grid-template-rows:auto auto auto auto}
+  .statusStrip{grid-template-columns:repeat(4,minmax(0,1fr))}
+  .sideKcalCol .body{grid-template-columns:repeat(3,1fr) !important;grid-template-rows:repeat(2,1fr) !important}
+  .sideKcalBtn{min-height:56px}
+}
+@media (max-width:680px){
+  .statusStrip{grid-template-columns:repeat(2,minmax(0,1fr))}
+  #compareCanvas{height:230px !important}
+}
+
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="timeline">
+    <div class="timelineWrap">
+      <div class="timelineTrack">
+        <div id="timelineFill" class="timelineFill"></div>
+        <div id="timelineCursor" class="timelineCursor"></div>
+      </div>
+      <div id="timelineMarks" class="timelineMarks"></div>
+    </div>
+  </div>
+
+  <div class="topGrid">
+    <div class="card">
+      <div class="head"><div class="title">Elíptica</div><div id="statusLine" class="status">Lista</div></div>
+      <div class="body">
+        <div id="planTitle" class="title" style="font-size:15px;margin-bottom:8px">Plan no cargado</div>
+        <div class="badges">
+          <div id="continueBadge" class="badge continue hidden">Continuando desde --</div>
+          <div id="testBadge" class="badge test hidden">MODO TEST ACTIVO · bloque principal B · 30 min</div>
+          <div id="testPhaseBadge" class="badge phase hidden">Modo test activo · bloque principal B</div>
+        </div>
+        <div class="metrics">
+          <div class="metricCol">
+            <div class="metricLabel">Tiempo</div>
+            <div id="clock" class="metricBig time">00:00</div>
+            <div id="subClock" class="metricSub">REAL 00:00</div>
+          </div>
+          <div class="metricCol kcalMetric">
+            <div class="metricLabel">Kcal plan y reales</div>
+            <div class="kcalStack">
+              <div class="kcalValueBox"><div class="kcalMiniLabel">Plan</div><div id="kPlanBig" class="metricBig kcal kcalPlan">0.0</div></div>
+              <div class="kcalValueBox"><div class="kcalMiniLabel">Reales</div><div id="kRealBig" class="metricBig kcalReal">0.0</div></div>
+            </div>
+            <div id="kDelta" class="kcalDelta neu hidden" aria-hidden="true"></div>
+            <div class="metricSub">&nbsp;</div>
+          </div>
+          <div class="metricCol hrMetric">
+            <div class="metricLabel">Pulso actual</div>
+            <div id="hrBig" class="metricBig hrNeutral">--</div>
+            <div class="metricLabel smallish">BPM objetivo</div>
+            <div id="hrTarget" class="targetVal">—</div>
+          </div>
+        </div>
+        <div class="sep"></div>
+        <div class="quickStats">
+          <div class="stat"><div class="lab">Avg plan</div><div id="avgPlan" class="val">0.00 kcal/min · 0.00/30s</div></div>
+          <div class="stat"><div class="lab">Avg reales</div><div id="avgReal" class="val">0.00 kcal/min · 0.00/30s</div></div>
+          <div class="stat"><div class="lab">Desvío actual</div><div id="kDeltaStat" class="val">±0.0 kcal</div></div>
+        </div>
+        <div class="sep"></div>
+        <div class="miniGrid">
+          <div class="stat"><div class="lab">Desvío tramo</div><div id="segmentDeltaVal" class="val">0.0 kcal</div></div>
+          <div class="stat"><div class="lab">Ritmo real</div><div id="paceRealVal" class="val">0.00 kcal/min</div></div>
+          <div class="stat"><div class="lab">Ritmo para plan</div><div id="paceNeedVal" class="val">0.00 kcal/min</div></div>
+          <div class="stat"><div class="lab">Agua</div><div id="waterCountVal" class="val">0 / 0</div></div>
+        </div>
+        <div id="sessionAlert" class="alertBanner info">Sin alertas críticas.</div>
+      </div>
+    </div>
+    <div class="rightStack">
+      <div class="statusStrip">
+        <div id="chipBle" class="statusChip neu"><span class="ico">📶</span><span>BLE</span></div>
+        <div id="chipHr" class="statusChip neu"><span class="ico">🫀</span><span>Pulso</span></div>
+        <div id="chipRun" class="statusChip neu"><span class="ico">⏱️</span><span>Sesión</span></div>
+        <div id="chipSave" class="statusChip neu"><span class="ico">💾</span><span>Guardado</span></div>
+        <div id="chipWater" class="statusChip neu"><span class="ico">💧</span><span>Agua</span></div>
+        <div id="chipAlert" class="statusChip neu"><span class="ico">⚠️</span><span>Alertas</span></div>
+        <div id="chipPwa" class="statusChip neu"><span class="ico">📲</span><span>App</span></div>
+        <div id="chipTest" class="statusChip neu"><span class="ico">🧪</span><span>Test</span></div>
+      </div>
+      <div class="card nextCardBody"><div class="nextTableWrap"><table><thead><tr><th>En</th><th>Hora</th><th>Nivel</th><th>Tramo</th></tr></thead><tbody id="nextBody"></tbody></table></div></div>
+      <div id="waterCard" class="tapCard smallWater"><div class="tapHead"><div>💧 Agua</div><div id="waterRemain">--</div></div><div class="barWrap"><div id="waterBar" class="bar"></div></div></div>
+      <div class="card miniCtlCard"><div class="body"><div class="miniCtlGrid"><button id="startBtnTop" class="primary" style="min-height:52px">▶ Empezar</button><button id="resetBtnTop" class="danger" style="min-height:52px">↺ Reset</button></div></div></div>
+    </div>
+    <div class="card sideKcalCol" aria-label="Ajuste de kcal reales"><div class="body"><button id="kRealPlusBtn" class="sideKcalBtn">+1.0</button><button id="kRealPlusHalfBtn" class="sideKcalBtn">+0.5</button><button id="kRealPlusTenthBtn" class="sideKcalBtn">+0.1</button><button id="kRealMinusTenthBtn" class="sideKcalBtn">-0.1</button><button id="kRealMinusHalfBtn" class="sideKcalBtn">-0.5</button><button id="kRealMinusBtn" class="sideKcalBtn">-1.0</button></div></div>
+  </div>
+  <div class="card chartWideCard"><div class="body"><div class="chartCard wide"><div class="chartHead"><span>Plan vs reales · ventana dinámica</span><span id="chartLegend">Plan 0.0 · Real 0.0 · zoom automático</span></div><canvas id="compareCanvas" width="1200" height="260"></canvas></div></div></div>
+  <div class="card">
+    <div class="head"><div class="title">Frecuencia cardiaca BLE</div></div>
+    <div class="body">
+      <div class="controls" style="margin-bottom:8px">
+        <button id="bleConnectBtn">Conectar pulsómetro</button>
+        <button id="bleReconnectBtn">Reconectar</button>
+        <button id="bleDisconnectBtn">Desconectar</button>
+        <button id="bleDiagBtn">Diagnóstico BLE</button>
+      </div>
+      <div id="bleBanner" class="badge" style="width:max-content;margin-bottom:8px">BLE listo. Usa “Conectar pulsómetro”.</div>
+      <div class="controls" style="margin-bottom:8px;gap:8px;flex-wrap:wrap">
+        <div class="badge">Z0 &lt;116 · Muy suave · gris</div>
+        <div class="badge">Z1 116–130 · Recuperación · azul</div>
+        <div class="badge">Z2 131–138 · Base baja · verde</div>
+        <div class="badge">Z3 139–145 · Base útil · amarillo</div>
+        <div class="badge">Z4 146–154 · Umbral · naranja</div>
+        <div class="badge">Z5 155–165 · Máxima · rojo</div>
+      </div>
+      <div class="bleGrid">
+        <div class="panel">
+          <div class="bigBpm" id="bleBpmBig">--</div>
+          <div id="bleZoneLine">Zona --</div>
+          <div id="bleZonePill" class="zonePill" style="display:none;margin-top:8px">--</div>
+          <div class="sep"></div>
+          <div class="kv">
+            <div class="k">Estado</div><div id="bleStateVal">desconectado</div>
+            <div class="k">Dispositivo</div><div id="bleDeviceVal">--</div>
+            <div class="k">Señal</div><div id="bleSignalVal">--</div>
+            <div class="k">Contacto</div><div id="bleContactVal">--</div>
+            <div class="k">Batería</div><div id="bleBatteryVal">--</div>
+            <div class="k">RR disponibles</div><div id="bleRrStatusVal">--</div>
+          </div>
+        </div>
+        <div class="panel">
+          <div class="kv">
+            <div class="k">BPM 5s</div><div id="bleAvg5Val">--</div>
+            <div class="k">BPM 10s</div><div id="bleAvg10Val">--</div>
+            <div class="k">BPM 30s</div><div id="bleAvg30Val">--</div>
+            <div class="k">Mín / Máx / Med</div><div id="bleMinMaxAvgVal">--</div>
+            <div class="k">RR medio</div><div id="bleRrAvgVal">--</div>
+            <div class="k">RMSSD / SDNN</div><div id="bleHrvVal">--</div>
+            <div class="k">Último paquete</div><div id="bleLastPacketVal">--</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="bottomGrid">
+    <div class="card">
+      <div class="head">
+        <div class="title">Importar plan</div>
+        <div class="controls">
+          <button id="applyPlanBtn" class="small applyGreen">Aplicar</button>
+          <button id="copyPlanBtn" class="small">Copiar texto</button>
+          <button id="clearPlanBtn" class="small">Borrar</button>
+          <button id="previewPlanBtn" class="small">Vista previa</button>
+          <button id="normalizePlanBtn" class="small">Normalizar</button>
+        </div>
+      </div>
+      <div class="body">
+        <textarea id="importBox"></textarea>
+        <div class="controls" style="margin-top:8px">
+          <div id="importPreviewBox" class="importPreview" style="flex:2 1 380px"><strong>Vista previa</strong>Sin analizar todavía.</div>
+          <div id="importIssuesBox" class="importIssues" style="flex:1 1 260px"><strong>Chequeo</strong>Sin incidencias.</div>
+        </div>
+        <div class="sep"></div>
+        <div class="controls" style="margin-bottom:8px">
+          <button id="startBtn" class="primary" style="min-height:52px">▶ Empezar</button>
+          <button id="resetBtn" class="danger" style="min-height:52px">↺ Reset</button>
+          <button id="markWaterBtn">Marcar agua</button>
+          <button id="markIncidentBtn">Marcar incidencia</button>
+          <button id="markStrongBtn">Marcar bloque fuerte</button>
+          <button id="markPainRightBtn">Dolor cadena dcha</button>
+          <button id="markPainTibialBtn">Dolor tibial</button>
+        </div>
+        <div class="controls">
+          <div class="stat"><div class="lab">Filas</div><div id="rowsVal" class="val">0</div></div>
+          <div class="stat"><div class="lab">Duración</div><div id="durVal" class="val">00:00</div></div>
+          <div class="stat"><div class="lab">Objetivo</div><div id="goalVal" class="val">0.0</div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="head"><div class="title">Continuar</div></div>
+      <div class="body">
+        <div class="controls">
+          <input id="continueMinuteInput" placeholder="Minuto, ej. 29:00" style="max-width:200px">
+          <input id="continueKcalInput" type="number" min="0" step="0.1" placeholder="Kcal, opcional" style="max-width:180px">
+          <button id="continueApplyBtn" class="primary">Aplicar continuar</button>
+          <button id="continueClearBtn">Borrar continuar</button>
+        </div>
+        <div id="continueLine" class="status" style="margin-top:8px">Sin modo continuar activo. Puedes dar minuto, kcal o ambos.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="head"><div class="title">App / PWA</div></div>
+    <div class="body">
+      <div class="controls" style="margin-bottom:8px">
+        <button id="installBtn">Instalar app</button>
+        <button id="refreshAppBtn">Actualizar app</button>
+        <button id="exportSessionBtn">Exportar sesión</button>
+        <button id="exportMinuteBtn">Exportar minuto a minuto</button>
+        <button id="resumeSessionBtn">Reanudar sesión guardada</button>
+        <button id="finalSummaryBtn">Resumen final</button>
+        <button id="exportSessionJsonBtn">Exportar JSON</button>
+        <button id="compareLastBtn">Comparar con última</button>
+        <button id="exportTramoCsvBtn">CSV tramos</button>
+        <button id="copySummaryBtn">Copiar resumen</button>
+        <button id="copyChatgptBtn">Copiar para ChatGPT</button>
+        <button id="exportPlanTxtBtn">Exportar plan</button>
+        <button id="clearAppDataBtn">Limpiar caché y datos</button>
+      </div>
+      <div id="pwaBanner" class="badge" style="width:max-content;margin-bottom:8px">PWA lista. Instálala desde Chrome como app.</div>
+      <div class="appInfoGrid">
+        <div class="stat"><div class="lab">Versión</div><div id="appVersionVal" class="val">v18</div></div>
+        <div class="stat"><div class="lab">Modo app</div><div id="displayModeVal" class="val">--</div></div>
+        <div class="stat"><div class="lab">Cache</div><div id="cacheStatusVal" class="val">--</div></div>
+        <div class="stat"><div class="lab">Último BLE</div><div id="lastBleVal" class="val">--</div></div>
+      </div>
+      <div class="status">Modo standalone para ocultar la barra del navegador. Si el icono abre Chrome normal, era un acceso directo y no una instalación real.</div>
+      <div class="sep"></div>
+      <div class="controls" style="margin-bottom:8px">
+        <div class="stat"><div class="lab">Sesión guardada</div><div id="savedSessionVal" class="val">0</div></div>
+        <div class="stat"><div class="lab">Último resumen</div><div id="lastSummaryVal" class="val">--</div></div>
+        <div class="stat"><div class="lab">Última comparación</div><div id="lastCompareVal" class="val">--</div></div>
+      </div>
+      <textarea id="finalSummaryBox" style="width:100%;min-height:170px;resize:vertical;font-family:ui-monospace,Consolas,monospace;font-size:12px" readonly></textarea>
+      <div class="sep"></div>
+      <textarea id="tramoSummaryBox" style="width:100%;min-height:160px;resize:vertical;font-family:ui-monospace,Consolas,monospace;font-size:12px" readonly></textarea>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="head">
+      <div class="title">Histórico</div>
+      <div class="controls">
+        <select id="historyFilter" style="min-width:180px">
+          <option value="all">Todas</option>
+          <option value="test">Solo test</option>
+          <option value="normal">Solo normales</option>
+        </select>
+      </div>
+    </div>
+    <div class="body">
+      <div id="historyList" class="historyList"></div>
+    </div>
+  </div>
+
+<div class="card">
+    <div class="head"><div class="title">Log</div></div>
+    <div class="body"><div id="logBox" class="logBox"></div></div>
+  </div>
+</div>
+
+<div id="testModal" class="modalBack hidden">
+  <div class="modalCard">
+    <div class="head" style="padding:0 0 10px 0;border-bottom:1px solid var(--line);margin-bottom:10px"><div class="title">Test formal nivel 11</div><div class="status">Tramo B finalizado</div></div>
+    <div class="formGrid">
+      <label><span>FC media tramo</span><input id="testAvgHr" readonly></label>
+      <label><span>FC último minuto</span><input id="testLastMinHr" readonly></label>
+      <label><span>FC máxima</span><input id="testMaxHr" readonly></label>
+      <label><span>Zona dominante</span><input id="testDomZone" readonly></label>
+      <label><span>Kcal plan tramo</span><input id="testPlanKcal" readonly></label>
+      <label><span>Kcal reales tramo</span><input id="testRealKcal" type="number" step="0.1" min="0"></label>
+      <label><span>RPE 1–10</span><input id="testRpe" type="number" step="1" min="1" max="10"></label>
+      <label><span>Cadena derecha 0–10</span><input id="testChain" type="number" step="1" min="0" max="10"></label>
+      <label><span>Tibial 0–10</span><input id="testTibial" type="number" step="1" min="0" max="10"></label>
+      <label class="full"><span>Notas</span><textarea id="testNotes" style="min-height:90px"></textarea></label>
+      <div class="full inlineStats">
+        <span id="testExtraLine">Listo para guardar.</span>
+      </div>
+    </div>
+    <div class="controls" style="margin-top:12px">
+      <button id="testSaveContinueBtn" class="primary">Guardar y seguir</button>
+      <button id="testCloseBtn">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<script>
 
 (() => {
   const $ = id => document.getElementById(id);
@@ -24,15 +483,14 @@
     } catch {}
   });
 
-  const APP_VERSION = 'v22';
+  const APP_VERSION = 'v18';
   const STORAGE_KEYS = {
     live:'eliptica_live_session_v2',
     plan:'eliptica_last_plan_v2',
     summary:'eliptica_last_summary_v2',
     tramo:'eliptica_last_tramo_summary_v1',
     compare:'eliptica_last_compare_v1',
-    previous:'eliptica_previous_session_v1',
-    settings:'eliptica_settings_v1'
+    previous:'eliptica_previous_session_v1'
   };
 
   const state = {
@@ -49,9 +507,7 @@
       samples: [], _hrListener:null
     },
     pwa: { deferredInstallPrompt: null, wakeLockSentinel: null },
-    app: { boundButtons: {}, startupChecks: [], lastTapTsByKey: {} },
-    settings: { browserNotify:false, voiceAlerts:true, beepAlerts:true, voiceName:'', voiceVolume:1, voiceRate:1, alertKinds:{segmentPre:true, segmentNow:true, waterPre:true, waterNow:true, segRemain:true, allRemain:true, hr:true, kcal:true} },
-    alerts: { fired:{}, queue:[], busy:false, audioCtx:null, lastHrWarnAt:0, lastKcalWarnAt:0 }
+    app: { boundButtons: {}, startupChecks: [], lastTapTsByKey: {} }
   };
 
   function log(msg, kind=''){
@@ -63,252 +519,7 @@
     while (box.children.length > 120) box.removeChild(box.lastChild);
   }
 
-
-
-  function ensureSettingsDefaults(){
-    const defs = {segmentPre:true, segmentNow:true, waterPre:true, waterNow:true, segRemain:true, allRemain:true, hr:true, kcal:true};
-    if (!state.settings.alertKinds || typeof state.settings.alertKinds !== 'object') state.settings.alertKinds = {};
-    Object.keys(defs).forEach(k => { if (typeof state.settings.alertKinds[k] !== 'boolean') state.settings.alertKinds[k] = defs[k]; });
-  }
-  function alertKindEnabled(name){ ensureSettingsDefaults(); return state.settings.alertKinds[name] !== false; }
-  function setAlertKind(name, value){ ensureSettingsDefaults(); state.settings.alertKinds[name] = !!value; saveSettings(); }
-  function saveSettings(){
-    try{ localStorage.setItem(STORAGE_KEYS.settings, JSON.stringify(state.settings)); }catch{}
-    renderSettingsUI();
-  }
-  function loadSettings(){
-    try{
-      const raw = localStorage.getItem(STORAGE_KEYS.settings);
-      if (raw){
-        const parsed = JSON.parse(raw);
-        Object.assign(state.settings, parsed || {});
-      }
-    }catch{}
-  }
-  function renderSettingsUI(){
-    ensureSettingsDefaults();
-    if ($('browserNotifyChk')) $('browserNotifyChk').checked = !!state.settings.browserNotify;
-    if ($('voiceAlertsChk')) $('voiceAlertsChk').checked = !!state.settings.voiceAlerts;
-    if ($('beepAlertsChk')) $('beepAlertsChk').checked = !!state.settings.beepAlerts;
-    if ($('voiceVolumeRange')) $('voiceVolumeRange').value = String(state.settings.voiceVolume ?? 1);
-    if ($('voiceRateRange')) $('voiceRateRange').value = String(state.settings.voiceRate ?? 1);
-    if ($('voiceVolumeVal')) $('voiceVolumeVal').textContent = Number(state.settings.voiceVolume ?? 1).toFixed(1);
-    if ($('voiceRateVal')) $('voiceRateVal').textContent = Number(state.settings.voiceRate ?? 1).toFixed(2);
-    const sel = $('voiceSelect');
-    const voices = (window.speechSynthesis && speechSynthesis.getVoices ? speechSynthesis.getVoices() : []) || [];
-    if (sel){
-      sel.innerHTML = '<option value="">Voz del sistema</option>' + voices.map(v => '<option value="' + String(v.name).replace(/"/g,'&quot;') + '">' + v.name + ' · ' + (v.lang || '--') + '</option>').join('');
-      sel.value = state.settings.voiceName || '';
-    }
-    if ($('voiceStatus')) $('voiceStatus').textContent = voices.length ? ('Voces detectadas: ' + voices.length + (state.settings.voiceName ? ' · seleccionada: ' + state.settings.voiceName : ' · voz del sistema')) : 'No se detectaron voces todavía. Pulsa Recargar voces.';
-    const map = {toggleSegmentPreChk:'segmentPre', toggleSegmentNowChk:'segmentNow', toggleWaterPreChk:'waterPre', toggleWaterNowChk:'waterNow', toggleSegRemainChk:'segRemain', toggleAllRemainChk:'allRemain', toggleHrChk:'hr', toggleKcalChk:'kcal'};
-    Object.entries(map).forEach(([id,key]) => { const el=$(id); if (el) el.checked = !!state.settings.alertKinds[key]; });
-  }
-  async function requestBrowserNotifications(){
-    if (!('Notification' in window)) throw new Error('Este navegador no soporta notificaciones web');
-    const perm = await Notification.requestPermission();
-    log('Permiso de notificaciones: ' + perm, perm === 'granted' ? 'ok' : 'warn');
-    if (perm === 'granted') state.settings.browserNotify = true;
-    saveSettings();
-    return perm;
-  }
-  async function sendBrowserNotification(title, body, tag){
-    if (!state.settings.browserNotify) return false;
-    if (!('Notification' in window) || Notification.permission !== 'granted') return false;
-    try{ new Notification(title, { body, tag, renotify:false, silent:false }); return true; }catch(err){ log('No se pudo lanzar notificación: ' + ((err&&err.message)||err), 'warn'); return false; }
-  }
-
-  async function refreshVoicesAction(){
-    renderSettingsUI();
-    const voices = (window.speechSynthesis && speechSynthesis.getVoices ? speechSynthesis.getVoices() : []) || [];
-    log('Voces detectadas: ' + voices.length, voices.length ? 'ok' : 'warn');
-  }
-  async function listVoicesAction(){
-    const voices = (window.speechSynthesis && speechSynthesis.getVoices ? speechSynthesis.getVoices() : []) || [];
-    if (!voices.length){ log('No hay voces detectadas todavía', 'warn'); return; }
-    voices.forEach((v,i) => log('Voz ' + (i+1) + ': ' + v.name + ' · ' + (v.lang || '--') + (v.default ? ' · default' : '') + (v.localService ? ' · local' : ''), 'ok'));
-  }
-  async function listNotifAction(){
-    [
-      'Notificación: Cambio de tramo',
-      'Notificación: Toma de agua',
-      'Notificación: Pulso fuera de objetivo',
-      'Notificación: Kcal fuera de plan',
-      'Notificación: Prueba manual'
-    ].forEach(t => log(t, 'ok'));
-  }
-  async function testVoiceAction(){
-    renderSettingsUI();
-    enqueueCue({ key:'manual-voice-test-' + Date.now(), type:'speech', text:'Prueba de voz lista. Próximo aviso: nivel 11, subida en 30 segundos.' });
-    log('Prueba de voz encolada', 'ok');
-  }
-  async function testNotifyAction(){
-    const ok = await sendBrowserNotification('Eliptica PWA ' + APP_VERSION, 'Notificación de prueba. Si Android y Mi Fitness la replican, debería llegar al reloj.', 'test-notify');
-    log(ok ? 'Notificación de prueba lanzada' : 'No se pudo lanzar la notificación de prueba', ok ? 'ok' : 'warn');
-  }
-  function closeTestModal(){ const m=$('testModal'); if (m) m.classList.add('hidden'); }
-  async function saveTestCaptureAndContinue(){
-    const payload = {
-      avgHr: $('testAvgHr')?.value || '', lastMinuteHr: $('testLastMinuteHr')?.value || '', maxHr: $('testMaxHr')?.value || '',
-      dominantZone: $('testDominantZone')?.value || '', kcalPlan: $('testPlanKcal')?.value || '', kcalReal: $('testRealKcal')?.value || '',
-      rpe: $('testRpe')?.value || '', chain: $('testChainPain')?.value || '', tibial: $('testTibialPain')?.value || '', notes: $('testNotes')?.value || ''
-    };
-    state.plan.lastTestCapture = payload;
-    addMarker('test guardado');
-    closeTestModal();
-    log('Test guardado y continuado', 'ok');
-    if (!state.plan.running && state.plan.rows.length){ toggleRun(); }
-  }
-  function ensureAudioCtx(){
-    if (!state.alerts.audioCtx){
-      const Ctx = window.AudioContext || window.webkitAudioContext;
-      if (Ctx) state.alerts.audioCtx = new Ctx();
-    }
-    return state.alerts.audioCtx;
-  }
-  function beepSequence(count){
-    return new Promise(resolve => {
-      try{
-        const ctx = ensureAudioCtx();
-        if (!ctx){ resolve(); return; }
-        if (ctx.state === 'suspended') ctx.resume().catch(()=>{});
-        const start = ctx.currentTime + 0.02;
-        for (let i=0;i<count;i++){
-          const osc = ctx.createOscillator();
-          const gain = ctx.createGain();
-          osc.type = 'sine'; osc.frequency.value = 880;
-          gain.gain.value = 0.0001;
-          osc.connect(gain); gain.connect(ctx.destination);
-          const t0 = start + i*0.22;
-          gain.gain.setValueAtTime(0.0001, t0);
-          gain.gain.exponentialRampToValueAtTime(0.12, t0 + 0.01);
-          gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.12);
-          osc.start(t0); osc.stop(t0 + 0.14);
-        }
-        setTimeout(resolve, count * 220 + 150);
-      }catch(err){ resolve(); }
-    });
-  }
-  function enqueueCue(cue){
-    if (!cue || !cue.key) return;
-    if (state.alerts.fired[cue.key]) return;
-    state.alerts.fired[cue.key] = Date.now();
-    state.alerts.queue.push(cue);
-    runCueQueue();
-  }
-  async function runCueQueue(){
-    if (state.alerts.busy || !state.alerts.queue.length) return;
-    state.alerts.busy = true;
-    const cue = state.alerts.queue.shift();
-    try{
-      if (cue.notifyTitle) await sendBrowserNotification(cue.notifyTitle, cue.notifyBody || cue.text || '', cue.key);
-      if (cue.type === 'speech'){
-        if (state.settings.voiceAlerts && window.speechSynthesis){
-          const utter = new SpeechSynthesisUtterance(cue.text || '');
-          utter.lang = 'es-ES';
-          utter.volume = Number(state.settings.voiceVolume ?? 1);
-          utter.rate = Number(state.settings.voiceRate ?? 1);
-          const voices = speechSynthesis.getVoices ? speechSynthesis.getVoices() : [];
-          const chosen = voices.find(v => v.name === state.settings.voiceName);
-          if (chosen) utter.voice = chosen;
-          await new Promise(resolve => { utter.onend = resolve; utter.onerror = resolve; speechSynthesis.speak(utter); });
-        }
-      } else if (cue.type === 'beep'){
-        if (state.settings.beepAlerts) await beepSequence(cue.count || 1);
-      }
-    }catch(err){ log('Error en cola de avisos: ' + ((err&&err.message)||err), 'warn'); }
-    finally{ state.alerts.busy = false; if (state.alerts.queue.length) setTimeout(runCueQueue, 10); }
-  }
-  function nextWindowAfterCurrent(){
-    const t = machineElapsed();
-    const windows = buildSegmentWindows();
-    const idx = windows.findIndex(w => t >= w.start && t < w.end - 1e-9);
-    return idx >= 0 ? (windows[idx+1] || null) : null;
-  }
-
-function queueSegmentCues(){
-  if (!state.plan.running || !state.plan.rows.length) return;
-  const t = machineElapsed();
-  const prevT = Math.max(0, t - 1);
-  const windows = buildSegmentWindows();
-  const current = windows.find(w => t >= w.start && t < w.end - 1e-9);
-  const prev = windows.find(w => prevT >= w.start && prevT < w.end - 1e-9) || null;
-  if (!current) return;
-  const next = windows.find(w => w.start > t + 1e-9) || null;
-  const remainSeg = Math.max(0, Math.ceil(current.end - t));
-  const prevRemainSeg = Math.max(0, Math.ceil(current.end - prevT));
-  const remainAll = Math.max(0, Math.ceil((state.plan.duration || 0) - t));
-  const prevRemainAll = Math.max(0, Math.ceil((state.plan.duration || 0) - prevT));
-  const changeKind = next ? (next.level > current.level ? 'subida' : (next.level < current.level ? 'bajada' : 'cambio')) : 'fin';
-  const nextLabel = next ? ('nivel ' + next.level) : 'fin';
-  const speechThresholds = [180,60,30,10];
-  speechThresholds.forEach(th => {
-    if (alertKindEnabled('segmentPre') && prevRemainSeg > th && remainSeg <= th){
-      const text = th >= 60 ? ('Quedan ' + Math.round(th/60) + ' minuto' + (th>=120?'s':'') + ' de tramo. Próximo ' + (isTestPlan() && next && next.seg === 'B' ? 'test ' : '') + changeKind + ' a ' + nextLabel + '.')
-                             : ('Quedan ' + th + ' segundos de tramo. Próximo ' + (isTestPlan() && next && next.seg === 'B' ? 'test ' : '') + changeKind + ' a ' + nextLabel + '.');
-      enqueueCue({ key:'seg-' + current.seg + '-' + th, type:'speech', text, notifyTitle:'Cambio de tramo', notifyBody:text });
-    }
-  });
-  if (alertKindEnabled('segmentNow') && prev && prev.seg !== current.seg && current.start > 0){
-    const text = (isTestPlan() && current.seg === 'B' ? 'Test ahora. ' : 'Cambio ahora. ') + (current.level > prev.level ? 'Subida a ' : (current.level < prev.level ? 'Bajada a ' : 'Cambio a ')) + 'nivel ' + current.level + '.';
-    enqueueCue({ key:'seg-now-' + current.seg + '-' + Math.floor(current.start), type:'speech', text, notifyTitle:'Cambio ahora', notifyBody:text });
-  }
-  [3,2,1].forEach(th => { if (alertKindEnabled('segmentNow') && prevRemainSeg > th && remainSeg <= th) enqueueCue({ key:'segbeep-' + current.seg + '-' + th, type:'beep', count:1 }); });
-  const futureWaters = state.plan.waters.filter((w,i)=>!state.plan.waterTaken[i]);
-  const nextWater = futureWaters.find(w => w > t + 1e-9);
-  if (Number.isFinite(nextWater)){
-    const remainWater = Math.max(0, Math.ceil(nextWater - t));
-    const prevRemainWater = Math.max(0, Math.ceil(nextWater - prevT));
-    [180,60,30,10].forEach(th => {
-      if (alertKindEnabled('waterPre') && prevRemainWater > th && remainWater <= th){
-        const text = th >= 60 ? ('Quedan ' + Math.round(th/60) + ' minuto' + (th>=120?'s':'') + ' para agua.') : ('Agua en ' + th + ' segundos.');
-        enqueueCue({ key:'water-' + nextWater + '-' + th, type:'speech', text, notifyTitle:'Toma de agua', notifyBody:text });
-      }
-    });
-    [3,2,1].forEach(th => { if (alertKindEnabled('waterPre') && prevRemainWater > th && remainWater <= th) enqueueCue({ key:'waterbeep-' + nextWater + '-' + th, type:'beep', count:1 }); });
-  }
-  if (alertKindEnabled('waterNow')){
-    state.plan.waters.forEach((w, idx) => {
-      if (!state.plan.waterTaken[idx] && prevT < w && t >= w){
-        const text = 'Agua ahora.';
-        enqueueCue({ key:'water-now-' + idx + '-' + Math.floor(w), type:'speech', text, notifyTitle:'Agua ahora', notifyBody:text });
-      }
-    });
-  }
-  if (alertKindEnabled('segRemain') && Math.floor(t) > 0 && prevRemainSeg !== remainSeg && remainSeg > 0 && remainSeg % 120 === 0){
-    enqueueCue({ key:'segremain-' + current.seg + '-' + remainSeg, type:'speech', text:'Quedan ' + fmtTime(remainSeg) + ' de este tramo.' });
-  }
-  if (alertKindEnabled('allRemain') && Math.floor(t) > 0 && prevRemainAll !== remainAll && remainAll > 0 && remainAll % 300 === 0){
-    enqueueCue({ key:'allremain-' + remainAll, type:'speech', text:'Quedan ' + fmtTime(remainAll) + ' del ejercicio.' });
-  }
-}
-
-function maybeQueueRealtimeAlerts(){
-  if (!state.plan.running || !state.plan.rows.length) return;
-  const t = machineElapsed();
-  const ps = getPlanState();
-  const bpm = Number(state.ble.current.bpm);
-  const now = Date.now();
-  if (alertKindEnabled('hr') && Number.isFinite(bpm) && ps && ps.bpmTarget){
-    const lo = ps.bpmTarget.min, hi = ps.bpmTarget.max;
-    if ((bpm < lo || bpm > hi) && now - (state.alerts.lastHrWarnAt || 0) >= 60000){
-      const diff = Math.round(bpm < lo ? (lo - bpm) : (bpm - hi));
-      const text = bpm < lo ? ('Pulso por debajo del objetivo en ' + diff + ' pulsaciones. Objetivo ' + lo + ' a ' + hi + '.') : ('Pulso por encima del objetivo en ' + diff + ' pulsaciones. Objetivo ' + lo + ' a ' + hi + '.');
-      enqueueCue({ key:'hr-' + Math.floor(now/60000), type:'speech', text, notifyTitle:'Pulso fuera de objetivo', notifyBody:text });
-      if (state.settings.beepAlerts && diff >= 8) enqueueCue({ key:'hrbeep-' + Math.floor(now/60000), type:'beep', count:1 });
-      state.alerts.lastHrWarnAt = now;
-    }
-  }
-  const delta = shownRealKcalAtTime(t) - shownKcalAtTime(t);
-  if (alertKindEnabled('kcal') && Math.abs(delta) >= 4 && now - (state.alerts.lastKcalWarnAt || 0) >= 120000){
-    const text = 'Kcal reales ' + (delta > 0 ? 'por encima' : 'por debajo') + ' del plan en ' + Math.abs(delta).toFixed(1) + ' kcal.';
-    enqueueCue({ key:'kcal-' + Math.floor(now/120000), type:'speech', text, notifyTitle:'Kcal fuera de plan', notifyBody:text });
-    if (state.settings.beepAlerts) enqueueCue({ key:'kcalbeep-' + Math.floor(now/120000), type:'beep', count:1 });
-    state.alerts.lastKcalWarnAt = now;
-  }
-}
-
-function fmtTime(sec){ sec = Math.max(0, Math.floor(sec)); return String(Math.floor(sec/60)).padStart(2,'0') + ':' + String(sec%60).padStart(2,'0'); }
+  function fmtTime(sec){ sec = Math.max(0, Math.floor(sec)); return String(Math.floor(sec/60)).padStart(2,'0') + ':' + String(sec%60).padStart(2,'0'); }
   function fmtMs(ms){ return (ms == null || !isFinite(ms)) ? '--' : fmtTime(ms/1000); }
   function num(v, d=1){ return (v == null || !isFinite(v)) ? '--' : Number(v).toFixed(d); }
   function clamp(v, lo, hi){ return Math.max(lo, Math.min(hi, v)); }
@@ -641,7 +852,7 @@ function fmtTime(sec){ sec = Math.max(0, Math.floor(sec)); return String(Math.fl
     ctx.beginPath(); ctx.arc(nowX, yReal, 4.4, 0, Math.PI*2); ctx.fill();
 
     if (legend){
-      legend.textContent = 'Plan ' + num(nowPoint.plan,1) + ' · Real ' + num(nowPoint.real,1) + ' · Histórico fijo ' + fmtTime(startT) + '–' + fmtTime(endT);
+      legend.textContent = 'Plan ' + num(nowPoint.plan,1) + ' · Real ' + num(nowPoint.real,1) + ' · Ventana fija ' + fmtTime(startT) + '–' + fmtTime(endT);
     }
   }
 
@@ -805,7 +1016,7 @@ function fmtTime(sec){ sec = Math.max(0, Math.floor(sec)); return String(Math.fl
 
     const ps = getPlanState();
     const bpm = state.ble.current.bpm;
-    $('hrBig').textContent = bpm == null ? '--' : Number(bpm).toFixed(1);
+    $('hrBig').textContent = bpm == null ? '--' : String(Math.round(bpm));
     if (ps.bpmTarget){
       $('hrTarget').textContent = ps.bpmTarget.min + '–' + ps.bpmTarget.max;
       $('hrBig').className = 'metricBig ' + (bpm == null ? 'hrNeutral' : (bpm >= ps.bpmTarget.min && bpm <= ps.bpmTarget.max ? 'hrGood' : 'hrBad'));
@@ -1025,7 +1236,7 @@ function fmtTime(sec){ sec = Math.max(0, Math.floor(sec)); return String(Math.fl
     const c = state.ble.current;
     $('bleStateVal').textContent = state.ble.connectionState || 'desconectado';
     $('bleDeviceVal').textContent = state.ble.device?.name || '--';
-    $('bleBpmBig').textContent = c.bpm == null ? '--' : Number(c.bpm).toFixed(1);
+    $('bleBpmBig').textContent = c.bpm == null ? '--' : String(Math.round(c.bpm));
     $('bleZoneLine').textContent = c.zone ? (c.zone.index === 0 ? c.zone.name : `${c.zone.name} · ${Math.round(c.zone.min)}–${Math.round(c.zone.max)}`) : 'Zona --';
     const pill = $('bleZonePill');
     if (c.zone){
@@ -1043,7 +1254,7 @@ function fmtTime(sec){ sec = Math.max(0, Math.floor(sec)); return String(Math.fl
     $('bleAvg10Val').textContent = num(avgRecent(10000));
     $('bleAvg30Val').textContent = num(avgRecent(30000));
     const bpmVals = state.ble.samples.map(s => s.bpm).filter(v => Number.isFinite(v));
-    $('bleMinMaxAvgVal').textContent = bpmVals.length ? `${num(Math.min(...bpmVals),1)} / ${num(Math.max(...bpmVals),1)} / ${num(bpmVals.reduce((a,b)=>a+b,0)/bpmVals.length,1)}` : '--';
+    $('bleMinMaxAvgVal').textContent = bpmVals.length ? `${Math.min(...bpmVals)} / ${Math.max(...bpmVals)} / ${num(bpmVals.reduce((a,b)=>a+b,0)/bpmVals.length)}` : '--';
     $('bleRrAvgVal').textContent = c.rrAverageMs ? `${num(c.rrAverageMs)} ms · ${num(c.rrAverageBpmEstimado)} bpm` : 'no disponible';
     $('bleHrvVal').textContent = `${num(c.rmssd)} / ${num(c.sdnn)}`;
     $('bleLastPacketVal').textContent = c.receivedAt ? fmtMs(Date.now() - c.receivedAt) : '--';
@@ -1815,7 +2026,7 @@ function fmtTime(sec){ sec = Math.max(0, Math.floor(sec)); return String(Math.fl
     };
     const hrAgeMs = state.ble.current.receivedAt ? (Date.now() - state.ble.current.receivedAt) : Infinity;
     setChip('chipBle', state.ble.connectionState === 'conectado' ? 'ok' : (state.ble.connectionState === 'conectando' || state.ble.connectionState === 'buscando' ? 'warn' : 'bad'), 'BLE', 'BLE: ' + state.ble.connectionState);
-    setChip('chipHr', Number.isFinite(state.ble.current.bpm) && hrAgeMs < 5000 ? 'ok' : 'bad', 'Pulso', Number.isFinite(state.ble.current.bpm) ? ('Pulso: ' + Number(state.ble.current.bpm).toFixed(1) + ' bpm') : 'Sin señal de pulso');
+    setChip('chipHr', Number.isFinite(state.ble.current.bpm) && hrAgeMs < 5000 ? 'ok' : 'bad', 'Pulso', Number.isFinite(state.ble.current.bpm) ? ('Pulso: ' + Math.round(state.ble.current.bpm) + ' bpm') : 'Sin señal de pulso');
     setChip('chipRun', state.plan.running ? 'ok' : ((state.plan.sessionLog || []).length ? 'warn' : 'neu'), 'Sesión', state.plan.running ? 'Sesión corriendo' : ((state.plan.sessionLog || []).length ? 'Sesión pausada' : 'Sesión lista'));
     const lastSaveAgo = state.plan._lastPersistAt ? (Date.now() - state.plan._lastPersistAt) : Infinity;
     setChip('chipSave', lastSaveAgo < 15000 ? 'ok' : 'warn', 'Guardado', lastSaveAgo < Infinity ? ('Último guardado hace ' + Math.round(lastSaveAgo/1000) + ' s') : 'Sin guardado reciente');
@@ -1993,8 +2204,6 @@ function fmtTime(sec){ sec = Math.max(0, Math.floor(sec)); return String(Math.fl
       const t = machineElapsed();
       maybeRecordSessionSecond();
       maybeRecordMinuteSummary();
-      queueSegmentCues();
-      maybeQueueRealtimeAlerts();
       refreshAll();
       if (t >= state.plan.duration - 1e-6){
         finishSessionOnce();
@@ -2083,8 +2292,8 @@ function fmtTime(sec){ sec = Math.max(0, Math.floor(sec)); return String(Math.fl
   }
   function bindSeekButtons(){ const list = Array.from(document.querySelectorAll('.seekBtn')); if (!list.length){ log('[CHECK] No hay botones seek visibles', 'warn'); return 0; } list.forEach(btn => { btn.onclick = null; const code='seek'+btn.dataset.seek; btn.addEventListener('click', withTapGuard(code, () => { log('[BTN ' + code + '] .seekBtn pulsado', 'ok'); return seek(Number(btn.dataset.seek || 0)); }, 120)); btn.dataset.bound='ok'; }); log('[CHECK] Seek enlazados: ' + list.length, 'ok'); return list.length; }
   function runStartupDiagnostics(){
-    const requiredIds=['startBtn','resetBtn','startBtnTop','resetBtnTop','applyPlanBtn','previewPlanBtn','normalizePlanBtn','kRealPlusBtn','kRealPlusHalfBtn','kRealPlusTenthBtn','kRealMinusTenthBtn','kRealMinusHalfBtn','kRealMinusBtn','waterCard','compareCanvas','nextBody','chipBle','chipHr','chipRun','chipSave','chipWater','chipAlert','chipPwa','chipTest','notifPermissionBtn','browserNotifyChk','voiceAlertsChk','beepAlertsChk','voiceSelect'];
-    const fnMap = {withTapGuard, bindAction, drawCompareChart, refreshAll, toggleRun, applyImport, previewImport, normalizeCurrentImport, refreshStatusStrip, renderHistory, refreshSessionAlert, exportTramoCsv, updateAppStatus, copySummary, copyChatgptSummary, exportPlanTxt, clearAppData, compareLastAction, finalSummaryAction, requestBrowserNotifications, saveSettings, loadSettings, renderSettingsUI, queueSegmentCues, maybeQueueRealtimeAlerts, refreshVoicesAction, listVoicesAction, listNotifAction, testVoiceAction, testNotifyAction, saveTestCaptureAndContinue, closeTestModal}; let ok=0, fail=0;
+    const requiredIds=['startBtn','resetBtn','startBtnTop','resetBtnTop','applyPlanBtn','previewPlanBtn','normalizePlanBtn','kRealPlusBtn','kRealPlusHalfBtn','kRealPlusTenthBtn','kRealMinusTenthBtn','kRealMinusHalfBtn','kRealMinusBtn','waterCard','compareCanvas','nextBody','chipBle','chipHr','chipRun','chipSave','chipWater','chipAlert','chipPwa','chipTest'];
+    const fnMap = {withTapGuard, bindAction, drawCompareChart, refreshAll, toggleRun, applyImport, previewImport, normalizeCurrentImport, refreshStatusStrip, renderHistory, refreshSessionAlert, exportTramoCsv, updateAppStatus, copySummary, copyChatgptSummary, exportPlanTxt, clearAppData, compareLastAction, finalSummaryAction}; let ok=0, fail=0;
     requiredIds.forEach(id => { if ($(id)){ log('[CHECK] DOM #' + id + ': ok', 'ok'); ok++; } else { log('[CHECK] DOM #' + id + ': falta', 'err'); fail++; } });
     Object.entries(fnMap).forEach(([name, fn]) => { if (typeof fn === 'function'){ log('[CHECK] Función ' + name + ': ok', 'ok'); ok++; } else { log('[CHECK] Función ' + name + ': falta', 'err'); fail++; } });
     try{ const cv=$('compareCanvas'); if (cv && cv.getContext && cv.getContext('2d')){ log('[CHECK] Canvas gráfica: ok', 'ok'); ok++; } else { log('[CHECK] Canvas gráfica: fallo', 'err'); fail++; } }catch(err){ log('[CHECK] Canvas gráfica: ' + ((err&&err.message)||err), 'err'); fail++; }
@@ -2092,8 +2301,6 @@ function fmtTime(sec){ sec = Math.max(0, Math.floor(sec)); return String(Math.fl
     log('[CHECK] Bluetooth API: ' + ('bluetooth' in navigator ? 'disponible' : 'no disponible'), 'bluetooth' in navigator ? 'ok' : 'warn');
     log('[CHECK] Service Worker API: ' + ('serviceWorker' in navigator ? 'disponible' : 'no disponible'), 'serviceWorker' in navigator ? 'ok' : 'warn');
     log('[CHECK] Wake Lock API: ' + ('wakeLock' in navigator ? 'disponible' : 'no disponible'), 'wakeLock' in navigator ? 'ok' : 'warn');
-    log('[CHECK] Notification API: ' + ('Notification' in window ? 'disponible' : 'no disponible'), 'Notification' in window ? 'ok' : 'warn');
-    log('[CHECK] SpeechSynthesis API: ' + ('speechSynthesis' in window ? 'disponible' : 'no disponible'), 'speechSynthesis' in window ? 'ok' : 'warn');
     log('[CHECK] Resumen arranque: ' + ok + ' OK · ' + fail + ' fallo(s)', fail ? 'warn' : 'ok');
   }
   function bind(){
@@ -2104,23 +2311,17 @@ function fmtTime(sec){ sec = Math.max(0, Math.floor(sec)); return String(Math.fl
     bindAction('waterCard','watercard',()=>{ const t=machineElapsed(); for(let i=0;i<state.plan.waters.length;i++){ if(!state.plan.waterTaken[i] && Math.abs(state.plan.waters[i]-t)<=120){ state.plan.waterTaken[i]=true; break; } } refreshAll(); saveLiveSession(); });
     document.addEventListener('pointerdown', ev => { const target=ev.target; if (target.closest('button') || target.closest('textarea') || target.closest('input') || target.closest('select')) return; const t=machineElapsed(); state.plan.wakeLastTapMachine=t; for(let i=0;i<state.plan.waters.length;i++){ if(!state.plan.waterTaken[i] && state.plan.waters[i] <= t + 1e-9){ state.plan.waterTaken[i]=true; break; } } refreshAll(); saveLiveSession(); }, {passive:true}); log('[CHECK] Listener táctil general: ok','ok');
     bindAction('bleConnectBtn','bleConnect',connectBle,500); bindAction('bleReconnectBtn','bleReconnect',reconnectBle,500); bindAction('bleDisconnectBtn','bleDisconnect',disconnectBle,300); bindAction('bleDiagBtn','bleDiag',bleDiag,300);
-    bindAction('notifPermissionBtn','notifPermission',requestBrowserNotifications,300); bindAction('testNotifyBtn','testNotify',testNotifyAction,300); bindAction('refreshVoicesBtn','refreshVoices',refreshVoicesAction,300); bindAction('listVoicesBtn','listVoices',listVoicesAction,300); bindAction('listNotifBtn','listNotif',listNotifAction,300); bindAction('testVoiceBtn','testVoice',testVoiceAction,300);
     bindAction('installBtn','install',promptInstall); bindAction('refreshAppBtn','refreshApp',updateAppNow); bindAction('exportSessionBtn','exportSession',exportSessionLog); bindAction('exportMinuteBtn','exportMinute',exportMinuteLog); bindAction('resumeSessionBtn','resumeSession',loadLiveSession); bindAction('finalSummaryBtn','finalSummary',()=>{ buildFinalSummary(); buildTramoSummary(); compareWithPrevious(); }); bindAction('exportSessionJsonBtn','exportJson',exportSessionJson); bindAction('compareLastBtn','compareLast',()=>{ $('finalSummaryBox').value += '\n\n' + compareWithPrevious(); }); bindAction('exportTramoCsvBtn','exportTramo',exportTramoCsv); bindAction('copySummaryBtn','copySummary',copySummary); bindAction('copyChatgptBtn','copyChatgpt',copyChatgptSummary); bindAction('exportPlanTxtBtn','exportPlan',exportPlanTxt); bindAction('clearAppDataBtn','clearAppData',clearAppData,500);
     bindAction('markWaterBtn','markWater',()=>addMarker('agua')); bindAction('markIncidentBtn','markIncident',()=>addMarker('incidencia')); bindAction('markStrongBtn','markStrong',()=>addMarker('bloque fuerte')); bindAction('markPainRightBtn','markPainRight',()=>addMarker('dolor cadena derecha')); bindAction('markPainTibialBtn','markPainTibial',()=>addMarker('dolor tibial'));
     bindAction('testSaveContinueBtn','testSave',saveTestCaptureAndContinue); bindAction('testCloseBtn','testClose',closeTestModal);
     const historyFilter = $('historyFilter'); if (historyFilter){ historyFilter.onchange = () => { log('[BTN historyFilter] #historyFilter cambiado', 'ok'); renderHistory(); }; log('[CHECK] Filtro histórico: ok','ok'); } else log('[CHECK] Filtro histórico: falta','warn');
-    const browserNotifyChk = $('browserNotifyChk'); if (browserNotifyChk){ browserNotifyChk.onchange = () => { state.settings.browserNotify = !!browserNotifyChk.checked; saveSettings(); log('[BTN browserNotify] cambio a ' + state.settings.browserNotify, 'ok'); }; }
-    const voiceAlertsChk = $('voiceAlertsChk'); if (voiceAlertsChk){ voiceAlertsChk.onchange = () => { state.settings.voiceAlerts = !!voiceAlertsChk.checked; saveSettings(); log('[BTN voiceAlerts] cambio a ' + state.settings.voiceAlerts, 'ok'); }; }
-    const beepAlertsChk = $('beepAlertsChk'); if (beepAlertsChk){ beepAlertsChk.onchange = () => { state.settings.beepAlerts = !!beepAlertsChk.checked; saveSettings(); log('[BTN beepAlerts] cambio a ' + state.settings.beepAlerts, 'ok'); }; }
-    const voiceSelect = $('voiceSelect'); if (voiceSelect){ voiceSelect.onchange = () => { state.settings.voiceName = voiceSelect.value || ''; saveSettings(); log('[BTN voiceSelect] voz ' + (state.settings.voiceName || 'sistema'), 'ok'); }; }
-    const voiceVolumeRange = $('voiceVolumeRange'); if (voiceVolumeRange){ voiceVolumeRange.oninput = () => { state.settings.voiceVolume = Number(voiceVolumeRange.value || 1); saveSettings(); }; }
-    const voiceRateRange = $('voiceRateRange'); if (voiceRateRange){ voiceRateRange.oninput = () => { state.settings.voiceRate = Number(voiceRateRange.value || 1); saveSettings(); }; }
-    const alertToggleMap = {toggleSegmentPreChk:'segmentPre', toggleSegmentNowChk:'segmentNow', toggleWaterPreChk:'waterPre', toggleWaterNowChk:'waterNow', toggleSegRemainChk:'segRemain', toggleAllRemainChk:'allRemain', toggleHrChk:'hr', toggleKcalChk:'kcal'};
-    Object.entries(alertToggleMap).forEach(([id,key]) => { const el = $(id); if (el){ el.onchange = () => { setAlertKind(key, !!el.checked); log('[BTN ' + id + '] cambio a ' + (!!el.checked), 'ok'); }; } });
   }
-  loadSettings(); bind(); runStartupDiagnostics(); registerPWA(); updateSavedSessionInfo(); updateExtraSavedInfo(); renderHistory(); updateAppStatus(); renderSettingsUI();
-  if (window.speechSynthesis && speechSynthesis.onvoiceschanged !== undefined) speechSynthesis.onvoiceschanged = () => renderSettingsUI();
+  bind(); runStartupDiagnostics(); registerPWA(); updateSavedSessionInfo(); updateExtraSavedInfo(); renderHistory(); updateAppStatus();
   try{ const lastPlan = localStorage.getItem(STORAGE_KEYS.plan); if (lastPlan && $('importBox')) $('importBox').value = lastPlan; }catch{}
   try{ if (localStorage.getItem(STORAGE_KEYS.live)) loadLiveSession(); }catch{}
   renderImportPreview(parseImportText($('importBox').value || '')); refreshAll(); refreshBle(); log('UI lista · ' + APP_VERSION, 'ok');
 })();
+
+</script>
+</body>
+</html>
