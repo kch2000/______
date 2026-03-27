@@ -1,7 +1,6 @@
 {
-  "name": "Eliptica PWA v18",
-  "short_name": "Eliptica v18",
-  "id": "/eliptica-pwa-v18",
+  "name": "Eliptica PWA v19",
+  "short_name": "Eliptica v19",
   "start_url": "./index.html",
   "display": "standalone",
   "background_color": "#0b0d10",
@@ -18,5 +17,5 @@
       "type": "image/png"
     }
   ],
-  "scope": "./"
+  "id": "eliptica-pwa-v19"
 }
