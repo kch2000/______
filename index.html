@@ -6,11 +6,11 @@
 <meta name="theme-color" content="#0b0d10">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Eliptica PWA v33">
+<meta name="apple-mobile-web-app-title" content="Eliptica PWA v34">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
 <link rel="apple-touch-icon" href="icon-192.png">
-<title>Eliptica PWA v33</title>
+<title>Eliptica PWA v34</title>
 <style>
 :root{
   --bg:#0b0d10; --card:#141820; --line:rgba(255,255,255,.10); --text:#eef3f8; --muted:#a8b2bf;
@@ -307,6 +307,52 @@ button.small,.thinBtn{padding:6px 8px;font-size:12px}
   .badge{font-size:9px}
   .stat .val{font-size:11px}
   .sideTimeBtn,.sideKcalBtn{font-size:14px}
+}
+
+
+@media (orientation: landscape) and (max-height: 470px){
+  html,body{height:100dvh;overflow:hidden}
+  .app{padding:2px;gap:4px;height:100dvh;overflow:hidden}
+  .timeline{padding:3px;border-radius:12px}
+  .timelineWrap{height:72px}
+  .timelineTrack{top:9px;height:20px}
+  .segBlock{height:26px;font-size:11px}
+  .head{padding:4px 6px}
+  .body{padding:5px}
+  .title{font-size:15px}
+  .status{font-size:11px}
+  .topGrid{grid-template-columns:minmax(0,1.46fr) minmax(0,.96fr) 68px 68px;gap:6px;align-items:stretch}
+  .bottomGrid{grid-template-columns:minmax(0,1.46fr) minmax(0,.96fr);gap:6px}
+  .metrics{grid-template-columns:minmax(0,1.12fr) 220px 118px;gap:6px}
+  .metricCol{grid-template-rows:14px 50px 16px 18px}
+  .metricLabel{font-size:11px}
+  .metricBig{font-size:42px}
+  .metricSub{font-size:11px}
+  .targetVal{font-size:16px}
+  .metricCol.kcalMetric{grid-template-rows:16px auto 22px 22px}
+  .kcalStack{gap:14px}
+  .kcalMiniLabel{font-size:10px;margin-bottom:2px}
+  .kcalValueBox .metricBig{font-size:33px}
+  .metricCol.hrMetric{grid-template-rows:14px 50px 12px 18px;max-width:118px}
+  .metricCol.hrMetric .metricBig{font-size:36px}
+  .metricCol.hrMetric .targetVal{font-size:14px}
+  .quickStats{gap:4px}
+  .stat{padding:4px 5px;border-radius:9px}
+  .stat .lab{font-size:9px}
+  .stat .val{font-size:13px}
+  .badges{gap:6px;margin:0 0 6px 0;flex-wrap:nowrap;overflow:hidden}
+  .badge{padding:5px 8px;font-size:11px;white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis}
+  th,td{padding:5px 5px;font-size:13px}
+  th{font-size:12px}
+  .tapCard{padding:6px;border-radius:10px}
+  .tapHead{margin-bottom:4px}
+  .sideKcalBtn{font-size:16px;padding:0 2px}
+  .controls{gap:6px}
+  button{padding:6px 8px;border-radius:9px}
+  .panel{padding:8px}
+  .bigBpm{font-size:42px}
+  .sep{margin:6px 0}
+  .logBox{max-height:160px}
 }
 
 </style>
@@ -1521,10 +1567,10 @@ function fmtTime(sec){ sec = Math.max(0, Math.floor(sec)); return String(Math.fl
       const testWin = getTestMainWindow();
       const testDur = testWin ? fmtShortDuration(testWin.end - testWin.start) : 'duración variable';
       const testSeg = testWin ? String(testWin.seg||'').toUpperCase() : '?';
-      if (testBadge) testBadge.textContent = 'MODO TEST ACTIVO · bloque principal ' + testSeg + ' · ' + testDur;
+      if (testBadge) testBadge.textContent = 'TEST · ' + testSeg + ' · ' + testDur;
       if (testWin && psSeg === testSeg) testPhaseBadge && (testPhaseBadge.textContent = 'TEST PRINCIPAL EN CURSO · tramo ' + testSeg + ' · ' + testDur);
       else if (testWin && ps && ps.t >= testWin.end) testPhaseBadge && (testPhaseBadge.textContent = 'TEST PRINCIPAL FINALIZADO · tramo ' + testSeg + ' · ' + testDur);
-      else testPhaseBadge && (testPhaseBadge.textContent = 'Modo test activo · bloque principal ' + testSeg + ' · ' + testDur);
+      else testPhaseBadge && (testPhaseBadge.textContent = 'ACTIVO · ' + testSeg + ' · ' + testDur);
     }
   }
 
