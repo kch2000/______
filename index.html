@@ -120,16 +120,16 @@ tr.final td,tr.remaining td{font-weight:1000}
 .zonePill{padding:6px 10px;border-radius:999px;color:#111;font-weight:1000;display:inline-block}
 .hidden{display:none !important}
 
-.alertBanner{padding:6px 10px;border-radius:12px;border:1px solid var(--line);font-weight:1000;background:rgba(255,255,255,.04);margin-top:8px;overflow:hidden;position:relative;min-height:34px;display:flex;align-items:center;gap:8px}
+.alertBanner{padding:4px 8px;border-radius:12px;border:1px solid var(--line);font-weight:1000;background:rgba(255,255,255,.04);margin-top:8px;overflow:hidden;position:relative;min-height:30px;display:grid;grid-template-columns:56px 1fr 70px;align-items:center;column-gap:8px}
 .alertBanner.ok{color:#b8f4cb}
 .alertBanner.warn{color:#ffe7a6}
 .alertBanner.err{color:#ffb9bc}
 .alertBanner.info{color:#cde9ff}
-.alertFixedLeft,.alertFixedRight{flex:0 0 auto;font-size:12px;font-weight:1000;opacity:.95;white-space:nowrap;color:var(--text)}
-.alertFixedLeft{min-width:50px;text-align:left}
+.alertFixedLeft,.alertFixedRight{display:block;font-size:12px;font-weight:1000;opacity:.98;white-space:nowrap;color:var(--text);line-height:1;z-index:2}
+.alertFixedLeft{min-width:56px;text-align:left}
 .alertFixedRight{min-width:78px;text-align:right}
-.alertTickerWrap{position:relative;overflow:hidden;flex:1 1 auto;min-width:0;white-space:nowrap}
-.alertTickerText{display:inline-block;white-space:nowrap;padding-right:40px;animation:alertTicker 24s linear infinite;will-change:transform}.alertTickerText.ok{color:#b8f4cb}.alertTickerText.warn{color:#ffe7a6}.alertTickerText.err{color:#ffb9bc}.alertTickerText.info{color:#cde9ff}
+.alertTickerWrap{position:relative;overflow:hidden;min-width:0;white-space:nowrap;width:100%}
+.alertTickerText{display:inline-flex;white-space:nowrap;gap:36px;padding-right:36px;animation:alertTicker 20s linear infinite;will-change:transform}.alertTickerText.ok{color:#b8f4cb}.alertTickerText.warn{color:#ffe7a6}.alertTickerText.err{color:#ffb9bc}.alertTickerText.info{color:#cde9ff}.tickerChunk{display:inline-flex;gap:36px;align-items:center}
 @keyframes alertTicker{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}
 .miniGrid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:8px}
 .chartCard{margin-top:8px;border:1px solid var(--line);border-radius:12px;padding:8px;background:rgba(255,255,255,.03)}
@@ -241,7 +241,7 @@ body.alert-test .timeline{border-color: rgba(255,90,95,.55)}
         <div class="badges">
           <div id="continueBadge" class="badge continue hidden">Continuando desde --</div>
           <div id="testBadge" class="badge test hidden">MODO TEST ACTIVO · bloque principal B · duración variable</div>
-          <div id="testPhaseBadge" class="badge phase hidden">Modo test activo · bloque principal B</div>
+          <div id="testPhaseBadge" class="badge phase hidden">ACTIVO · B · 8min</div>
         </div>
         <div class="metrics">
           <div class="metricCol">
@@ -468,7 +468,7 @@ body.alert-test .timeline{border-color: rgba(255,90,95,.55)}
       </div>
       <div id="pwaBanner" class="badge" style="width:max-content;margin-bottom:8px">PWA lista. Instálala desde Chrome como app.</div>
       <div class="appInfoGrid">
-        <div class="stat"><div class="lab">Versión</div><div id="appVersionVal" class="val">v28</div></div>
+        <div class="stat"><div class="lab">Versión</div><div id="appVersionVal" class="val">v30</div></div>
         <div class="stat"><div class="lab">Modo app</div><div id="displayModeVal" class="val">--</div></div>
         <div class="stat"><div class="lab">Cache</div><div id="cacheStatusVal" class="val">--</div></div>
         <div class="stat"><div class="lab">Último BLE</div><div id="lastBleVal" class="val">--</div></div>
@@ -560,7 +560,7 @@ body.alert-test .timeline{border-color: rgba(255,90,95,.55)}
     } catch {}
   });
 
-  const APP_VERSION = 'v26';
+  const APP_VERSION = 'v30';
   const STORAGE_KEYS = {
     live:'eliptica_live_session_v2',
     plan:'eliptica_last_plan_v2',
@@ -1640,7 +1640,7 @@ function fmtTime(sec){ sec = Math.max(0, Math.floor(sec)); return String(Math.fl
     const c = state.ble.current;
     $('bleStateVal').textContent = state.ble.connectionState || 'desconectado';
     $('bleDeviceVal').textContent = state.ble.device?.name || '--';
-    $('bleBpmBig').textContent = c.bpm == null ? '--' : Number(c.bpm).toFixed(1);
+    $('bleBpmBig').textContent = Number.isFinite(c.bpm) ? getDisplayedBpm().toFixed(1) : '--';
     $('bleZoneLine').textContent = c.zone ? (c.zone.index === 0 ? c.zone.name : `${c.zone.name} · ${Math.round(c.zone.min)}–${Math.round(c.zone.max)}`) : 'Zona --';
     const pill = $('bleZonePill');
     if (c.zone){
