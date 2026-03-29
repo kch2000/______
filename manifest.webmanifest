@@ -1,21 +1,13 @@
 {
-  "name": "Eliptica PWA v30",
-  "short_name": "Eliptica PWA v30",
-  "id": "eliptica-pwa-v30",
-  "start_url": "index.html",
+  "name": "Eliptica PWA v31",
+  "short_name": "Eliptica v31",
+  "id": "/index.html?v=31",
+  "start_url": "./index.html?v=31",
   "display": "standalone",
-  "background_color": "#0b0d10",
-  "theme_color": "#0b0d10",
+  "background_color": "#050913",
+  "theme_color": "#0b1220",
   "icons": [
-    {
-      "src": "icon-192.png",
-      "sizes": "192x192",
-      "type": "image/png"
-    },
-    {
-      "src": "icon-512.png",
-      "sizes": "512x512",
-      "type": "image/png"
-    }
+    {"src":"./icon-192.png","sizes":"192x192","type":"image/png"},
+    {"src":"./icon-512.png","sizes":"512x512","type":"image/png"}
   ]
 }
