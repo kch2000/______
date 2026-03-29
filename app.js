@@ -24,7 +24,7 @@
     } catch {}
   });
 
-  const APP_VERSION = 'v28';
+  const APP_VERSION = 'v29';
   const STORAGE_KEYS = {
     live:'eliptica_live_session_v2',
     plan:'eliptica_last_plan_v2',
