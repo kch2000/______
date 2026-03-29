@@ -24,7 +24,7 @@
     } catch {}
   });
 
-  const APP_VERSION = 'v22';
+  const APP_VERSION = 'v25';
   const STORAGE_KEYS = {
     live:'eliptica_live_session_v2',
     plan:'eliptica_last_plan_v2',
@@ -37,7 +37,7 @@
 
   const state = {
     plan: {
-      rows: [], waters: [], waterTaken: [], duration: 0, goal: 0,
+      rows: [], waters: [], waterTaken: [], testSegments: [], duration: 0, goal: 0,
       running: false, baseMachineSec: 0, t0: 0, timer: null, rafId: null,
       wakeLastTapMachine: 0, continueMode: { active:false, refMinute:0, refKcal:0 }, realKcalOffset: 0,
       sessionLog: [], minuteLog: [], sessionStartedAt: null,
@@ -139,7 +139,7 @@
   }
   async function testVoiceAction(){
     renderSettingsUI();
-    enqueueCue({ key:'manual-voice-test-' + Date.now(), type:'speech', text:'Prueba de voz lista. Próximo aviso: nivel 11, subida en 30 segundos.' });
+    enqueueCue({ key:'manual-voice-test-' + Date.now(), type:'speech', text:'Prueba de voz lista. Próximo aviso útil: subida a nivel 11 en 30 segundos. Agua en 1 minuto. Quedan 5 minutos de elíptica.' });
     log('Prueba de voz encolada', 'ok');
   }
   async function testNotifyAction(){
@@ -244,13 +244,13 @@ function queueSegmentCues(){
   const speechThresholds = [180,60,30,10];
   speechThresholds.forEach(th => {
     if (alertKindEnabled('segmentPre') && prevRemainSeg > th && remainSeg <= th){
-      const text = th >= 60 ? ('Quedan ' + Math.round(th/60) + ' minuto' + (th>=120?'s':'') + ' de tramo. Próximo ' + (isTestPlan() && next && next.seg === 'B' ? 'test ' : '') + changeKind + ' a ' + nextLabel + '.')
-                             : ('Quedan ' + th + ' segundos de tramo. Próximo ' + (isTestPlan() && next && next.seg === 'B' ? 'test ' : '') + changeKind + ' a ' + nextLabel + '.');
+      const text = th >= 60 ? ('Quedan ' + Math.round(th/60) + ' minuto' + (th>=120?'s':'') + ' de tramo. Próximo ' + (next && next.isTest ? 'test ' : '') + changeKind + ' a ' + nextLabel + '.')
+                             : ('Quedan ' + th + ' segundos de tramo. Próximo ' + (next && next.isTest ? 'test ' : '') + changeKind + ' a ' + nextLabel + '.');
       enqueueCue({ key:'seg-' + current.seg + '-' + th, type:'speech', text, notifyTitle:'Cambio de tramo', notifyBody:text });
     }
   });
   if (alertKindEnabled('segmentNow') && prev && prev.seg !== current.seg && current.start > 0){
-    const text = (isTestPlan() && current.seg === 'B' ? 'Test ahora. ' : 'Cambio ahora. ') + (current.level > prev.level ? 'Subida a ' : (current.level < prev.level ? 'Bajada a ' : 'Cambio a ')) + 'nivel ' + current.level + '.';
+    const text = (current.isTest ? 'Test ahora. ' : 'Cambio ahora. ') + (current.level > prev.level ? 'Subida a ' : (current.level < prev.level ? 'Bajada a ' : 'Cambio a ')) + 'nivel ' + current.level + '.';
     enqueueCue({ key:'seg-now-' + current.seg + '-' + Math.floor(current.start), type:'speech', text, notifyTitle:'Cambio ahora', notifyBody:text });
   }
   [3,2,1].forEach(th => { if (alertKindEnabled('segmentNow') && prevRemainSeg > th && remainSeg <= th) enqueueCue({ key:'segbeep-' + current.seg + '-' + th, type:'beep', count:1 }); });
@@ -261,7 +261,7 @@ function queueSegmentCues(){
     const prevRemainWater = Math.max(0, Math.ceil(nextWater - prevT));
     [180,60,30,10].forEach(th => {
       if (alertKindEnabled('waterPre') && prevRemainWater > th && remainWater <= th){
-        const text = th >= 60 ? ('Quedan ' + Math.round(th/60) + ' minuto' + (th>=120?'s':'') + ' para agua.') : ('Agua en ' + th + ' segundos.');
+        const text = th >= 60 ? ('Quedan ' + Math.round(th/60) + ' minuto' + (th>=120?'s':'') + ' para la siguiente toma de agua.') : ('Agua en ' + th + ' segundos.');
         enqueueCue({ key:'water-' + nextWater + '-' + th, type:'speech', text, notifyTitle:'Toma de agua', notifyBody:text });
       }
     });
@@ -270,16 +270,16 @@ function queueSegmentCues(){
   if (alertKindEnabled('waterNow')){
     state.plan.waters.forEach((w, idx) => {
       if (!state.plan.waterTaken[idx] && prevT < w && t >= w){
-        const text = 'Agua ahora.';
+        const text = 'Agua ahora. Dos o tres sorbos y vuelve a la cadencia.';
         enqueueCue({ key:'water-now-' + idx + '-' + Math.floor(w), type:'speech', text, notifyTitle:'Agua ahora', notifyBody:text });
       }
     });
   }
   if (alertKindEnabled('segRemain') && Math.floor(t) > 0 && prevRemainSeg !== remainSeg && remainSeg > 0 && remainSeg % 120 === 0){
-    enqueueCue({ key:'segremain-' + current.seg + '-' + remainSeg, type:'speech', text:'Quedan ' + fmtTime(remainSeg) + ' de este tramo.' });
+    enqueueCue({ key:'segremain-' + current.seg + '-' + remainSeg, type:'speech', text:'Quedan ' + fmtSpeechDuration(remainSeg) + ' de este tramo.' });
   }
   if (alertKindEnabled('allRemain') && Math.floor(t) > 0 && prevRemainAll !== remainAll && remainAll > 0 && remainAll % 300 === 0){
-    enqueueCue({ key:'allremain-' + remainAll, type:'speech', text:'Quedan ' + fmtTime(remainAll) + ' del ejercicio.' });
+    enqueueCue({ key:'allremain-' + remainAll, type:'speech', text:'Quedan ' + fmtSpeechDuration(remainAll) + ' del ejercicio.' });
   }
 }
 
@@ -293,7 +293,7 @@ function maybeQueueRealtimeAlerts(){
     const lo = ps.bpmTarget.min, hi = ps.bpmTarget.max;
     if ((bpm < lo || bpm > hi) && now - (state.alerts.lastHrWarnAt || 0) >= 60000){
       const diff = Math.round(bpm < lo ? (lo - bpm) : (bpm - hi));
-      const text = bpm < lo ? ('Pulso por debajo del objetivo en ' + diff + ' pulsaciones. Objetivo ' + lo + ' a ' + hi + '.') : ('Pulso por encima del objetivo en ' + diff + ' pulsaciones. Objetivo ' + lo + ' a ' + hi + '.');
+      const text = bpm < lo ? ('Pulso bajo. Vas ' + diff + ' pulsaciones. Objetivo ' + lo + ' a ' + hi + '.') : ('Pulso alto. Vas ' + diff + ' pulsaciones. Objetivo ' + lo + ' a ' + hi + '.');
       enqueueCue({ key:'hr-' + Math.floor(now/60000), type:'speech', text, notifyTitle:'Pulso fuera de objetivo', notifyBody:text });
       if (state.settings.beepAlerts && diff >= 8) enqueueCue({ key:'hrbeep-' + Math.floor(now/60000), type:'beep', count:1 });
       state.alerts.lastHrWarnAt = now;
@@ -346,7 +346,7 @@ function fmtTime(sec){ sec = Math.max(0, Math.floor(sec)); return String(Math.fl
     }
     if (parsedTableRows.length){
       parsedTableRows.sort((a,b) => a.t - b.t);
-      return { title, rows: parsedTableRows, waters };
+      return { title, rows: parsedTableRows, waters, testSegments: [] };
     }
 
     const totalInfoMatch = src.match(/EL[IÍ]PTICA[^\n]*?\b(\d{1,3}:\d{2})\b[^\n]*?~?\s*([\d.,]+)\s*kcal/mi);
@@ -356,12 +356,13 @@ function fmtTime(sec){ sec = Math.max(0, Math.floor(sec)); return String(Math.fl
     const segDefs = [];
     for (let i = 0; i < lines.length; i++){
       const line = lines[i].trim();
-      const m = /^([A-Z])\)\s*(\d{1,3}:\d{2})\s*(?:[·•\-–—]|->|→)?\s*NIVEL\s*(\d{1,2})(?:\s*(?:[·•\-–—]|->|→)?\s*~?\s*([\d.,]+)\s*kcal)?/i.exec(line);
+      const m = /^([A-Z])\)\s*(\d{1,3}:\d{2})\s*(?:[·•\-–—]|->|→)?\s*(TEST\s+)?NIVEL\s*(\d{1,2})(?:\s*(?:[·•\-–—]|->|→)?\s*~?\s*([\d.,]+)\s*kcal)?/i.exec(line);
       if (!m) continue;
       const seg = m[1].toUpperCase();
       const durationSec = parseTime(m[2]);
-      const level = parseInt(m[3], 10);
-      let kcalStep = m[4] ? parseFloat(String(m[4]).replace(',', '.')) : null;
+      const isTestSeg = !!m[3] || /\bTEST\b/i.test(line);
+      const level = parseInt(m[4], 10);
+      let kcalStep = m[5] ? parseFloat(String(m[5]).replace(',', '.')) : null;
       if (!isFinite(kcalStep)) kcalStep = null;
       for (let j = i + 1; kcalStep == null && j <= i + 2 && j < lines.length; j++){
         const probe = lines[j].trim();
@@ -371,10 +372,10 @@ function fmtTime(sec){ sec = Math.max(0, Math.floor(sec)); return String(Math.fl
           if (isFinite(v)) kcalStep = v;
         }
       }
-      if (durationSec != null && isFinite(level)) segDefs.push({ seg, durationSec, level, kcalStep });
+      if (durationSec != null && isFinite(level)) segDefs.push({ seg, durationSec, level, kcalStep, isTest:isTestSeg });
     }
 
-    if (!segDefs.length) return { title, rows: [], waters };
+    if (!segDefs.length) return { title, rows: [], waters, testSegments: [] };
 
     const knownRatesByLevel = new Map();
     const knownAll = [];
@@ -415,7 +416,7 @@ function fmtTime(sec){ sec = Math.max(0, Math.floor(sec)); return String(Math.fl
     rows.push({ t, kcalTotal: Number(kcalTotal.toFixed(1)), kcalStep: Number((lastSeg?.kcalStep || 0).toFixed(1)), level: lastSeg?.level || null, seg: lastSeg?.seg || '' });
     if (isFinite(totalDurationHint) && Math.abs(rows[rows.length - 1].t - totalDurationHint) <= 2) rows[rows.length - 1].t = totalDurationHint;
     if (isFinite(totalGoalHint) && Math.abs(rows[rows.length - 1].kcalTotal - totalGoalHint) <= 2) rows[rows.length - 1].kcalTotal = Number(totalGoalHint.toFixed(1));
-    return { title, rows, waters };
+    return { title, rows, waters, testSegments: segDefs.filter(seg => seg.isTest).map(seg => seg.seg) };
   }
 
 
@@ -687,6 +688,50 @@ function fmtTime(sec){ sec = Math.max(0, Math.floor(sec)); return String(Math.fl
     return state.plan.duration;
   }
 
+  function getTestMainWindow(){
+    const wins = buildSegmentWindows();
+    return wins.find(w => !!w.isTest) || wins.find(w => String(w.seg||'').toUpperCase() === 'B') || null;
+  }
+
+  function fmtShortDuration(sec){
+    sec = Math.max(0, Math.round(Number(sec||0)));
+    const m = Math.floor(sec / 60);
+    const s2 = sec % 60;
+    return s2 ? (m + ' min ' + s2 + ' s') : (m + ' min');
+  }
+
+  function safeSetText(id, value){ const el=$(id); if (el) el.textContent = value; return !!el; }
+  function safeSetStyleColor(id, value){ const el=$(id); if (el) el.style.color = value; return !!el; }
+  function calcLiveDerivedMetrics(){
+    const tMachine = machineElapsed();
+    const tReal = machineToReal(shownMachineElapsed());
+    const kPlan = shownKcalAtTime(tMachine);
+    const kReal = shownRealKcalAtTime(tMachine);
+    const remainingRealSec = Math.max(0, machineToReal(state.plan.duration) - tReal);
+    const remainingPlan = Math.max(0, state.plan.goal - kReal);
+    const paceReal = tReal > 0 ? (kReal / (tReal / 60)) : 0;
+    const paceNeed = remainingRealSec > 0 ? (remainingPlan / (remainingRealSec / 60)) : 0;
+    const win = buildSegmentWindows().find(w => tMachine >= w.start && tMachine < w.end - 1e-9) || null;
+    let segmentDelta = 0;
+    if (win){
+      const kPlanStart = shownKcalAtTime(win.start);
+      const kRealStart = shownRealKcalAtTime(win.start);
+      segmentDelta = Number((((kReal - kRealStart) - (kPlan - kPlanStart))).toFixed(1));
+    }
+    const waterTotal = Array.isArray(state.plan.waters) ? state.plan.waters.length : 0;
+    const waterTaken = Array.isArray(state.plan.waterTaken) ? state.plan.waterTaken.filter(Boolean).length : 0;
+    return { tMachine, tReal, kPlan, kReal, paceReal, paceNeed, segmentDelta, waterTaken, waterTotal, remainingPlan, remainingRealSec };
+  }
+
+  function fmtSpeechDuration(sec){
+    sec = Math.max(0, Math.round(Number(sec||0)));
+    const m = Math.floor(sec / 60);
+    const s2 = sec % 60;
+    if (m > 0 && s2 > 0) return m + ' minuto' + (m===1?'':'s') + ' y ' + s2 + ' segundo' + (s2===1?'':'s');
+    if (m > 0) return m + ' minuto' + (m===1?'':'s');
+    return s2 + ' segundo' + (s2===1?'':'s');
+  }
+
   function buildSegmentWindows(){
     const rows = state.plan.rows, out = [];
     if (!rows.length) return out;
@@ -695,7 +740,7 @@ function fmtTime(sec){ sec = Math.max(0, Math.floor(sec)); return String(Math.fl
       const r = rows[i];
       if (!cur || cur.seg !== r.seg || cur.level !== r.level){
         if (cur) cur.end = r.t;
-        cur = { seg:String(r.seg).toUpperCase(), level:r.level, start:r.t, end:state.plan.duration };
+        cur = { seg:String(r.seg).toUpperCase(), level:r.level, start:r.t, end:state.plan.duration, isTest:(state.plan.testSegments||[]).includes(String(r.seg).toUpperCase()) };
         out.push(cur);
       }
     }
@@ -778,51 +823,62 @@ function fmtTime(sec){ sec = Math.max(0, Math.floor(sec)); return String(Math.fl
     });
   }
 
-  function isTestPlan(){ return /TEST|ZONAS CARDIACAS|30 MIN/i.test($('planTitle').textContent || ''); }
+  function isTestPlan(){ return !!((state.plan.testSegments||[]).length) || /TEST|ZONAS CARDIACAS|30 MIN/i.test($('planTitle').textContent || ''); }
 
   function refreshTop(){
-    const machineT = machineElapsed();
+    const m = calcLiveDerivedMetrics();
+    const machineT = m.tMachine;
     const shownT = shownMachineElapsed();
-    const kPlan = shownKcalAtTime(machineT);
-    const kReal = shownRealKcalAtTime(machineT);
+    const kPlan = m.kPlan;
+    const kReal = m.kReal;
     const kDelta = kReal - kPlan;
-    const realT = machineToReal(shownT);
-    $('clock').textContent = fmtTime(shownT);
-    $('subClock').textContent = 'REAL ' + fmtTime(realT);
-    $('kPlanBig').textContent = kPlan.toFixed(1);
-    $('kRealBig').textContent = kReal.toFixed(1);
+    const realT = m.tReal;
+    safeSetText('clock', fmtTime(shownT));
+    safeSetText('subClock', 'REAL ' + fmtTime(realT));
+    safeSetText('kPlanBig', kPlan.toFixed(1));
+    safeSetText('kRealBig', kReal.toFixed(1));
     const deltaPrefix = kDelta > 0 ? '+' : (kDelta < 0 ? '' : '±');
-    $('kDelta').textContent = '';
-    $('kDelta').className = 'kcalDelta neu hidden';
-    $('kDeltaStat').textContent = deltaPrefix + kDelta.toFixed(1) + ' kcal';
-    $('kDeltaStat').style.color = kDelta > 0 ? 'var(--ok)' : (kDelta < 0 ? 'var(--bad)' : 'var(--text)');
+    const kDeltaEl = $('kDelta');
+    if (kDeltaEl){ kDeltaEl.textContent = ''; kDeltaEl.className = 'kcalDelta neu hidden'; }
+    safeSetText('kDeltaStat', deltaPrefix + kDelta.toFixed(1) + ' kcal');
+    safeSetStyleColor('kDeltaStat', kDelta > 0 ? 'var(--ok)' : (kDelta < 0 ? 'var(--bad)' : 'var(--text)'));
     const avgPlan = realT <= 0 ? 0 : (kPlan / (realT / 60));
     const avgReal = realT <= 0 ? 0 : (kReal / (realT / 60));
     const avgPlan30 = realT <= 0 ? 0 : (kPlan / (realT / 30));
     const avgReal30 = realT <= 0 ? 0 : (kReal / (realT / 30));
-    $('avgPlan').textContent = realT <= 0 ? '0.00 kcal/min · 0.00/30s' : (avgPlan.toFixed(2) + ' kcal/min · ' + avgPlan30.toFixed(2) + '/30s');
-    $('avgReal').textContent = realT <= 0 ? '0.00 kcal/min · 0.00/30s' : (avgReal.toFixed(2) + ' kcal/min · ' + avgReal30.toFixed(2) + '/30s');
-
+    safeSetText('avgPlan', realT <= 0 ? '0.00 kcal/min · 0.00/30s' : (avgPlan.toFixed(2) + ' kcal/min · ' + avgPlan30.toFixed(2) + '/30s'));
+    safeSetText('avgReal', realT <= 0 ? '0.00 kcal/min · 0.00/30s' : (avgReal.toFixed(2) + ' kcal/min · ' + avgReal30.toFixed(2) + '/30s'));
+    safeSetText('segmentDeltaVal', (m.segmentDelta > 0 ? '+' : (m.segmentDelta < 0 ? '' : '±')) + num(m.segmentDelta,1) + ' kcal');
+    safeSetStyleColor('segmentDeltaVal', m.segmentDelta > 0 ? 'var(--ok)' : (m.segmentDelta < 0 ? 'var(--bad)' : 'var(--text)'));
+    safeSetText('paceRealVal', num(m.paceReal,2) + ' kcal/min');
+    safeSetText('paceNeedVal', num(m.paceNeed,2) + ' kcal/min');
+    safeSetStyleColor('paceNeedVal', m.paceNeed <= Math.max(0.01, m.paceReal) ? 'var(--ok)' : (m.remainingPlan > 4 ? 'var(--warn)' : 'var(--text)'));
+    safeSetText('waterCountVal', m.waterTaken + ' / ' + m.waterTotal);
     const ps = getPlanState();
     const bpm = state.ble.current.bpm;
-    $('hrBig').textContent = bpm == null ? '--' : Number(bpm).toFixed(1);
+    safeSetText('hrBig', bpm == null ? '--' : Number(bpm).toFixed(1));
+    const hrBig = $('hrBig');
     if (ps.bpmTarget){
-      $('hrTarget').textContent = ps.bpmTarget.min + '–' + ps.bpmTarget.max;
-      $('hrBig').className = 'metricBig ' + (bpm == null ? 'hrNeutral' : (bpm >= ps.bpmTarget.min && bpm <= ps.bpmTarget.max ? 'hrGood' : 'hrBad'));
+      safeSetText('hrTarget', ps.bpmTarget.min + '–' + ps.bpmTarget.max);
+      if (hrBig) hrBig.className = 'metricBig ' + (bpm == null ? 'hrNeutral' : (bpm >= ps.bpmTarget.min && bpm <= ps.bpmTarget.max ? 'hrGood' : 'hrBad'));
     } else {
-      $('hrTarget').textContent = '—';
-      $('hrBig').className = 'metricBig hrNeutral';
+      safeSetText('hrTarget', '—');
+      if (hrBig) hrBig.className = 'metricBig hrNeutral';
     }
-
     const test = isTestPlan(), psSeg = ps.seg;
-    $('clock').classList.toggle('test', !!test);
-    $('testBadge').classList.toggle('hidden', !test);
-    $('testPhaseBadge').classList.toggle('hidden', !test);
+    const clock = $('clock');
+    if (clock) clock.classList.toggle('test', !!test);
+    const testBadge = $('testBadge'), testPhaseBadge = $('testPhaseBadge');
+    if (testBadge) testBadge.classList.toggle('hidden', !test);
+    if (testPhaseBadge) testPhaseBadge.classList.toggle('hidden', !test);
     if (test){
-      $('testBadge').textContent = 'MODO TEST ACTIVO · bloque principal B · 30 min';
-      if (psSeg === 'B') $('testPhaseBadge').textContent = 'TEST PRINCIPAL EN CURSO · tramo B';
-      else if (psSeg && psSeg > 'B') $('testPhaseBadge').textContent = 'TEST PRINCIPAL FINALIZADO · tramo B';
-      else $('testPhaseBadge').textContent = 'Modo test activo · bloque principal B';
+      const testWin = getTestMainWindow();
+      const testDur = testWin ? fmtShortDuration(testWin.end - testWin.start) : 'duración variable';
+      const testSeg = testWin ? String(testWin.seg||'').toUpperCase() : '?';
+      if (testBadge) testBadge.textContent = 'MODO TEST ACTIVO · bloque principal ' + testSeg + ' · ' + testDur;
+      if (testWin && psSeg === testSeg) testPhaseBadge && (testPhaseBadge.textContent = 'TEST PRINCIPAL EN CURSO · tramo ' + testSeg + ' · ' + testDur);
+      else if (testWin && ps && ps.t >= testWin.end) testPhaseBadge && (testPhaseBadge.textContent = 'TEST PRINCIPAL FINALIZADO · tramo ' + testSeg + ' · ' + testDur);
+      else testPhaseBadge && (testPhaseBadge.textContent = 'Modo test activo · bloque principal ' + testSeg + ' · ' + testDur);
     }
   }
 
@@ -1690,6 +1746,7 @@ function fmtTime(sec){ sec = Math.max(0, Math.floor(sec)); return String(Math.fl
     disableInternalWakeLock().catch(()=>{});
     state.plan.rows = parsed.rows;
     state.plan.waters = parsed.waters;
+    state.plan.testSegments = Array.isArray(parsed.testSegments) ? parsed.testSegments.map(x => String(x).toUpperCase()) : [];
     state.plan.waterTaken = new Array(parsed.waters.length).fill(false);
     state.plan.duration = parsed.rows[parsed.rows.length - 1].t;
     state.plan.goal = Number(parsed.rows[parsed.rows.length - 1].kcalTotal || 0);
@@ -1699,6 +1756,7 @@ function fmtTime(sec){ sec = Math.max(0, Math.floor(sec)); return String(Math.fl
     state.plan.wakeLastTapMachine = 0;
     state.plan.sessionLog = [];
     state.plan.minuteLog = [];
+    
     state.plan.sessionStartedAt = null;
     state.plan.lastRecordedSecond = -1;
     state.plan.lastRecordedMinute = -1;
@@ -1765,7 +1823,7 @@ function fmtTime(sec){ sec = Math.max(0, Math.floor(sec)); return String(Math.fl
     if (!state.plan.rows.length) {
       cls = 'info';
       msg = 'Carga un plan para empezar.';
-    } else if (test && ps.seg === 'B') {
+    } else if (test && getTestMainWindow() && ps.seg === String(getTestMainWindow().seg||'').toUpperCase()) {
       cls = 'warn';
       msg = '🧪 Test principal en curso · tramo B · vigila técnica, pulso y kcal.';
       body.classList.add('alert-test');
@@ -1829,7 +1887,8 @@ function fmtTime(sec){ sec = Math.max(0, Math.floor(sec)); return String(Math.fl
     setChip('chipPwa', standalone ? 'ok' : 'warn', 'App', standalone ? 'Abierta como app instalada' : 'Abierta en navegador');
     const test = isTestPlan();
     const seg = getPlanState().seg;
-    setChip('chipTest', test ? (seg === 'B' ? 'warn' : 'ok') : 'neu', 'Test', test ? ('Modo test activo' + (seg === 'B' ? ' · tramo B' : '')) : 'Plan normal');
+    const testWin = getTestMainWindow(); const testSeg = testWin ? String(testWin.seg||'').toUpperCase() : '';
+    setChip('chipTest', test ? (seg === testSeg ? 'warn' : 'ok') : 'neu', 'Test', test ? ('Modo test activo' + (seg === testSeg ? (' · tramo ' + testSeg) : (testSeg ? (' · tramo ' + testSeg) : ''))) : 'Plan normal');
   }
 
   function exportTramoCsv(){
@@ -1914,7 +1973,23 @@ function fmtTime(sec){ sec = Math.max(0, Math.floor(sec)); return String(Math.fl
     if ($('lastBleVal')) $('lastBleVal').textContent = state.ble.device?.name || '--';
   }
 
-  function refreshAll(){ refreshTimeline(); refreshTop(); refreshWater(); refreshNextTable(); drawCompareChart(); refreshSessionAlert(); refreshStatusStrip(); }
+  function refreshAll(){
+    const steps = [
+      ['refreshTimeline', refreshTimeline],
+      ['refreshTop', refreshTop],
+      ['refreshWater', refreshWater],
+      ['refreshNextTable', refreshNextTable],
+      ['drawCompareChart', drawCompareChart],
+      ['refreshSessionAlert', refreshSessionAlert],
+      ['refreshStatusStrip', refreshStatusStrip]
+    ];
+    let failed = 0;
+    for (const [name, fn] of steps){
+      try { fn(); }
+      catch(err){ failed += 1; log('[REFRESH ' + name + '] ' + (((err && err.message) || err)), 'err'); }
+    }
+    if (failed === 0) state.app.lastRefreshOkAt = Date.now();
+  }
   function stopRunLoop(){
     try{
       if (state.plan.timer) clearInterval(state.plan.timer);
@@ -2083,18 +2158,25 @@ function fmtTime(sec){ sec = Math.max(0, Math.floor(sec)); return String(Math.fl
   }
   function bindSeekButtons(){ const list = Array.from(document.querySelectorAll('.seekBtn')); if (!list.length){ log('[CHECK] No hay botones seek visibles', 'warn'); return 0; } list.forEach(btn => { btn.onclick = null; const code='seek'+btn.dataset.seek; btn.addEventListener('click', withTapGuard(code, () => { log('[BTN ' + code + '] .seekBtn pulsado', 'ok'); return seek(Number(btn.dataset.seek || 0)); }, 120)); btn.dataset.bound='ok'; }); log('[CHECK] Seek enlazados: ' + list.length, 'ok'); return list.length; }
   function runStartupDiagnostics(){
-    const requiredIds=['startBtn','resetBtn','startBtnTop','resetBtnTop','applyPlanBtn','previewPlanBtn','normalizePlanBtn','kRealPlusBtn','kRealPlusHalfBtn','kRealPlusTenthBtn','kRealMinusTenthBtn','kRealMinusHalfBtn','kRealMinusBtn','waterCard','compareCanvas','nextBody','chipBle','chipHr','chipRun','chipSave','chipWater','chipAlert','chipPwa','chipTest','notifPermissionBtn','browserNotifyChk','voiceAlertsChk','beepAlertsChk','voiceSelect'];
-    const fnMap = {withTapGuard, bindAction, drawCompareChart, refreshAll, toggleRun, applyImport, previewImport, normalizeCurrentImport, refreshStatusStrip, renderHistory, refreshSessionAlert, exportTramoCsv, updateAppStatus, copySummary, copyChatgptSummary, exportPlanTxt, clearAppData, compareLastAction, finalSummaryAction, requestBrowserNotifications, saveSettings, loadSettings, renderSettingsUI, queueSegmentCues, maybeQueueRealtimeAlerts, refreshVoicesAction, listVoicesAction, listNotifAction, testVoiceAction, testNotifyAction, saveTestCaptureAndContinue, closeTestModal}; let ok=0, fail=0;
-    requiredIds.forEach(id => { if ($(id)){ log('[CHECK] DOM #' + id + ': ok', 'ok'); ok++; } else { log('[CHECK] DOM #' + id + ': falta', 'err'); fail++; } });
-    Object.entries(fnMap).forEach(([name, fn]) => { if (typeof fn === 'function'){ log('[CHECK] Función ' + name + ': ok', 'ok'); ok++; } else { log('[CHECK] Función ' + name + ': falta', 'err'); fail++; } });
-    try{ const cv=$('compareCanvas'); if (cv && cv.getContext && cv.getContext('2d')){ log('[CHECK] Canvas gráfica: ok', 'ok'); ok++; } else { log('[CHECK] Canvas gráfica: fallo', 'err'); fail++; } }catch(err){ log('[CHECK] Canvas gráfica: ' + ((err&&err.message)||err), 'err'); fail++; }
-    try{ localStorage.setItem('__diag__','1'); localStorage.removeItem('__diag__'); log('[CHECK] localStorage: ok', 'ok'); ok++; }catch(err){ log('[CHECK] localStorage: fallo', 'err'); fail++; }
-    log('[CHECK] Bluetooth API: ' + ('bluetooth' in navigator ? 'disponible' : 'no disponible'), 'bluetooth' in navigator ? 'ok' : 'warn');
-    log('[CHECK] Service Worker API: ' + ('serviceWorker' in navigator ? 'disponible' : 'no disponible'), 'serviceWorker' in navigator ? 'ok' : 'warn');
-    log('[CHECK] Wake Lock API: ' + ('wakeLock' in navigator ? 'disponible' : 'no disponible'), 'wakeLock' in navigator ? 'ok' : 'warn');
-    log('[CHECK] Notification API: ' + ('Notification' in window ? 'disponible' : 'no disponible'), 'Notification' in window ? 'ok' : 'warn');
-    log('[CHECK] SpeechSynthesis API: ' + ('speechSynthesis' in window ? 'disponible' : 'no disponible'), 'speechSynthesis' in window ? 'ok' : 'warn');
-    log('[CHECK] Resumen arranque: ' + ok + ' OK · ' + fail + ' fallo(s)', fail ? 'warn' : 'ok');
+    log('[STARTUP] Inicio comprobación ' + APP_VERSION, 'ok');
+    const requiredIds=['startBtn','resetBtn','startBtnTop','resetBtnTop','applyPlanBtn','previewPlanBtn','normalizePlanBtn','kRealPlusBtn','kRealPlusHalfBtn','kRealPlusTenthBtn','kRealMinusTenthBtn','kRealMinusHalfBtn','kRealMinusBtn','segmentDeltaVal','paceRealVal','paceNeedVal','waterCountVal','waterCard','compareCanvas','nextBody','chipBle','chipHr','chipRun','chipSave','chipWater','chipAlert','chipPwa','chipTest','notifPermissionBtn','browserNotifyChk','voiceAlertsChk','beepAlertsChk','voiceSelect'];
+    let ok=0, fail=0;
+    requiredIds.forEach(id => { if ($(id)){ log('[CHECK] DOM #' + id + ' ok', 'ok'); ok++; } else { log('[CHECK] DOM #' + id + ' falta', 'warn'); fail++; } });
+    const fnMap = {withTapGuard, bindAction, drawCompareChart, refreshAll, refreshTop, refreshWater, refreshNextTable, toggleRun, applyImport, previewImport, normalizeCurrentImport, refreshStatusStrip, renderHistory, refreshSessionAlert, exportTramoCsv, updateAppStatus, copySummary, copyChatgptSummary, exportPlanTxt, clearAppData, compareLastAction, finalSummaryAction, requestBrowserNotifications, saveSettings, loadSettings, renderSettingsUI, queueSegmentCues, maybeQueueRealtimeAlerts, refreshVoicesAction, listVoicesAction, listNotifAction, testVoiceAction, testNotifyAction, saveTestCaptureAndContinue, closeTestModal, calcLiveDerivedMetrics};
+    Object.entries(fnMap).forEach(([k,v]) => { if (typeof v === 'function'){ log('[CHECK] Función ' + k + ' ok', 'ok'); ok++; } else { log('[CHECK] Función ' + k + ' falta', 'err'); fail++; } });
+    try{
+      const m = calcLiveDerivedMetrics();
+      log('[CHECK] Métricas vivas ok · tramo=' + num(m.segmentDelta,1) + ' · ritmoReal=' + num(m.paceReal,2) + ' · ritmoPlan=' + num(m.paceNeed,2) + ' · agua=' + m.waterTaken + '/' + m.waterTotal, 'ok');
+      safeSetText('segmentDeltaVal', (m.segmentDelta > 0 ? '+' : (m.segmentDelta < 0 ? '' : '±')) + num(m.segmentDelta,1) + ' kcal');
+      safeSetText('paceRealVal', num(m.paceReal,2) + ' kcal/min');
+      safeSetText('paceNeedVal', num(m.paceNeed,2) + ' kcal/min');
+      safeSetText('waterCountVal', m.waterTaken + ' / ' + m.waterTotal);
+      ok++;
+    }catch(err){ log('[CHECK] Métricas vivas error: ' + (((err && err.message) || err)), 'err'); fail++; }
+    try{ const voices = (window.speechSynthesis && speechSynthesis.getVoices ? speechSynthesis.getVoices() : []) || []; log('[CHECK] Voces detectadas al arranque: ' + voices.length, voices.length ? 'ok' : 'warn'); ok++; }catch(err){ log('[CHECK] Voces error: ' + (((err && err.message) || err)), 'err'); fail++; }
+    try{ log('[CHECK] Notificaciones API: ' + ('Notification' in window ? 'sí' : 'no'), 'ok'); ok++; }catch(err){ fail++; }
+    state.app.startupChecks.push({ ts: Date.now(), ok, fail });
+    log('[STARTUP] Resumen checks · ok=' + ok + ' · fail=' + fail, fail ? 'warn' : 'ok');
   }
   function bind(){
     bindAction('applyPlanBtn','applyPlan',applyImport); bindAction('previewPlanBtn','previewPlan',()=>{ previewImport(); log('Vista previa del plan actualizada','ok'); }); bindAction('normalizePlanBtn','normalizePlan',normalizeCurrentImport); bindAction('clearPlanBtn','clearPlan',()=>{ $('importBox').value=''; renderImportPreview(null); }); bindAction('copyPlanBtn','copyPlan',async()=>{ const txt=$('importBox').value; if(!txt) throw new Error('No hay texto para copiar'); await copyTextSafe(txt); log('Texto del plan copiado','ok'); });
@@ -2113,8 +2195,8 @@ function fmtTime(sec){ sec = Math.max(0, Math.floor(sec)); return String(Math.fl
     const voiceAlertsChk = $('voiceAlertsChk'); if (voiceAlertsChk){ voiceAlertsChk.onchange = () => { state.settings.voiceAlerts = !!voiceAlertsChk.checked; saveSettings(); log('[BTN voiceAlerts] cambio a ' + state.settings.voiceAlerts, 'ok'); }; }
     const beepAlertsChk = $('beepAlertsChk'); if (beepAlertsChk){ beepAlertsChk.onchange = () => { state.settings.beepAlerts = !!beepAlertsChk.checked; saveSettings(); log('[BTN beepAlerts] cambio a ' + state.settings.beepAlerts, 'ok'); }; }
     const voiceSelect = $('voiceSelect'); if (voiceSelect){ voiceSelect.onchange = () => { state.settings.voiceName = voiceSelect.value || ''; saveSettings(); log('[BTN voiceSelect] voz ' + (state.settings.voiceName || 'sistema'), 'ok'); }; }
-    const voiceVolumeRange = $('voiceVolumeRange'); if (voiceVolumeRange){ voiceVolumeRange.oninput = () => { state.settings.voiceVolume = Number(voiceVolumeRange.value || 1); saveSettings(); }; }
-    const voiceRateRange = $('voiceRateRange'); if (voiceRateRange){ voiceRateRange.oninput = () => { state.settings.voiceRate = Number(voiceRateRange.value || 1); saveSettings(); }; }
+    const voiceVolumeRange = $('voiceVolumeRange'); if (voiceVolumeRange){ voiceVolumeRange.oninput = () => { state.settings.voiceVolume = Number(voiceVolumeRange.value || 1); if ($('voiceVolumeVal')) $('voiceVolumeVal').textContent = state.settings.voiceVolume.toFixed(1); saveSettings(); log('[BTN voiceVolume] ' + state.settings.voiceVolume.toFixed(1), 'ok'); }; }
+    const voiceRateRange = $('voiceRateRange'); if (voiceRateRange){ voiceRateRange.oninput = () => { state.settings.voiceRate = Number(voiceRateRange.value || 1); if ($('voiceRateVal')) $('voiceRateVal').textContent = state.settings.voiceRate.toFixed(2); saveSettings(); log('[BTN voiceRate] ' + state.settings.voiceRate.toFixed(2), 'ok'); }; }
     const alertToggleMap = {toggleSegmentPreChk:'segmentPre', toggleSegmentNowChk:'segmentNow', toggleWaterPreChk:'waterPre', toggleWaterNowChk:'waterNow', toggleSegRemainChk:'segRemain', toggleAllRemainChk:'allRemain', toggleHrChk:'hr', toggleKcalChk:'kcal'};
     Object.entries(alertToggleMap).forEach(([id,key]) => { const el = $(id); if (el){ el.onchange = () => { setAlertKind(key, !!el.checked); log('[BTN ' + id + '] cambio a ' + (!!el.checked), 'ok'); }; } });
   }
@@ -2122,5 +2204,5 @@ function fmtTime(sec){ sec = Math.max(0, Math.floor(sec)); return String(Math.fl
   if (window.speechSynthesis && speechSynthesis.onvoiceschanged !== undefined) speechSynthesis.onvoiceschanged = () => renderSettingsUI();
   try{ const lastPlan = localStorage.getItem(STORAGE_KEYS.plan); if (lastPlan && $('importBox')) $('importBox').value = lastPlan; }catch{}
   try{ if (localStorage.getItem(STORAGE_KEYS.live)) loadLiveSession(); }catch{}
-  renderImportPreview(parseImportText($('importBox').value || '')); refreshAll(); refreshBle(); log('UI lista · ' + APP_VERSION, 'ok');
+  renderImportPreview(parseImportText($('importBox').value || '')); refreshAll(); refreshBle(); log('UI lista · ' + APP_VERSION + ' · métricas y alertas robustas activas', 'ok');
 })();
