@@ -24,7 +24,7 @@
     } catch {}
   });
 
-  const APP_VERSION = 'v32';
+  const APP_VERSION = 'v35';
   const STORAGE_KEYS = {
     live:'eliptica_live_session_v2',
     plan:'eliptica_last_plan_v2',
@@ -1009,7 +1009,7 @@ function fmtTime(sec){ sec = Math.max(0, Math.floor(sec)); return String(Math.fl
       if (!navigator.bluetooth){ $('bleBanner').textContent = 'Web Bluetooth no soportado.'; log('Web Bluetooth no soportado', 'err'); return; }
       $('bleBanner').textContent = 'Abriendo selector BLE…';
       state.ble.connectionState = 'buscando'; refreshBle();
-      const device = await navigator.bluetooth.requestDevice({ filters:[{services:['heart_rate']}], optionalServices:['battery_service','device_information','generic_access'] });
+      const device = await navigator.bluetooth.requestDevice({ acceptAllDevices:true, optionalServices:['heart_rate','battery_service','device_information','generic_access'] });
       if (!device){ $('bleBanner').textContent = 'Sin dispositivo seleccionado.'; return; }
 
       try{ if (state.ble.hrChar && state.ble._hrListener) state.ble.hrChar.removeEventListener('characteristicvaluechanged', state.ble._hrListener); }catch{}
@@ -1027,7 +1027,12 @@ function fmtTime(sec){ sec = Math.max(0, Math.floor(sec)); return String(Math.fl
 
       const server = await device.gatt.connect();
       state.ble.server = server;
-      const hrService = await server.getPrimaryService('heart_rate');
+      let hrService;
+      try{
+        hrService = await server.getPrimaryService('heart_rate');
+      }catch(err){
+        throw new Error('El dispositivo seleccionado no expone el servicio Heart Rate. Enciende el pulsómetro, acércalo y selecciona el sensor correcto.');
+      }
       const hrChar = await hrService.getCharacteristic('heart_rate_measurement');
       state.ble.hrChar = hrChar;
 
@@ -1084,7 +1089,7 @@ function fmtTime(sec){ sec = Math.max(0, Math.floor(sec)); return String(Math.fl
       if (!isSecureContext){ const msg = parts.join(' · ') + ' · usa https o localhost'; $('bleBanner').textContent = msg; log(msg, 'err'); return; }
       if (!navigator.bluetooth){ const msg = parts.join(' · ') + ' · navegador no compatible'; $('bleBanner').textContent = msg; log(msg, 'err'); return; }
       $('bleBanner').textContent = parts.join(' · ') + ' · abriendo selector…';
-      const device = await navigator.bluetooth.requestDevice({ filters:[{services:['heart_rate']}], optionalServices:['battery_service','device_information','generic_access'] });
+      const device = await navigator.bluetooth.requestDevice({ acceptAllDevices:true, optionalServices:['heart_rate','battery_service','device_information','generic_access'] });
       const msg = parts.join(' · ') + ' · selector OK · ' + (device?.name || '(sin nombre)');
       $('bleBanner').textContent = msg; log(msg, 'ok');
     }catch(err){ const msg = 'Diagnóstico BLE: ' + bleErrText(err); $('bleBanner').textContent = msg; log(msg, 'err'); }
@@ -2191,6 +2196,7 @@ function fmtTime(sec){ sec = Math.max(0, Math.floor(sec)); return String(Math.fl
   function bindSeekButtons(){ const list = Array.from(document.querySelectorAll('.seekBtn')); if (!list.length){ log('[CHECK] No hay botones seek visibles', 'warn'); return 0; } list.forEach(btn => { btn.onclick = null; const code='seek'+btn.dataset.seek; btn.addEventListener('click', withTapGuard(code, () => { log('[BTN ' + code + '] .seekBtn pulsado', 'ok'); return seek(Number(btn.dataset.seek || 0)); }, 120)); btn.dataset.bound='ok'; }); log('[CHECK] Seek enlazados: ' + list.length, 'ok'); return list.length; }
   function runStartupDiagnostics(){
     log('[STARTUP] Inicio comprobación ' + APP_VERSION, 'ok');
+    log('[STARTUP] orientación=' + ((screen.orientation&&screen.orientation.type)||'desconocida') + ' · viewport=' + window.innerWidth + 'x' + window.innerHeight + ' · scrollY=' + window.scrollY, 'ok');
     const requiredIds=['startBtn','resetBtn','startBtnTop','resetBtnTop','applyPlanBtn','previewPlanBtn','normalizePlanBtn','kRealPlusBtn','kRealPlusHalfBtn','kRealPlusTenthBtn','kRealMinusTenthBtn','kRealMinusHalfBtn','kRealMinusBtn','segmentDeltaVal','kDeltaStat','paceRealVal','paceNeedVal','waterCountVal','sessionAlert','sessionAlertText','waterCard','compareCanvas','nextBody','chipBle','chipHr','chipRun','chipSave','chipWater','chipAlert','chipPwa','chipTest','notifPermissionBtn','browserNotifyChk','voiceAlertsChk','beepAlertsChk','voiceSelect'];
     let ok=0, fail=0;
     requiredIds.forEach(id => { if ($(id)){ log('[CHECK] DOM #' + id + ' ok', 'ok'); ok++; } else { log('[CHECK] DOM #' + id + ' falta', 'warn'); fail++; } });

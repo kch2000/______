@@ -6,11 +6,11 @@
 <meta name="theme-color" content="#0b0d10">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Eliptica PWA v34">
+<meta name="apple-mobile-web-app-title" content="Eliptica PWA v35">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
 <link rel="apple-touch-icon" href="icon-192.png">
-<title>Eliptica PWA v34</title>
+<title>Eliptica PWA v35</title>
 <style>
 :root{
   --bg:#0b0d10; --card:#141820; --line:rgba(255,255,255,.10); --text:#eef3f8; --muted:#a8b2bf;
@@ -355,6 +355,34 @@ button.small,.thinBtn{padding:6px 8px;font-size:12px}
   .logBox{max-height:160px}
 }
 
+
+/* v35 scroll + orientation + BLE fix */
+html,body{height:auto;min-height:100%}
+body{overflow-x:hidden;overflow-y:auto;-webkit-overflow-scrolling:touch}
+.app{min-height:100dvh;overflow:visible}
+@media (orientation: portrait){
+  body{overflow-y:auto}
+  .app{overflow:visible;min-height:100dvh}
+  .topGrid,.bottomGrid{grid-template-columns:1fr !important}
+  .topGrid > .sideSeekCol,.topGrid > .sideKcalCol{min-height:220px}
+  .metrics{grid-template-columns:1fr !important}
+  .metricCol.hrMetric,.metricCol.kcalMetric,.metricCol{max-width:none}
+  .statusStrip{grid-template-columns:repeat(4,minmax(0,1fr))}
+  .chartWideCard,.bottomGrid{display:block !important}
+}
+@media (orientation: landscape){
+  body{overflow-y:auto !important}
+  .app{height:auto !important;max-height:none !important;overflow:visible !important;min-height:100dvh}
+}
+@media (orientation: landscape) and (max-height: 740px){
+  body{overflow-y:auto !important}
+  .app{height:auto !important;max-height:none !important;overflow:visible !important}
+}
+@media (orientation: landscape) and (max-height: 470px){
+  html,body{height:auto !important;min-height:100dvh !important;overflow-y:auto !important}
+  .app{height:auto !important;overflow:visible !important;min-height:100dvh}
+}
+
 </style>
 </head>
 <body>
@@ -433,7 +461,7 @@ button.small,.thinBtn{padding:6px 8px;font-size:12px}
       <div class="card miniCtlCard"><div class="body"><div class="miniCtlGrid"><button id="startBtnTop" class="primary" style="min-height:52px">▶ Empezar</button><button id="resetBtnTop" class="danger" style="min-height:52px">↺ Reset</button></div></div></div>
     </div>
     <div class="card sideSeekCol" aria-label="Ajuste de tiempo"><div class="body"><button class="sideTimeBtn seekBtn" data-seek="60">+1m</button><button class="sideTimeBtn seekBtn" data-seek="30">+30s</button><button class="sideTimeBtn seekBtn" data-seek="10">+10s</button><button class="sideTimeBtn seekBtn" data-seek="5">+5s</button><button class="sideTimeBtn seekBtn" data-seek="1">+1s</button><button class="sideTimeBtn seekBtn" data-seek="-1">-1s</button><button class="sideTimeBtn seekBtn" data-seek="-5">-5s</button><button class="sideTimeBtn seekBtn" data-seek="-10">-10s</button><button class="sideTimeBtn seekBtn" data-seek="-30">-30s</button><button class="sideTimeBtn seekBtn" data-seek="-60">-1m</button></div></div>
-    <div class="card sideKcalCol"<div class="card sideKcalCol" aria-label="Ajuste de kcal reales"><div class="body"><button id="kRealPlusBtn" class="sideKcalBtn">+1.0</button><button id="kRealPlusHalfBtn" class="sideKcalBtn">+0.5</button><button id="kRealPlusTenthBtn" class="sideKcalBtn">+0.1</button><button id="kRealMinusTenthBtn" class="sideKcalBtn">-0.1</button><button id="kRealMinusHalfBtn" class="sideKcalBtn">-0.5</button><button id="kRealMinusBtn" class="sideKcalBtn">-1.0</button></div></div>
+    <div class="card sideKcalCol" aria-label="Ajuste de kcal reales"><div class="body"><button id="kRealPlusBtn" class="sideKcalBtn">+1.0</button><button id="kRealPlusHalfBtn" class="sideKcalBtn">+0.5</button><button id="kRealPlusTenthBtn" class="sideKcalBtn">+0.1</button><button id="kRealMinusTenthBtn" class="sideKcalBtn">-0.1</button><button id="kRealMinusHalfBtn" class="sideKcalBtn">-0.5</button><button id="kRealMinusBtn" class="sideKcalBtn">-1.0</button></div></div>
   </div>
   <div class="card chartWideCard"><div class="body"><div class="chartCard wide"><div class="chartHead"><span>Plan vs reales · ventana dinámica</span><span id="chartLegend">Plan 0.0 · Real 0.0 · zoom automático</span></div><canvas id="compareCanvas" width="1200" height="260"></canvas></div></div></div>
   <div class="card">
