@@ -1,9 +1,9 @@
-const CACHE = "eliptica-pwa-v35";
+const CACHE = "eliptica-pwa-v36";
 const ASSETS = [
   "./",
   "./index.html",
   "./index.html?v=35",
-  "./eliptica_pwa_reescrita_desde_cero_v35_scroll_ble_fix.html",
+  "./eliptica_pwa_reescrita_desde_cero_v36_scroll_ble_fix.html",
   "./app.js",
   "./manifest.webmanifest",
   "./icon-192.png",
