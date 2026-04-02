@@ -6,7 +6,7 @@ const ASSETS = [
   './manifest.webmanifest',
   './icon-192.png',
   './icon-512.png',
-  './eliptica_pwa_reescrita_desde_cero_v43_mejoras_total_fix.html',
+  './eliptica_pwa_reescrita_desde_cero_v43_audio_ble_pro.html',
 ];
 self.addEventListener('install', event => {
   self.skipWaiting();

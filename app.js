@@ -25,7 +25,8 @@
   });
 
   const APP_VERSION = 'v43';
-  const BUILD_STAMP = '2026-04-02 02:30';
+  const BUILD_HASH = 'build-v43';
+  const BUILD_STAMP = '2026-04-03 00:15';
   const STORAGE_KEYS = {
     live:'eliptica_live_session_v2',
     plan:'eliptica_last_plan_v2',
