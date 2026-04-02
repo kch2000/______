@@ -6,11 +6,11 @@
 <meta name="theme-color" content="#0b0d10">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Eliptica PWA v43">
+<meta name="apple-mobile-web-app-title" content="Eliptica PWA v38">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
 <link rel="apple-touch-icon" href="icon-192.png">
-<title>Eliptica PWA v43</title>
+<title>Eliptica PWA v38</title>
 <style>
 :root{
   --bg:#0b0d10; --card:#141820; --line:rgba(255,255,255,.10); --text:#eef3f8; --muted:#a8b2bf;
@@ -120,20 +120,14 @@ tr.final td,tr.remaining td{font-weight:1000}
 .zonePill{padding:6px 10px;border-radius:999px;color:#111;font-weight:1000;display:inline-block}
 .hidden{display:none !important}
 
-
-.alertBanner{padding:6px 8px;border-radius:12px;border:1px solid var(--line);font-weight:1000;background:rgba(255,255,255,.04);margin:4px 0;min-height:38px;display:grid;grid-template-columns:72px minmax(0,1fr) 82px;align-items:center;gap:8px}
-.alertBanner.ok{background:rgba(255,255,255,.04);color:#b8f4cb}
-.alertBanner.warn{background:rgba(255,255,255,.04);color:#ffe7a6}
-.alertBanner.err{background:rgba(255,255,255,.04);color:#ffb9bc}
-.alertBanner.info{background:rgba(255,255,255,.04);color:#cde9ff}
-.alertBanner .bannerClock,.alertBanner .bannerEta{font-size:12px;font-weight:1000;color:#dce6f3;white-space:nowrap}
-.alertBanner .bannerEta{text-align:right}
-.alertBanner .bannerMsg{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-transform:uppercase;letter-spacing:.02em;font-size:13px;font-weight:1000}
-.alertBanner.ok .bannerMsg{color:#7fe6a0}
-.alertBanner.warn .bannerMsg{color:#ffd166}
-.alertBanner.err .bannerMsg{color:#ff8f95}
-.alertBanner.info .bannerMsg{color:#90d3ff}
-
+.alertBanner{padding:8px 10px;border-radius:12px;border:1px solid var(--line);font-weight:1000;background:rgba(255,255,255,.04);margin-top:8px;overflow:hidden;position:relative;min-height:40px;display:flex;align-items:center}
+.alertBanner.ok{background:rgba(102,226,138,.12);color:#b8f4cb}
+.alertBanner.warn{background:rgba(255,209,102,.16);color:#ffe7a6}
+.alertBanner.err{background:rgba(255,90,95,.16);color:#ffb9bc}
+.alertBanner.info{background:rgba(120,198,255,.14);color:#cde9ff}
+.alertTickerWrap{position:relative;overflow:hidden;width:100%;white-space:nowrap}
+.alertTickerText{display:inline-block;white-space:nowrap;padding-left:100%;animation:alertTicker 18s linear infinite;will-change:transform}
+@keyframes alertTicker{0%{transform:translateX(0)}100%{transform:translateX(-100%)}}
 .miniGrid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:8px}
 .chartCard{margin-top:8px;border:1px solid var(--line);border-radius:12px;padding:8px;background:rgba(255,255,255,.03)}
 .chartHead{display:flex;justify-content:space-between;gap:8px;align-items:center;margin-bottom:6px;font-size:12px;color:var(--muted);font-weight:900}
@@ -261,7 +255,7 @@ th{font-size:12px}
 .sideTimeBtn,.sideKcalBtn{font-size:16px}
 .sideSeekCol .body,.sideKcalCol .body{grid-template-rows:repeat(10,minmax(0,1fr)) !important}
 .miniCtlGrid{gap:6px}
-.alertBanner{min-height:34px;padding:4px 7px;font-size:12px}
+.alertBanner{min-height:34px;padding:5px 8px;font-size:12px;margin-top:6px}
 button{padding:6px 8px;border-radius:9px}
 button.small,.thinBtn{padding:6px 8px;font-size:12px}
 #planTitle{font-size:14px !important;margin-bottom:6px !important;line-height:1.1}
@@ -299,7 +293,7 @@ button.small,.thinBtn{padding:6px 8px;font-size:12px}
   th,td{padding:5px 4px;font-size:12px}
   th{font-size:11px}
   .sideTimeBtn,.sideKcalBtn{font-size:15px}
-  .alertBanner{min-height:30px;padding:4px 7px;font-size:11px}
+  .alertBanner{min-height:30px;padding:4px 7px;font-size:11px;margin-top:5px}
   .bottomGrid,.chartWideCard,.settingsGrid,.panel:has(#importPreview),.panel:has(#historyList){display:none !important}
 }
 @media (orientation: landscape) and (max-height: 680px){
@@ -370,7 +364,7 @@ button.small,.thinBtn{padding:6px 8px;font-size:12px}
 }
 
 
-/* v39 banner/ble/update fix */
+/* v37 kcal efficiency fix */
 html,body{height:auto;min-height:100%}
 body{overflow-x:hidden;overflow-y:auto;-webkit-overflow-scrolling:touch}
 .app{min-height:100dvh;overflow:visible}
@@ -398,7 +392,7 @@ body{overflow-x:hidden;overflow-y:auto;-webkit-overflow-scrolling:touch}
 }
 
 
-/* v39 banner/ble/update fix */
+/* v37 kcal efficiency fix */
 #appVersion{font-weight:1000}
 #bleBanner{font-size:12px;line-height:1.15;padding:6px 8px}
 @media (orientation: landscape) and (max-height: 520px){
@@ -432,8 +426,6 @@ body{overflow-x:hidden;overflow-y:auto;-webkit-overflow-scrolling:touch}
       <div id="timelineMarks" class="timelineMarks"></div>
     </div>
   </div>
-
-  <div id="sessionAlert" class="alertBanner info"><div id="bannerNow" class="bannerClock">--:--</div><div id="sessionAlertText" class="bannerMsg">SIN ALERTAS CRÍTICAS.</div><div id="bannerEta" class="bannerEta">FIN --:--</div></div>
 
   <div class="topGrid">
     <div class="card">
@@ -480,7 +472,7 @@ body{overflow-x:hidden;overflow-y:auto;-webkit-overflow-scrolling:touch}
           <div class="stat"><div class="lab">Ritmo para plan</div><div id="paceNeedVal" class="val">0.00 kcal/min</div></div>
           <div class="stat"><div class="lab">Agua</div><div id="waterCountVal" class="val">0 / 0</div></div>
         </div>
-        
+        <div id="sessionAlert" class="alertBanner info"><div class="alertTickerWrap"><div id="sessionAlertText" class="alertTickerText">Sin alertas críticas.</div></div></div>
       </div>
     </div>
     <div class="rightStack">
@@ -559,13 +551,6 @@ body{overflow-x:hidden;overflow-y:auto;-webkit-overflow-scrolling:touch}
         <div class="toggleRow"><input id="browserNotifyChk" type="checkbox"><span>Notificaciones del teléfono / reloj</span></div>
         <div class="toggleRow"><input id="voiceAlertsChk" type="checkbox" checked><span>Avisos hablados</span></div>
         <div class="toggleRow"><input id="beepAlertsChk" type="checkbox" checked><span>Pitidos 3-2-1</span></div>
-      </div>
-      <div class="panel" style="margin-bottom:8px">
-        <label>Tiempo visible por mensaje
-          <input id="bannerSpeedRange" type="range" min="2" max="10" step="1" value="5">
-          <span id="bannerSpeedVal" class="rangeVal">5 s</span>
-        </label>
-        <div class="status" style="margin-top:6px">Los mensajes del banner salen uno a uno, en mayúsculas, durante varios segundos.</div>
       </div>
       <div class="settingsGrid">
         <div class="panel">
@@ -679,7 +664,7 @@ body{overflow-x:hidden;overflow-y:auto;-webkit-overflow-scrolling:touch}
       </div>
       <div id="pwaBanner" class="badge" style="width:max-content;margin-bottom:8px">PWA lista. Instálala desde Chrome como app.</div>
       <div class="appInfoGrid">
-        <div class="stat"><div class="lab">Versión</div><div id="appVersionVal" class="val">v43 · 2026-04-02 02:30</div></div>
+        <div class="stat"><div class="lab">Versión</div><div id="appVersionVal" class="val">v38 · 2026-04-02 00:00</div></div>
         <div class="stat"><div class="lab">Modo app</div><div id="displayModeVal" class="val">--</div></div>
         <div class="stat"><div class="lab">Cache</div><div id="cacheStatusVal" class="val">--</div></div>
         <div class="stat"><div class="lab">Último BLE</div><div id="lastBleVal" class="val">--</div></div>
@@ -744,6 +729,6 @@ body{overflow-x:hidden;overflow-y:auto;-webkit-overflow-scrolling:touch}
   </div>
 </div>
 
-<script src="app.js?v=39"></script>
+<script src="app.js?v=38"></script>
 </body>
 </html>
