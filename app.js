@@ -24,9 +24,9 @@
     } catch {}
   });
 
-  const APP_VERSION = 'v43';
-  const BUILD_HASH = 'build-v43';
-  const BUILD_STAMP = '2026-04-03 00:15';
+  const APP_VERSION = 'v44';
+  const BUILD_HASH = 'build-v44';
+  const BUILD_STAMP = '2026-04-03 23:59';
   const STORAGE_KEYS = {
     live:'eliptica_live_session_v2',
     plan:'eliptica_last_plan_v2',
@@ -85,6 +85,13 @@
   function rerunDiagnostics(){
     log('[BTN rerunDiagnostics] Reejecutando comprobación total', 'ok');
     runStartupDiagnostics();
+  }
+
+  function runDeepFunctionAudit(){
+    const names = ['toggleRun','resetSession','parsePlanText','applyPlanText','previewImport','normalizeCurrentImport','connectBle','reconnectBle','disconnectBle','drawCompareChart','renderUI','saveLiveSession','loadLiveSession','runStartupDiagnostics','copyAllLogs'];
+    let ok=0, fail=0;
+    names.forEach(n=>{ const good = typeof window[n] === 'function' || typeof eval(n) === 'function'; log('[AUDIT] función ' + n + ': ' + (good?'ok':'fail'), good?'ok':'err'); if(good) ok++; else fail++; });
+    log('[AUDIT] resumen funciones · ok=' + ok + ' · fail=' + fail, fail ? 'warn' : 'ok');
   }
 
   function parseBpmProfiles(src){
@@ -170,7 +177,7 @@
   async function refreshVoicesAction(){
     renderSettingsUI();
     const voices = (window.speechSynthesis && speechSynthesis.getVoices ? speechSynthesis.getVoices() : []) || [];
-    log('Voces detectadas: ' + voices.length, voices.length ? 'ok' : 'warn');
+    log('Voces detectadas: ' + voices.length, voices.length ? 'ok' : 'warn'); renderSettingsUI();
   }
   async function listVoicesAction(){
     const voices = (window.speechSynthesis && speechSynthesis.getVoices ? speechSynthesis.getVoices() : []) || [];
