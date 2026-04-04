@@ -24,9 +24,9 @@
     } catch {}
   });
 
-  const APP_VERSION = 'v44';
-  const BUILD_HASH = 'build-v44';
-  const BUILD_STAMP = '2026-04-03 23:59';
+  const APP_VERSION = 'v45';
+  const BUILD_HASH = 'build-v45';
+  const BUILD_STAMP = '2026-04-04 12:45';
   const STORAGE_KEYS = {
     live:'eliptica_live_session_v2',
     plan:'eliptica_last_plan_v2',
@@ -78,13 +78,17 @@
     const lines = Array.from(document.querySelectorAll('#logBox .logLine')).map(el => el.textContent || '').reverse();
     if (!lines.length) throw new Error('No hay logs para copiar');
     const text = '[LOG COMPLETO ' + APP_VERSION + ' · ' + BUILD_STAMP + ']\n' + lines.join('\n');
-    await copyTextSafe(text);
-    log('Log completo copiado', 'ok');
+    $('finalSummaryBox').value = text;
+    try{ await copyTextSafe(text); log('Log completo copiado', 'ok'); $('pwaBanner').textContent='Log completo copiado.'; }
+    catch(err){ downloadBlob(text, 'log_' + APP_VERSION + '.txt', 'text/plain;charset=utf-8'); log('Clipboard falló; log descargado como TXT', 'warn'); $('pwaBanner').textContent='Clipboard falló; log descargado.'; }
     return text;
   }
   function rerunDiagnostics(){
     log('[BTN rerunDiagnostics] Reejecutando comprobación total', 'ok');
+    $('finalSummaryBox').value = 'VERIFICACIÓN TOTAL EN CURSO...';
     runStartupDiagnostics();
+    const last = state.app.startupChecks[state.app.startupChecks.length-1];
+    if (last) $('finalSummaryBox').value = 'VERIFICACIÓN TOTAL\n\nVERSIÓN: ' + APP_VERSION + '\nBUILD: ' + BUILD_STAMP + '\nOK: ' + last.ok + '\nFAIL: ' + last.fail + '\nBOTONES OK: ' + (last.boundOk||0) + '\nBOTONES FAIL: ' + (last.boundFail||0) + '\n\nREVISA EL LOG COMPLETO PARA DETALLES.';
   }
 
   function runDeepFunctionAudit(){
@@ -1624,7 +1628,8 @@ function fmtTime(sec){ sec = Math.max(0, Math.floor(sec)); return String(Math.fl
     if (!rows.length){ log('No hay sesión grabada todavía', 'warn'); return; }
     const header = ['second','shownSecond','clock','machineClock','kcalPlan','kcalReal','kcalDelta','level','seg','bpm','zone','waterDue','timestampIso'];
     const csv = rowsToCsv(rows, header);
-    downloadBlob(csv, 'sesion_eliptica_segundo_a_segundo.csv', 'text/csv;charset=utf-8');
+    const name = downloadBlob(csv, 'sesion_eliptica_segundo_a_segundo.csv', 'text/csv;charset=utf-8');
+    $('pwaBanner').textContent='Sesión exportada: ' + name;
     log('Sesión exportada', 'ok');
   }
 
@@ -1646,7 +1651,8 @@ function fmtTime(sec){ sec = Math.max(0, Math.floor(sec)); return String(Math.fl
     if (!rows.length){ log('No hay datos minuto a minuto todavía', 'warn'); return; }
     const header = ['minute','clock','machineClock','seg','level','kcalStartPlan','kcalEndPlan','kcalMinutePlan','kcalPerMinPlan','kcalStartReal','kcalEndReal','kcalMinuteReal','kcalPerMinReal','kcalDeltaEnd','bpmAvg','bpmMax','bpmMin','zoneDominant','z0','z1','z2','z3','z4','z5','water','markers'];
     const csv = rowsToCsv(rows, header);
-    downloadBlob(csv, 'sesion_eliptica_minuto_a_minuto.csv', 'text/csv;charset=utf-8');
+    const name = downloadBlob(csv, 'sesion_eliptica_minuto_a_minuto.csv', 'text/csv;charset=utf-8');
+    $('pwaBanner').textContent='CSV minuto a minuto exportado: ' + name;
     log('Exportado minuto a minuto', 'ok');
   }
   function exportSessionJson(){
@@ -1666,7 +1672,8 @@ function fmtTime(sec){ sec = Math.max(0, Math.floor(sec)); return String(Math.fl
       markers: state.plan.markers,
       ble:{ current: state.ble.current, samples: state.ble.samples.slice(-300) }
     };
-    downloadBlob(JSON.stringify(payload, null, 2), 'sesion_eliptica.json', 'application/json;charset=utf-8');
+    const name = downloadBlob(JSON.stringify(payload, null, 2), 'sesion_eliptica.json', 'application/json;charset=utf-8');
+    $('pwaBanner').textContent='Sesión JSON exportada: ' + name;
     log('Sesión JSON exportada', 'ok');
   }
 
@@ -1739,16 +1746,14 @@ function fmtTime(sec){ sec = Math.max(0, Math.floor(sec)); return String(Math.fl
   async function copySummary(){
     const txt = [buildFinalSummary(), '', buildTramoSummary(), '', buildComparisonText()].join('\n');
     $('finalSummaryBox').value = txt;
-    await copyTextSafe(txt);
-    log('Resumen copiado al portapapeles', 'ok');
+    try{ await copyTextSafe(txt); log('Resumen copiado al portapapeles', 'ok'); $('pwaBanner').textContent='Resumen copiado al portapapeles.'; } catch(err){ downloadBlob(txt, 'resumen_' + APP_VERSION + '.txt', 'text/plain;charset=utf-8'); log('Clipboard falló en resumen; descarga TXT creada', 'warn'); $('pwaBanner').textContent='Clipboard falló; resumen descargado.'; }
     return txt;
   }
 
   async function copyChatgptSummary(){
     const txt = buildChatgptSummaryText();
     $('finalSummaryBox').value = txt;
-    await copyTextSafe(txt);
-    log('Texto para ChatGPT copiado', 'ok');
+    try{ await copyTextSafe(txt); log('Texto para ChatGPT copiado', 'ok'); $('pwaBanner').textContent='Texto para ChatGPT copiado.'; } catch(err){ downloadBlob(txt, 'chatgpt_' + APP_VERSION + '.txt', 'text/plain;charset=utf-8'); log('Clipboard falló en ChatGPT; descarga TXT creada', 'warn'); $('pwaBanner').textContent='Clipboard falló; texto para ChatGPT descargado.'; }
     return txt;
   }
 
@@ -1757,6 +1762,7 @@ function fmtTime(sec){ sec = Math.max(0, Math.floor(sec)); return String(Math.fl
     if (!txt) throw new Error('No hay plan cargado para exportar');
     const name = 'plan_eliptica_' + new Date().toISOString().replace(/[:.]/g,'-') + '.txt';
     downloadBlob(txt, name, 'text/plain;charset=utf-8');
+    $('pwaBanner').textContent='Plan exportado: ' + name;
     log('Plan exportado: ' + name, 'ok');
     return name;
   }
@@ -2049,29 +2055,27 @@ function fmtTime(sec){ sec = Math.max(0, Math.floor(sec)); return String(Math.fl
     const m = calcLiveDerivedMetrics();
     const delta = m.totalDelta;
     const segDelta = m.segmentDelta;
-    const testWindow = getTestMainWindow();
     const nextWaterIdx = state.plan.waters.findIndex((w,i)=>!state.plan.waterTaken[i] && w > t + 1e-9);
     const overdueWaterIdx = state.plan.waters.findIndex((w,i)=>!state.plan.waterTaken[i] && w <= t + 1e-9);
-    const segmentWindow = buildSegmentWindows().find(w => t >= w.start && t < w.end - 1e-9);
+    const wins = buildSegmentWindows();
+    const segmentWindow = wins.find(w => t >= w.start && t < w.end - 1e-9);
+    const nextSeg = wins.find(w => w.start > t + 1e-9);
     const secsToSegmentEnd = segmentWindow ? Math.max(0, segmentWindow.end - t) : null;
     const hrAgeMs = state.ble.current.receivedAt ? (Date.now() - state.ble.current.receivedAt) : Infinity;
-    if (!state.plan.rows.length){
-      msgs.push('CARGA UN PLAN PARA EMPEZAR.');
-    } else {
-      msgs.push('TRAMO ' + (ps.seg || '--') + ' │ NIVEL ' + (ps.level ?? '--') + ' │ DESVÍO TRAMO ' + (segDelta > 0 ? '+' : '') + num(segDelta,1) + ' KCAL.');
-      msgs.push('DESVÍO TOTAL ' + (delta > 0 ? '+' : '') + num(delta,1) + ' KCAL │ FIN ' + endEtaText().replace(/^FIN\s+/,'') + ' │ QUEDAN ' + fmtSpeechDuration(Math.max(0, Math.ceil(m.remainingRealSec || 0))) + '.');
+    if (!state.plan.rows.length){ msgs.push('CARGA UN PLAN PARA EMPEZAR'); }
+    else {
+      msgs.push('AHORA · TRAMO ' + (ps.seg || '--') + ' · NIVEL ' + (ps.level ?? '--') + ' · DESVÍO TRAMO ' + (segDelta>0?'+':'') + num(segDelta,1) + ' KCAL');
+      msgs.push('TOTAL ' + (delta>0?'+':'') + num(delta,1) + ' KCAL · RITMO REAL ' + num(m.paceReal,2) + ' KCAL/MIN · FIN ' + endEtaText().replace(/^FIN\s+/,''));
+      if (nextSeg && secsToSegmentEnd != null) msgs.push('PRÓXIMO CAMBIO EN ' + fmtSpeechDuration(secsToSegmentEnd) + ' · PASAS A ' + nextSeg.seg + ' NIVEL ' + nextSeg.level);
+      if (m.paceNeed > 0) msgs.push('PARA CERRAR EL OBJETIVO NECESITAS ' + num(m.paceNeed,2) + ' KCAL/MIN DESDE AHORA');
+      msgs.push('AGUA ' + m.waterTaken + '/' + m.waterTotal + ' · QUEDAN ' + fmtSpeechDuration(Math.max(0, Math.ceil(m.remainingRealSec || 0))));
     }
-    if (!navigator.bluetooth) msgs.push('WEB BLUETOOTH NO SOPORTADO EN ESTE NAVEGADOR.');
-    if (state.ble.connectionState === 'conectado' && hrAgeMs >= 8000) msgs.push('PROBLEMA DE CONEXIÓN CON PULSÓMETRO │ SIN PAQUETES RECIENTES.');
-    else if (state.ble.connectionState === 'reconectando') msgs.push('RECONEXIÓN AUTOMÁTICA DEL PULSÓMETRO EN CURSO.');
-    else if (state.ble.connectionState !== 'conectado') msgs.push('PULSÓMETRO ' + String(state.ble.connectionState || 'DESCONECTADO').toUpperCase() + '.');
-    if (testWindow && ps.seg === String(testWindow.seg||'').toUpperCase()) msgs.push('TEST EN CURSO │ TRAMO ' + testWindow.seg + ' │ DESVÍO TRAMO ' + (segDelta > 0 ? '+' : '') + num(segDelta,1) + ' KCAL.');
-    if (overdueWaterIdx !== -1) msgs.push('AGUA AHORA │ TOMA PENDIENTE EN ' + fmtTime(state.plan.waters[overdueWaterIdx]) + '.');
-    else if (nextWaterIdx !== -1){
-      const dt = state.plan.waters[nextWaterIdx] - t;
-      if (dt <= 180) msgs.push('AGUA EN ' + fmtSpeechDuration(dt) + ' │ FIN ' + endEtaText().replace(/^FIN\s+/,'') + '.');
-    }
-    if (secsToSegmentEnd != null && secsToSegmentEnd <= 180) msgs.push('CAMBIO DE TRAMO EN ' + fmtSpeechDuration(secsToSegmentEnd) + ' │ PRÓXIMO NIVEL ' + nextLevelAfter(t) + '.');
+    if (overdueWaterIdx !== -1) msgs.push('AGUA PENDIENTE AHORA · TOCA BEBER Y MARCAR LA TOMA');
+    else if (nextWaterIdx !== -1){ const dt = state.plan.waters[nextWaterIdx] - t; msgs.push('PRÓXIMA AGUA EN ' + fmtSpeechDuration(dt) + ' · MINUTO ' + fmtTime(state.plan.waters[nextWaterIdx])); }
+    if (state.ble.connectionState === 'conectado' && hrAgeMs < 5000 && Number.isFinite(displayBpmValue())) msgs.push('PULSO ' + num(displayBpmValue(),1) + ' BPM · OBJETIVO ' + (ps.bpmTarget ? (ps.bpmTarget.min + '–' + ps.bpmTarget.max) : '--'));
+    if (state.ble.connectionState === 'conectado' && hrAgeMs >= 5000) msgs.push('PULSÓMETRO CONECTADO PERO SIN PAQUETES RECIENTES');
+    else if (state.ble.connectionState === 'reconectando') msgs.push('RECONEXIÓN AUTOMÁTICA DEL PULSÓMETRO EN CURSO');
+    else if (state.ble.connectionState !== 'conectado') msgs.push('PULSÓMETRO ' + String(state.ble.connectionState || 'DESCONECTADO').toUpperCase());
     return Array.from(new Set(msgs.filter(Boolean).map(x => String(x).toUpperCase())));
   }
 
@@ -2188,7 +2192,8 @@ function fmtTime(sec){ sec = Math.max(0, Math.floor(sec)); return String(Math.fl
     });
     const header = ['tramo','level','durationSec','duration','kcalPlan','kcalReal','kcalDelta','kcalPerMinPlan','kcalPerMinReal','bpmAvg','zoneDominant'];
     const csv = rowsToCsv(out, header);
-    downloadBlob(csv, 'sesion_eliptica_tramos.csv', 'text/csv;charset=utf-8');
+    const name = downloadBlob(csv, 'sesion_eliptica_tramos.csv', 'text/csv;charset=utf-8');
+    $('pwaBanner').textContent='CSV por tramos exportado: ' + name;
     log('CSV por tramos exportado', 'ok');
   }
 
@@ -2436,7 +2441,10 @@ function fmtTime(sec){ sec = Math.max(0, Math.floor(sec)); return String(Math.fl
     try{ log('[CHECK] Clipboard API: ' + (navigator.clipboard ? 'sí' : 'no'), navigator.clipboard ? 'ok' : 'warn'); ok++; }catch(err){ fail++; }
     try{ log('[CHECK] Web Bluetooth API: ' + (navigator.bluetooth ? 'sí' : 'no'), navigator.bluetooth ? 'ok' : 'warn'); ok++; }catch(err){ fail++; }
     try{ log('[CHECK] ServiceWorker API: ' + ('serviceWorker' in navigator ? 'sí' : 'no'), ('serviceWorker' in navigator) ? 'ok' : 'warn'); ok++; }catch(err){ fail++; }
-    state.app.startupChecks.push({ ts: Date.now(), ok, fail, version: APP_VERSION, build: BUILD_STAMP });
+    const boundOk = Object.values(state.app.boundButtons).filter(Boolean).length;
+    const boundFail = Object.values(state.app.boundButtons).filter(v => v===false).length;
+    log('[CHECK] Botones enlazados: ' + boundOk + ' · fallos de enlace: ' + boundFail, boundFail ? 'warn' : 'ok');
+    state.app.startupChecks.push({ ts: Date.now(), ok, fail, version: APP_VERSION, build: BUILD_STAMP, boundOk, boundFail });
     log('[STARTUP] Resumen checks · ok=' + ok + ' · fail=' + fail, fail ? 'warn' : 'ok');
   }
   function bind(){

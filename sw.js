@@ -1,4 +1,4 @@
-const CACHE = 'eliptica-pwa-v44';
+const CACHE = 'eliptica-pwa-v45';
 const ASSETS = [
   './',
   './index.html',
@@ -6,7 +6,7 @@ const ASSETS = [
   './manifest.webmanifest',
   './icon-192.png',
   './icon-512.png',
-  './eliptica_pwa_reescrita_desde_cero_v44_completa.html',
+  './eliptica_pwa_reescrita_desde_cero_v45_completa.html',
 ];
 self.addEventListener('install', event => {
   self.skipWaiting();
