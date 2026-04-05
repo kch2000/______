@@ -1,13 +1,55 @@
 (() => {
 'use strict';
-const APP_VERSION='v50';
+const APP_VERSION='v51';
 const BUILD='2026-04-06 23:59';
 const $=id=>document.getElementById(id);
-const STATE_KEY=`eliptica_state_${APP_VERSION}`; const LAST_SESSION_KEY='lastCompletedSession'; const state={phase:'idle',plan:null,startTs:null,pausedAccumMs:0,pauseTs:null,elapsedSec:0,lastSec:-1,realOffset:0,history:[],logs:[],installPrompt:null,bannerIndex:0,bannerHoldMs:5000,bannerLastChange:0,bpmSamples:[],swReg:null,lastActionTs:0,lastRenderTick:0,voice:{supported:('speechSynthesis' in window),unlocked:false,enabled:true,voices:[],selectedURI:'',queue:[],speaking:false,lastByKey:{}},ble:{device:null,server:null,hrChar:null,connected:false,lastPacketTs:0,deviceName:'',autoAttempted:false}};
+const STATE_KEY=`eliptica_state_${APP_VERSION}`; const LAST_SESSION_KEY='lastCompletedSession'; const state={phase:'idle',plan:null,startTs:null,pausedAccumMs:0,pauseTs:null,elapsedSec:0,lastSec:-1,realOffset:0,history:[],logs:[],installPrompt:null,bannerIndex:0,bannerHoldMs:5000,bannerLastChange:0,bpmSamples:[],swReg:null,lastActionTs:0,lastRenderTick:0,voice:{supported:('speechSynthesis' in window),unlocked:false,enabled:true,voices:[],selectedURI:'',queue:[],speaking:false,lastByKey:{},volume:1,rate:1,browserNotify:false,beepEnabled:true},ble:{device:null,server:null,hrChar:null,connected:false,lastPacketTs:0,deviceName:'',autoAttempted:false}};
 const els={};
-const ids=['timelineBar','timelineMarkers','playhead','tickerNow','tickerMsg','tickerEta','sessionBadge','planTitle','timeBig','timeRealLabel','kPlanBig','kRealBig','bpmBig','bpmTargetLabel','avgPlanLabel','avgRealLabel','deviationTotalLabel','deviationSegmentLabel','realRateLabel','planRateLabel','waterCountLabel','upcomingBody','upcomingVisibleLabel','waterNextLabel','waterProgressBar','chipBle','chipPulse','chipSession','chipSaved','chipWater','chipAlerts','chipApp','chipTest','bleStatusLabel','bleBpmBig','ble5s','ble10s','ble30s','bleLastPkt','bleDeviceName','planInput','importOutput','versionLabel','pwaStateLabel','logBox'];
-function cacheEls(){ids.forEach(id=>els[id]=$(id)); els.versionLabel.textContent=`${APP_VERSION} · ${BUILD}`;}
+const ids=['timelineBar','timelineMarkers','playhead','tickerNow','tickerMsg','tickerEta','sessionBadge','planTitle','timeBig','timeRealLabel','kPlanBig','kRealBig','bpmBig','bpmTargetLabel','avgPlanLabel','avgRealLabel','deviationTotalLabel','deviationSegmentLabel','realRateLabel','planRateLabel','waterCountLabel','upcomingBody','upcomingVisibleLabel','waterNextLabel','waterProgressBar','chipBle','chipPulse','chipSession','chipSaved','chipWater','chipAlerts','chipApp','chipTest','bleStatusLabel','bleBpmBig','ble5s','ble10s','ble30s','bleLastPkt','bleDeviceName','planInput','importOutput','versionLabel','pwaStateLabel','logBox','voiceSelect','voiceStatus','voiceVolumeRange','voiceVolumeVal','voiceRateRange','voiceRateVal','browserNotifyChk','voiceAlertsChk','beepAlertsChk'];
+function cacheEls(){ids.forEach(id=>els[id]=$(id)); if(els.versionLabel) els.versionLabel.textContent=`${APP_VERSION} · ${BUILD}`;}
 function addLog(msg){const t=new Date().toTimeString().slice(0,8); state.logs.push(`[${t}] ${msg}`); if(state.logs.length>800) state.logs.shift(); if(els.logBox){els.logBox.textContent=state.logs.join('\n'); els.logBox.scrollTop=els.logBox.scrollHeight;}}
+
+function syncVoiceUi(){
+  if(els.voiceVolumeRange) els.voiceVolumeRange.value=String(state.voice.volume);
+  if(els.voiceVolumeVal) els.voiceVolumeVal.textContent=Number(state.voice.volume).toFixed(1);
+  if(els.voiceRateRange) els.voiceRateRange.value=String(state.voice.rate);
+  if(els.voiceRateVal) els.voiceRateVal.textContent=Number(state.voice.rate).toFixed(2);
+  if(els.browserNotifyChk) els.browserNotifyChk.checked=!!state.voice.browserNotify;
+  if(els.voiceAlertsChk) els.voiceAlertsChk.checked=!!state.voice.enabled;
+  if(els.beepAlertsChk) els.beepAlertsChk.checked=!!state.voice.beepEnabled;
+}
+function populateVoiceSelect(){
+  if(!els.voiceSelect) return;
+  els.voiceSelect.innerHTML='';
+  const voices=state.voice.voices||[];
+  if(!voices.length){ const o=document.createElement('option'); o.value=''; o.textContent='Sin voces detectadas'; els.voiceSelect.appendChild(o); if(els.voiceStatus) els.voiceStatus.textContent='Sin voces detectadas'; return; }
+  voices.forEach(v=>{ const o=document.createElement('option'); o.value=v.voiceURI; o.textContent=`${v.name} · ${v.lang}`; if(v.voiceURI===state.voice.selectedURI) o.selected=true; els.voiceSelect.appendChild(o); });
+  const v=voices.find(v=>v.voiceURI===state.voice.selectedURI) || voices[0];
+  if(v && els.voiceStatus) els.voiceStatus.textContent=`Voz actual: ${v.name} · ${v.lang}`;
+}
+async function requestNotificationPermission(){
+  if(!('Notification' in window)) throw new Error('Notifications no disponible');
+  const res=await Notification.requestPermission();
+  addLog(`[NOTIF] Permiso: ${res}`);
+  state.voice.browserNotify = (res==='granted');
+  syncVoiceUi();
+  return res;
+}
+async function testNotify(){
+  if(!('Notification' in window)) throw new Error('Notifications no disponible');
+  const perm = Notification.permission==='granted' ? 'granted' : await Notification.requestPermission();
+  if(perm!=='granted') throw new Error('Permiso no concedido');
+  const title=`Eliptica PWA ${APP_VERSION}`;
+  const body='Notificación de prueba lanzada';
+  if(state.swReg && state.swReg.showNotification){ await state.swReg.showNotification(title,{body,tag:'test-notify',renotify:true}); }
+  else new Notification(title,{body,tag:'test-notify'});
+  addLog('[NOTIF] Prueba enviada');
+}
+function notifyMaybe(title,body,tag='elliptica-info'){
+  if(!state.voice.browserNotify) return;
+  if(!('Notification' in window) || Notification.permission!=='granted') return;
+  try{ if(state.swReg && state.swReg.showNotification) state.swReg.showNotification(title,{body,tag,renotify:false}); else new Notification(title,{body,tag}); addLog(`[NOTIF] ${title}: ${body}`); }catch(e){ addLog('[NOTIF] ERROR: '+(e.message||e)); }
+}
 
 function selectBestVoice(){
   const voices = state.voice.voices;
@@ -15,13 +57,16 @@ function selectBestVoice(){
   let v = voices.find(v=>/es-ES/i.test(v.lang)) || voices.find(v=>/^es/i.test(v.lang)) || voices.find(v=>/Google español/i.test(v.name)) || voices[0];
   state.voice.selectedURI = v.voiceURI;
   addLog(`[VOICE] Voz seleccionada: ${v.name} · ${v.lang}`);
+  populateVoiceSelect();
   return v;
 }
 function refreshVoices(){
-  if(!state.voice.supported){ addLog('[VOICE] SpeechSynthesis no disponible'); return []; }
+  if(!state.voice.supported){ addLog('[VOICE] SpeechSynthesis no disponible'); if(els.voiceStatus) els.voiceStatus.textContent='SpeechSynthesis no disponible'; return []; }
   state.voice.voices = window.speechSynthesis.getVoices() || [];
   addLog(`[VOICE] Voces detectadas: ${state.voice.voices.length}`);
   if(state.voice.voices.length && !state.voice.selectedURI) selectBestVoice();
+  populateVoiceSelect();
+  syncVoiceUi();
   return state.voice.voices;
 }
 function unlockVoice(){
@@ -62,8 +107,8 @@ function processVoiceQueue(){
   const v = state.voice.voices.find(x=>x.voiceURI===state.voice.selectedURI) || selectBestVoice();
   if(v) utter.voice = v;
   utter.lang = utter.voice?.lang || 'es-ES';
-  utter.volume = 1.0;
-  utter.rate = 1.0;
+  utter.volume = Number(state.voice.volume||1);
+  utter.rate = Number(state.voice.rate||1);
   utter.pitch = 1.0;
   utter.onstart = ()=>{ state.voice.speaking = true; addLog(`[VOICE] Hablando: ${msg}`); };
   utter.onend = ()=>{ state.voice.speaking = false; addLog('[VOICE] Fin'); if(state.voice.queue.length) setTimeout(processVoiceQueue,120); };
@@ -165,6 +210,8 @@ function bind(){
   B('bleDiagBtn','bleDiag',bleDiag);
   B('installAppBtn','installApp',installApp);
   B('updateAppBtn','updateApp',updateApp);
+  B('notifPermissionBtn','notifPermission',requestNotificationPermission);
+  B('testNotifyBtn','testNotify',testNotify);
   B('refreshVoicesBtn','refreshVoices',()=>{ refreshVoices(); if(els.importOutput) els.importOutput.textContent = (state.voice.voices||[]).map(v=>`${v.name} · ${v.lang}`).join('\n') || 'Sin voces detectadas'; });
   B('testVoiceBtn','testVoice',testVoice);
   B('copyLogBtn','copyLog',async()=>{
@@ -186,6 +233,12 @@ function bind(){
   B('clearAppDataBtn','clearAppData',clearAppData);
   [['seekPlus60',60],['seekPlus30',30],['seekPlus10',10],['seekPlus5',5],['seekPlus1',1],['seekMinus1',-1],['seekMinus5',-5],['seekMinus10',-10],['seekMinus30',-30],['seekMinus60',-60]].forEach(([id,d])=>B(id,id,()=>seek(d)));
   [['kPlus1',1],['kPlus05',0.5],['kPlus01',0.1],['kMinus01',-0.1],['kMinus05',-0.5],['kMinus1',-1]].forEach(([id,d])=>B(id,id,()=>adjustReal(d)));
+  if(els.voiceSelect) els.voiceSelect.addEventListener('change',ev=>{ state.voice.selectedURI = ev.target.value||''; const v=state.voice.voices.find(v=>v.voiceURI===state.voice.selectedURI); if(v) addLog(`[VOICE] Voz seleccionada manual: ${v.name} · ${v.lang}`); populateVoiceSelect(); });
+  if(els.voiceVolumeRange) els.voiceVolumeRange.addEventListener('input',ev=>{ state.voice.volume = Number(ev.target.value||1); syncVoiceUi(); addLog(`[VOICE] Volumen: ${state.voice.volume.toFixed(1)}`); });
+  if(els.voiceRateRange) els.voiceRateRange.addEventListener('input',ev=>{ state.voice.rate = Number(ev.target.value||1); syncVoiceUi(); addLog(`[VOICE] Velocidad: ${state.voice.rate.toFixed(2)}`); });
+  if(els.browserNotifyChk) els.browserNotifyChk.addEventListener('change',ev=>{ state.voice.browserNotify = !!ev.target.checked; syncVoiceUi(); addLog(`[NOTIF] Toggle navegador/reloj: ${state.voice.browserNotify?'ON':'OFF'}`); });
+  if(els.voiceAlertsChk) els.voiceAlertsChk.addEventListener('change',ev=>{ state.voice.enabled = !!ev.target.checked; syncVoiceUi(); addLog(`[VOICE] Avisos hablados: ${state.voice.enabled?'ON':'OFF'}`); });
+  if(els.beepAlertsChk) els.beepAlertsChk.addEventListener('change',ev=>{ state.voice.beepEnabled = !!ev.target.checked; syncVoiceUi(); addLog(`[AUDIO] Pitidos: ${state.voice.beepEnabled?'ON':'OFF'}`); });
   window.addEventListener('beforeinstallprompt',e=>{e.preventDefault(); state.installPrompt=e; addLog('[PWA] beforeinstallprompt capturado');});
   document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden') persist();});
 }
@@ -296,7 +349,7 @@ async function clearAppData(){localStorage.clear(); sessionStorage.clear(); if('
 async function installApp(){if(state.installPrompt) await state.installPrompt.prompt(); else addLog('[PWA] No hay prompt disponible')}
 async function registerSW(){if(!('serviceWorker' in navigator)) return; try{state.swReg=await navigator.serviceWorker.register('./sw.js'); addLog('[SW] registrado')}catch(e){addLog('[SW] ERROR: '+(e.message||e))}}
 async function updateApp(){if(!state.swReg) throw new Error('No hay service worker'); await state.swReg.update(); addLog('[PWA] Update solicitado'); if(state.swReg.waiting){state.swReg.waiting.postMessage({type:'SKIP_WAITING'}); location.reload()} else location.reload()}
-function verifyAll(){const checks=[]; const push=(name,ok,detail='')=>{checks.push({name,ok,detail}); addLog(`[CHECK] ${name}: ${ok?'ok':'fail'}${detail?' · '+detail:''}`)}; push('DOM timeline',!!els.timelineBar); push('DOM ticker',!!els.tickerMsg); push('DOM BLE',!!$('bleConnectBtn')); push('Clipboard',!!navigator.clipboard||!!document.execCommand); push('Notifications','Notification' in window, Notification?.permission||''); push('Web Bluetooth','bluetooth' in navigator);
+function verifyAll(){const checks=[]; const push=(name,ok,detail='')=>{checks.push({name,ok,detail}); addLog(`[CHECK] ${name}: ${ok?'ok':'fail'}${detail?' · '+detail:''}`)}; push('DOM timeline',!!els.timelineBar); push('DOM ticker',!!els.tickerMsg); push('DOM BLE',!!$('bleConnectBtn')); push('Clipboard',!!navigator.clipboard||!!document.execCommand); push('Notifications','Notification' in window, ('Notification' in window ? Notification.permission : 'n/a')); push('Voice select', !!els.voiceSelect, state.voice.selectedURI||'sin seleccionar'); push('Web Bluetooth','bluetooth' in navigator);
   push('SpeechSynthesis', state.voice.supported, `${state.voice.voices?.length||0} voces`); push('Service Worker','serviceWorker' in navigator); push('Parser',typeof parsePlan==='function'); push('Summary',typeof summaryText==='function'); push('Export CSV',typeof exportSessionCsv==='function'); push('Resume saved',typeof resumeSavedSession==='function'); push('Final summary',typeof showFinalSummary==='function'); push('Export JSON',typeof exportJson==='function'); push('Compare last',typeof compareLast==='function'); push('CSV tramos',typeof exportTramoCsv==='function'); push('Copy summary',typeof copyText==='function'); push('Export plan',typeof exportPlan==='function'); push('Clear app data',typeof clearAppData==='function'); push('Build',true,`${APP_VERSION} · ${BUILD}`); els.importOutput.textContent=checks.map(c=>`${c.ok?'OK':'FAIL'} · ${c.name}${c.detail?' · '+c.detail:''}`).join('\n')}
 async function bleConnect(){if(!navigator.bluetooth) throw new Error('Web Bluetooth no disponible'); const device=await navigator.bluetooth.requestDevice({filters:[{services:['heart_rate']}],optionalServices:['battery_service','device_information']}); await connectDevice(device)}
 async function bleReconnect(){if(state.ble.device) return connectDevice(state.ble.device); if(navigator.bluetooth.getDevices){const devices=await navigator.bluetooth.getDevices(); if(devices[0]) return connectDevice(devices[0])} throw new Error('No hay dispositivo previo')}
