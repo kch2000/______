@@ -1,13 +1,126 @@
 (() => {
 'use strict';
-const APP_VERSION='v49';
-const BUILD='2026-04-05 23:59';
+const APP_VERSION='v50';
+const BUILD='2026-04-06 23:59';
 const $=id=>document.getElementById(id);
-const STATE_KEY=`eliptica_state_${APP_VERSION}`; const LAST_SESSION_KEY='lastCompletedSession'; const state={phase:'idle',plan:null,startTs:null,pausedAccumMs:0,pauseTs:null,elapsedSec:0,lastSec:-1,realOffset:0,history:[],logs:[],installPrompt:null,bannerIndex:0,bannerHoldMs:5000,bannerLastChange:0,bpmSamples:[],swReg:null,lastActionTs:0,lastRenderTick:0,ble:{device:null,server:null,hrChar:null,connected:false,lastPacketTs:0,deviceName:'',autoAttempted:false}};
+const STATE_KEY=`eliptica_state_${APP_VERSION}`; const LAST_SESSION_KEY='lastCompletedSession'; const state={phase:'idle',plan:null,startTs:null,pausedAccumMs:0,pauseTs:null,elapsedSec:0,lastSec:-1,realOffset:0,history:[],logs:[],installPrompt:null,bannerIndex:0,bannerHoldMs:5000,bannerLastChange:0,bpmSamples:[],swReg:null,lastActionTs:0,lastRenderTick:0,voice:{supported:('speechSynthesis' in window),unlocked:false,enabled:true,voices:[],selectedURI:'',queue:[],speaking:false,lastByKey:{}},ble:{device:null,server:null,hrChar:null,connected:false,lastPacketTs:0,deviceName:'',autoAttempted:false}};
 const els={};
 const ids=['timelineBar','timelineMarkers','playhead','tickerNow','tickerMsg','tickerEta','sessionBadge','planTitle','timeBig','timeRealLabel','kPlanBig','kRealBig','bpmBig','bpmTargetLabel','avgPlanLabel','avgRealLabel','deviationTotalLabel','deviationSegmentLabel','realRateLabel','planRateLabel','waterCountLabel','upcomingBody','upcomingVisibleLabel','waterNextLabel','waterProgressBar','chipBle','chipPulse','chipSession','chipSaved','chipWater','chipAlerts','chipApp','chipTest','bleStatusLabel','bleBpmBig','ble5s','ble10s','ble30s','bleLastPkt','bleDeviceName','planInput','importOutput','versionLabel','pwaStateLabel','logBox'];
 function cacheEls(){ids.forEach(id=>els[id]=$(id)); els.versionLabel.textContent=`${APP_VERSION} · ${BUILD}`;}
 function addLog(msg){const t=new Date().toTimeString().slice(0,8); state.logs.push(`[${t}] ${msg}`); if(state.logs.length>800) state.logs.shift(); if(els.logBox){els.logBox.textContent=state.logs.join('\n'); els.logBox.scrollTop=els.logBox.scrollHeight;}}
+
+function selectBestVoice(){
+  const voices = state.voice.voices;
+  if(!voices.length) return null;
+  let v = voices.find(v=>/es-ES/i.test(v.lang)) || voices.find(v=>/^es/i.test(v.lang)) || voices.find(v=>/Google español/i.test(v.name)) || voices[0];
+  state.voice.selectedURI = v.voiceURI;
+  addLog(`[VOICE] Voz seleccionada: ${v.name} · ${v.lang}`);
+  return v;
+}
+function refreshVoices(){
+  if(!state.voice.supported){ addLog('[VOICE] SpeechSynthesis no disponible'); return []; }
+  state.voice.voices = window.speechSynthesis.getVoices() || [];
+  addLog(`[VOICE] Voces detectadas: ${state.voice.voices.length}`);
+  if(state.voice.voices.length && !state.voice.selectedURI) selectBestVoice();
+  return state.voice.voices;
+}
+function unlockVoice(){
+  if(!state.voice.supported || state.voice.unlocked) return;
+  try{
+    window.speechSynthesis.cancel();
+    window.speechSynthesis.resume();
+    state.voice.unlocked = true;
+    refreshVoices();
+    addLog('[VOICE] Desbloqueo OK');
+  }catch(e){
+    addLog('[VOICE] Desbloqueo ERROR: '+(e.message||e));
+  }
+}
+function shouldSpeak(key,cooldownMs){
+  const now = Date.now();
+  const prev = state.voice.lastByKey[key] || 0;
+  if(now-prev < cooldownMs) return false;
+  state.voice.lastByKey[key] = now;
+  return true;
+}
+function enqueueVoice(text, cls='good', key='generic', cooldownMs=0){
+  if(!state.voice.supported || !state.voice.enabled) return;
+  if(cooldownMs && !shouldSpeak(key,cooldownMs)) return;
+  const msg = String(text||'').trim();
+  if(!msg) return;
+  state.voice.queue.push(msg);
+  addLog(`[VOICE] Encolado: ${msg}`);
+  processVoiceQueue();
+}
+function processVoiceQueue(){
+  if(!state.voice.supported || !state.voice.enabled || state.voice.speaking) return;
+  const msg = state.voice.queue.shift();
+  if(!msg) return;
+  if(!state.voice.unlocked){ addLog('[VOICE] Pendiente de desbloqueo'); return; }
+  refreshVoices();
+  const utter = new SpeechSynthesisUtterance(msg);
+  const v = state.voice.voices.find(x=>x.voiceURI===state.voice.selectedURI) || selectBestVoice();
+  if(v) utter.voice = v;
+  utter.lang = utter.voice?.lang || 'es-ES';
+  utter.volume = 1.0;
+  utter.rate = 1.0;
+  utter.pitch = 1.0;
+  utter.onstart = ()=>{ state.voice.speaking = true; addLog(`[VOICE] Hablando: ${msg}`); };
+  utter.onend = ()=>{ state.voice.speaking = false; addLog('[VOICE] Fin'); if(state.voice.queue.length) setTimeout(processVoiceQueue,120); };
+  utter.onerror = e=>{ state.voice.speaking = false; addLog('[VOICE] ERROR: '+(e.error||e.message||e)); if(state.voice.queue.length) setTimeout(processVoiceQueue,120); };
+  window.speechSynthesis.speak(utter);
+}
+function testVoice(){ unlockVoice(); enqueueVoice('PRUEBA DE VOZ. PRÓXIMO CAMBIO EN TREINTA SEGUNDOS. FIN PREVISTA A LAS VEINTIUNA HORAS.','good','testVoice',0); }
+function fmtSpeechMinutes(sec){
+  sec = Math.max(0, Math.round(sec));
+  const m = Math.floor(sec/60), s = sec%60;
+  if(m>0 && s>0) return `${m} MINUTOS Y ${s} SEGUNDOS`;
+  if(m>0) return `${m} MINUTOS`;
+  return `${s} SEGUNDOS`;
+}
+function getCurrentBpmTarget(){
+  const info = currentSegInfo();
+  const level = info?.seg?.level;
+  if(!level) return null;
+  return state.plan?.bpmDay?.[level] || state.plan?.bpmApp?.[level] || null;
+}
+function evaluateVoiceAlerts(prevSec, sec){
+  if(state.phase!=='running' || !state.plan) return;
+  const info = currentSegInfo(sec);
+  if(!info) return;
+  const remainSeg = info.endSec - sec;
+  const remainTotal = planDuration() - sec;
+  const next = state.plan.segments[info.index+1] || null;
+  [180,60,30,10].forEach(t=>{
+    if(remainSeg===t && next){
+      const dir = next.level>info.seg.level ? 'SUBIDA' : next.level<info.seg.level ? 'BAJADA' : 'CAMBIO';
+      const kind = next.isTest ? 'TEST ' : '';
+      enqueueVoice(`QUEDAN ${fmtSpeechMinutes(t)} DE TRAMO. PRÓXIMO ${kind}${dir} A NIVEL ${next.level}.`,'warn',`seg_${info.index}_${t}`,5000);
+    }
+  });
+  if(remainSeg===0 && next){
+    const dir = next.level>info.seg.level ? 'SUBIDA' : next.level<info.seg.level ? 'BAJADA' : 'CAMBIO';
+    const kind = next.isTest ? 'TEST ' : '';
+    enqueueVoice(`CAMBIO AHORA. ${kind}${dir} A NIVEL ${next.level}.`,'warn',`seg_now_${info.index}`,5000);
+  }
+  (state.plan.water||[]).forEach(w=>{
+    const [mm,ss] = String(w).split(':').map(Number);
+    const ws = mm*60+ss;
+    [180,60,30,10].forEach(t=>{
+      if(ws-sec===t) enqueueVoice(`AGUA EN ${fmtSpeechMinutes(t)}.`,'good',`water_${ws}_${t}`,5000);
+    });
+    if(ws===sec) enqueueVoice('AGUA AHORA. DOS O TRES SORBOS Y VUELVES A CADENCIA.','good',`water_now_${ws}`,5000);
+  });
+  if(sec>0 && sec%120===0) enqueueVoice(`QUEDAN ${fmtSpeechMinutes(remainSeg)} DE ESTE TRAMO.`,'good',`rem_tramo_${sec}`,2000);
+  if(sec>0 && sec%300===0) enqueueVoice(`QUEDAN ${fmtSpeechMinutes(remainTotal)} PARA TERMINAR LA ELÍPTICA. FIN PREVISTA A LAS ${hm(new Date(Date.now()+remainTotal*1000)).replace(':',' Y ')}.`,'good',`rem_total_${sec}`,2000);
+  const target = getCurrentBpmTarget();
+  const bpm = bpmDisplay();
+  if(target && bpm!=null && sec>0 && sec%60===0){
+    if(bpm < target.min - 2) enqueueVoice(`PULSO POR DEBAJO DEL OBJETIVO. OBJETIVO ${target.min} A ${target.max}.`,'bad',`bpm_low_${sec}`,1000);
+    if(bpm > target.max + 2) enqueueVoice(`PULSO POR ENCIMA DEL OBJETIVO. OBJETIVO ${target.min} A ${target.max}.`,'bad',`bpm_high_${sec}`,1000);
+  }
+}
+
 function safe(name,fn){
   return async ev=>{
     const target=ev?.currentTarget || ev?.target;
@@ -19,6 +132,7 @@ function safe(name,fn){
     }
     addLog(`[BTN ${name}] ${target?.id||''} pulsado`);
     try{
+      unlockVoice();
       await fn(ev);
       addLog(`[BTN ${name}] OK`);
     }catch(err){
@@ -51,6 +165,8 @@ function bind(){
   B('bleDiagBtn','bleDiag',bleDiag);
   B('installAppBtn','installApp',installApp);
   B('updateAppBtn','updateApp',updateApp);
+  B('refreshVoicesBtn','refreshVoices',()=>{ refreshVoices(); if(els.importOutput) els.importOutput.textContent = (state.voice.voices||[]).map(v=>`${v.name} · ${v.lang}`).join('\n') || 'Sin voces detectadas'; });
+  B('testVoiceBtn','testVoice',testVoice);
   B('copyLogBtn','copyLog',async()=>{
     const txt = state.logs.join('\n');
     try{ await copyText(txt); addLog('[LOG] Copiado'); }
@@ -180,7 +296,8 @@ async function clearAppData(){localStorage.clear(); sessionStorage.clear(); if('
 async function installApp(){if(state.installPrompt) await state.installPrompt.prompt(); else addLog('[PWA] No hay prompt disponible')}
 async function registerSW(){if(!('serviceWorker' in navigator)) return; try{state.swReg=await navigator.serviceWorker.register('./sw.js'); addLog('[SW] registrado')}catch(e){addLog('[SW] ERROR: '+(e.message||e))}}
 async function updateApp(){if(!state.swReg) throw new Error('No hay service worker'); await state.swReg.update(); addLog('[PWA] Update solicitado'); if(state.swReg.waiting){state.swReg.waiting.postMessage({type:'SKIP_WAITING'}); location.reload()} else location.reload()}
-function verifyAll(){const checks=[]; const push=(name,ok,detail='')=>{checks.push({name,ok,detail}); addLog(`[CHECK] ${name}: ${ok?'ok':'fail'}${detail?' · '+detail:''}`)}; push('DOM timeline',!!els.timelineBar); push('DOM ticker',!!els.tickerMsg); push('DOM BLE',!!$('bleConnectBtn')); push('Clipboard',!!navigator.clipboard||!!document.execCommand); push('Notifications','Notification' in window, Notification?.permission||''); push('Web Bluetooth','bluetooth' in navigator); push('Service Worker','serviceWorker' in navigator); push('Parser',typeof parsePlan==='function'); push('Summary',typeof summaryText==='function'); push('Export CSV',typeof exportSessionCsv==='function'); push('Resume saved',typeof resumeSavedSession==='function'); push('Final summary',typeof showFinalSummary==='function'); push('Export JSON',typeof exportJson==='function'); push('Compare last',typeof compareLast==='function'); push('CSV tramos',typeof exportTramoCsv==='function'); push('Copy summary',typeof copyText==='function'); push('Export plan',typeof exportPlan==='function'); push('Clear app data',typeof clearAppData==='function'); push('Build',true,`${APP_VERSION} · ${BUILD}`); els.importOutput.textContent=checks.map(c=>`${c.ok?'OK':'FAIL'} · ${c.name}${c.detail?' · '+c.detail:''}`).join('\n')}
+function verifyAll(){const checks=[]; const push=(name,ok,detail='')=>{checks.push({name,ok,detail}); addLog(`[CHECK] ${name}: ${ok?'ok':'fail'}${detail?' · '+detail:''}`)}; push('DOM timeline',!!els.timelineBar); push('DOM ticker',!!els.tickerMsg); push('DOM BLE',!!$('bleConnectBtn')); push('Clipboard',!!navigator.clipboard||!!document.execCommand); push('Notifications','Notification' in window, Notification?.permission||''); push('Web Bluetooth','bluetooth' in navigator);
+  push('SpeechSynthesis', state.voice.supported, `${state.voice.voices?.length||0} voces`); push('Service Worker','serviceWorker' in navigator); push('Parser',typeof parsePlan==='function'); push('Summary',typeof summaryText==='function'); push('Export CSV',typeof exportSessionCsv==='function'); push('Resume saved',typeof resumeSavedSession==='function'); push('Final summary',typeof showFinalSummary==='function'); push('Export JSON',typeof exportJson==='function'); push('Compare last',typeof compareLast==='function'); push('CSV tramos',typeof exportTramoCsv==='function'); push('Copy summary',typeof copyText==='function'); push('Export plan',typeof exportPlan==='function'); push('Clear app data',typeof clearAppData==='function'); push('Build',true,`${APP_VERSION} · ${BUILD}`); els.importOutput.textContent=checks.map(c=>`${c.ok?'OK':'FAIL'} · ${c.name}${c.detail?' · '+c.detail:''}`).join('\n')}
 async function bleConnect(){if(!navigator.bluetooth) throw new Error('Web Bluetooth no disponible'); const device=await navigator.bluetooth.requestDevice({filters:[{services:['heart_rate']}],optionalServices:['battery_service','device_information']}); await connectDevice(device)}
 async function bleReconnect(){if(state.ble.device) return connectDevice(state.ble.device); if(navigator.bluetooth.getDevices){const devices=await navigator.bluetooth.getDevices(); if(devices[0]) return connectDevice(devices[0])} throw new Error('No hay dispositivo previo')}
 async function bleDisconnect(){try{if(state.ble.hrChar&&state._hrHandler) state.ble.hrChar.removeEventListener('characteristicvaluechanged',state._hrHandler)}catch{} try{state.ble.server&&state.ble.server.disconnect()}catch{} state.ble.connected=false; addLog('[BLE] desconectado'); renderAll()}
@@ -189,6 +306,20 @@ async function tryAutoBLE(){if(!navigator.bluetooth||!navigator.bluetooth.getDev
 async function connectDevice(device){state.ble.device=device; state.ble.deviceName=device.name||'Sin nombre'; device.addEventListener('gattserverdisconnected',()=>{state.ble.connected=false; addLog('[BLE] GATT desconectado'); renderAll()},{once:true}); const server=await device.gatt.connect(); const service=await server.getPrimaryService('heart_rate'); const chr=await service.getCharacteristic('heart_rate_measurement'); state._hrHandler=ev=>handleHeartRate(ev); await chr.startNotifications(); chr.addEventListener('characteristicvaluechanged',state._hrHandler); state.ble.server=server; state.ble.hrChar=chr; state.ble.connected=true; state.ble.lastPacketTs=Date.now(); addLog(`[BLE] conectado a ${state.ble.deviceName}`); renderAll()}
 function handleHeartRate(ev){const dv=ev.target.value; let idx=1; const flags=dv.getUint8(0); const is16=flags&0x1; const bpm=is16?dv.getUint16(idx,true):dv.getUint8(idx); state.bpmSamples.push({ts:Date.now(),bpm:Number(bpm)}); if(state.bpmSamples.length>600) state.bpmSamples.shift(); state.ble.lastPacketTs=Date.now(); renderAll()}
 function startLoops(){ setInterval(()=>{ if(state.phase==='running') capturePoint(); renderAll(); },200); setInterval(()=>persist(),1000); setInterval(()=>{ if(state.ble.connected && state.ble.lastPacketTs && Date.now()-state.ble.lastPacketTs>10000){ addLog('[BLE] Sin paquetes en 10s'); setChip(els.chipBle,'📶 BLE LENTO','warn'); } },3000); }
-function init(){cacheEls(); bind(); registerSW(); loadPersisted(); addLog(`[STARTUP] ${APP_VERSION} · ${BUILD}`); addLog('[STARTUP] UI enlazada y bucles iniciados'); verifyAll(); renderAll(); startLoops(); tryAutoBLE()}
+function init(){
+  cacheEls(); bind(); registerSW(); loadPersisted();
+  addLog(`[STARTUP] ${APP_VERSION} · ${BUILD}`);
+  addLog('[STARTUP] UI enlazada y bucles iniciados');
+  if(state.voice.supported){
+    if(typeof window.speechSynthesis.onvoiceschanged !== 'undefined'){
+      window.speechSynthesis.onvoiceschanged = ()=>refreshVoices();
+    }
+    setTimeout(refreshVoices, 50);
+    setTimeout(refreshVoices, 500);
+  } else {
+    addLog('[VOICE] SpeechSynthesis no soportado');
+  }
+  verifyAll(); renderAll(); startLoops(); tryAutoBLE()
+}
 window.addEventListener('DOMContentLoaded', init);
 })();
