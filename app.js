@@ -1,13 +1,61 @@
 (() => {
 'use strict';
-const APP_VERSION='v51';
+const APP_VERSION='v52';
 const BUILD='2026-04-06 23:59';
 const $=id=>document.getElementById(id);
-const STATE_KEY=`eliptica_state_${APP_VERSION}`; const LAST_SESSION_KEY='lastCompletedSession'; const state={phase:'idle',plan:null,startTs:null,pausedAccumMs:0,pauseTs:null,elapsedSec:0,lastSec:-1,realOffset:0,history:[],logs:[],installPrompt:null,bannerIndex:0,bannerHoldMs:5000,bannerLastChange:0,bpmSamples:[],swReg:null,lastActionTs:0,lastRenderTick:0,voice:{supported:('speechSynthesis' in window),unlocked:false,enabled:true,voices:[],selectedURI:'',queue:[],speaking:false,lastByKey:{},volume:1,rate:1,browserNotify:false,beepEnabled:true},ble:{device:null,server:null,hrChar:null,connected:false,lastPacketTs:0,deviceName:'',autoAttempted:false}};
+const STATE_KEY=`eliptica_state_${APP_VERSION}`; const LAST_SESSION_KEY='lastCompletedSession'; const state={phase:'idle',plan:null,startTs:null,pausedAccumMs:0,pauseTs:null,elapsedSec:0,lastSec:-1,realOffset:0,history:[],logs:[],installPrompt:null,bannerIndex:0,bannerHoldMs:5000,bannerLastChange:0,bpmSamples:[],swReg:null,lastActionTs:0,lastRenderTick:0,voice:{supported:('speechSynthesis' in window),unlocked:false,enabled:true,voices:[],selectedURI:'',queue:[],speaking:false,lastByKey:{},volume:1,rate:1,browserNotify:false,beepEnabled:true},audio:{ctx:null,unlocked:false},alerts:{lastKey:{},lastSecChecked:-1,lastNotifTs:0},ble:{device:null,server:null,hrChar:null,connected:false,lastPacketTs:0,deviceName:'',autoAttempted:false}};
 const els={};
 const ids=['timelineBar','timelineMarkers','playhead','tickerNow','tickerMsg','tickerEta','sessionBadge','planTitle','timeBig','timeRealLabel','kPlanBig','kRealBig','bpmBig','bpmTargetLabel','avgPlanLabel','avgRealLabel','deviationTotalLabel','deviationSegmentLabel','realRateLabel','planRateLabel','waterCountLabel','upcomingBody','upcomingVisibleLabel','waterNextLabel','waterProgressBar','chipBle','chipPulse','chipSession','chipSaved','chipWater','chipAlerts','chipApp','chipTest','bleStatusLabel','bleBpmBig','ble5s','ble10s','ble30s','bleLastPkt','bleDeviceName','planInput','importOutput','versionLabel','pwaStateLabel','logBox','voiceSelect','voiceStatus','voiceVolumeRange','voiceVolumeVal','voiceRateRange','voiceRateVal','browserNotifyChk','voiceAlertsChk','beepAlertsChk'];
 function cacheEls(){ids.forEach(id=>els[id]=$(id)); if(els.versionLabel) els.versionLabel.textContent=`${APP_VERSION} · ${BUILD}`;}
 function addLog(msg){const t=new Date().toTimeString().slice(0,8); state.logs.push(`[${t}] ${msg}`); if(state.logs.length>800) state.logs.shift(); if(els.logBox){els.logBox.textContent=state.logs.join('\n'); els.logBox.scrollTop=els.logBox.scrollHeight;}}
+
+function unlockAudio(){
+  try{
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    if(!Ctx) return false;
+    if(!state.audio.ctx) state.audio.ctx = new Ctx();
+    if(state.audio.ctx.state === 'suspended') state.audio.ctx.resume();
+    state.audio.unlocked = true;
+    return true;
+  }catch(e){ addLog('[AUDIO] Unlock ERROR: '+(e.message||e)); return false; }
+}
+function beep(kind='info'){
+  if(!state.voice.beepEnabled) return;
+  const Ctx = window.AudioContext || window.webkitAudioContext;
+  if(!Ctx) return;
+  try{
+    if(!state.audio.ctx) state.audio.ctx = new Ctx();
+    const ctx = state.audio.ctx;
+    if(ctx.state === 'suspended') ctx.resume();
+    const now = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.value = kind==='critical' ? 1760 : 1320;
+    gain.gain.setValueAtTime(0.0001, now);
+    gain.gain.exponentialRampToValueAtTime(0.18, now+0.01);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now+0.16);
+    osc.connect(gain); gain.connect(ctx.destination);
+    osc.start(now); osc.stop(now+0.18);
+    addLog('[AUDIO] Beep '+kind);
+  }catch(e){ addLog('[AUDIO] Beep ERROR: '+(e.message||e)); }
+}
+function alertKeyOk(key,cooldownMs){
+  const now = Date.now();
+  const prev = state.alerts.lastKey[key] || 0;
+  if(now - prev < cooldownMs) return false;
+  state.alerts.lastKey[key] = now;
+  return true;
+}
+function pushAlert(key, text, opts={}){
+  const {cooldownMs=30000, notifyTitle='Eliptica PWA', notifyBody=text, cls='good', beepKind='', doVoice=true, doNotify=false} = opts;
+  if(!alertKeyOk(key,cooldownMs)) { addLog('[ALERT] SKIP DUPLICADO: '+key); return false; }
+  addLog('[ALERT] '+text);
+  if(doVoice) enqueueVoice(text, cls, 'alert_'+key, 0);
+  if(doNotify) notifyMaybe(notifyTitle, notifyBody, 'alert-'+key);
+  if(beepKind) beep(beepKind);
+  return true;
+}
 
 function syncVoiceUi(){
   if(els.voiceVolumeRange) els.voiceVolumeRange.value=String(state.voice.volume);
@@ -31,7 +79,7 @@ async function requestNotificationPermission(){
   if(!('Notification' in window)) throw new Error('Notifications no disponible');
   const res=await Notification.requestPermission();
   addLog(`[NOTIF] Permiso: ${res}`);
-  state.voice.browserNotify = (res==='granted');
+  state.voice.browserNotify = (res==='granted'); addLog('[NOTIF] Toggle navegador/reloj: '+(state.voice.browserNotify?'ON':'OFF'));
   syncVoiceUi();
   return res;
 }
@@ -46,9 +94,9 @@ async function testNotify(){
   addLog('[NOTIF] Prueba enviada');
 }
 function notifyMaybe(title,body,tag='elliptica-info'){
-  if(!state.voice.browserNotify) return;
-  if(!('Notification' in window) || Notification.permission!=='granted') return;
-  try{ if(state.swReg && state.swReg.showNotification) state.swReg.showNotification(title,{body,tag,renotify:false}); else new Notification(title,{body,tag}); addLog(`[NOTIF] ${title}: ${body}`); }catch(e){ addLog('[NOTIF] ERROR: '+(e.message||e)); }
+  if(!state.voice.browserNotify){ addLog('[NOTIF] SKIP browserNotify OFF'); return; }
+  if(!('Notification' in window) || Notification.permission!=='granted'){ addLog('[NOTIF] SKIP permiso no granted'); return; }
+  try{ if(state.swReg && state.swReg.showNotification) state.swReg.showNotification(title,{body,tag,renotify:false,silent:false,vibrate:[120,80,120]}); else new Notification(title,{body,tag,silent:false,vibrate:[120,80,120]}); addLog(`[NOTIF] ${title}: ${body}`); }catch(e){ addLog('[NOTIF] ERROR: '+(e.message||e)); }
 }
 
 function selectBestVoice(){
@@ -74,6 +122,7 @@ function unlockVoice(){
   try{
     window.speechSynthesis.cancel();
     window.speechSynthesis.resume();
+    unlockAudio();
     state.voice.unlocked = true;
     refreshVoices();
     addLog('[VOICE] Desbloqueo OK');
@@ -131,38 +180,57 @@ function getCurrentBpmTarget(){
 }
 function evaluateVoiceAlerts(prevSec, sec){
   if(state.phase!=='running' || !state.plan) return;
+  if(sec<0) return;
   const info = currentSegInfo(sec);
   if(!info) return;
-  const remainSeg = info.endSec - sec;
-  const remainTotal = planDuration() - sec;
+  const remainSeg = Math.max(0, info.endSec - sec);
+  const remainTotal = Math.max(0, planDuration() - sec);
   const next = state.plan.segments[info.index+1] || null;
   [180,60,30,10].forEach(t=>{
     if(remainSeg===t && next){
       const dir = next.level>info.seg.level ? 'SUBIDA' : next.level<info.seg.level ? 'BAJADA' : 'CAMBIO';
       const kind = next.isTest ? 'TEST ' : '';
-      enqueueVoice(`QUEDAN ${fmtSpeechMinutes(t)} DE TRAMO. PRÓXIMO ${kind}${dir} A NIVEL ${next.level}.`,'warn',`seg_${info.index}_${t}`,5000);
+      pushAlert(`seg_${info.index}_${t}`, `QUEDAN ${fmtSpeechMinutes(t)} DE TRAMO. PRÓXIMO ${kind}${dir} A NIVEL ${next.level}.`, {cooldownMs:60000, notifyTitle:'Cambio de tramo', notifyBody:`En ${fmtSpeechMinutes(t)}: ${kind}${dir} a nivel ${next.level}`, cls:'warn', doNotify:true, beepKind: t<=10 ? 'critical' : ''});
     }
   });
   if(remainSeg===0 && next){
     const dir = next.level>info.seg.level ? 'SUBIDA' : next.level<info.seg.level ? 'BAJADA' : 'CAMBIO';
     const kind = next.isTest ? 'TEST ' : '';
-    enqueueVoice(`CAMBIO AHORA. ${kind}${dir} A NIVEL ${next.level}.`,'warn',`seg_now_${info.index}`,5000);
+    pushAlert(`seg_now_${info.index}`, `CAMBIO AHORA. ${kind}${dir} A NIVEL ${next.level}.`, {cooldownMs:60000, notifyTitle:'Cambio ahora', notifyBody:`${kind}${dir} a nivel ${next.level}`, cls:'warn', doNotify:true, beepKind:'critical'});
   }
   (state.plan.water||[]).forEach(w=>{
     const [mm,ss] = String(w).split(':').map(Number);
     const ws = mm*60+ss;
     [180,60,30,10].forEach(t=>{
-      if(ws-sec===t) enqueueVoice(`AGUA EN ${fmtSpeechMinutes(t)}.`,'good',`water_${ws}_${t}`,5000);
+      if(ws-sec===t) pushAlert(`water_${ws}_${t}`, `AGUA EN ${fmtSpeechMinutes(t)}.`, {cooldownMs:60000, notifyTitle:'Toma de agua', notifyBody:`Agua en ${fmtSpeechMinutes(t)}`, cls:'good', doNotify:true, beepKind: t<=10 ? 'critical' : ''});
     });
-    if(ws===sec) enqueueVoice('AGUA AHORA. DOS O TRES SORBOS Y VUELVES A CADENCIA.','good',`water_now_${ws}`,5000);
+    if(ws===sec) pushAlert(`water_now_${ws}`, 'AGUA AHORA. DOS O TRES SORBOS Y VUELVES A CADENCIA.', {cooldownMs:60000, notifyTitle:'Agua ahora', notifyBody:'Dos o tres sorbos y vuelves a cadencia', cls:'good', doNotify:true, beepKind:'critical'});
   });
-  if(sec>0 && sec%120===0) enqueueVoice(`QUEDAN ${fmtSpeechMinutes(remainSeg)} DE ESTE TRAMO.`,'good',`rem_tramo_${sec}`,2000);
-  if(sec>0 && sec%300===0) enqueueVoice(`QUEDAN ${fmtSpeechMinutes(remainTotal)} PARA TERMINAR LA ELÍPTICA. FIN PREVISTA A LAS ${hm(new Date(Date.now()+remainTotal*1000)).replace(':',' Y ')}.`,'good',`rem_total_${sec}`,2000);
+  if(sec>0 && sec%120===0){
+    pushAlert(`rem_tramo_${sec}`, `QUEDAN ${fmtSpeechMinutes(remainSeg)} DE ESTE TRAMO.`, {cooldownMs:5000, notifyTitle:'Tiempo de tramo', notifyBody:`Quedan ${fmtSpeechMinutes(remainSeg)} de tramo`, cls:'good', doNotify:false});
+  }
+  if(sec>0 && sec%300===0){
+    const eta = hm(new Date(Date.now()+remainTotal*1000));
+    pushAlert(`rem_total_${sec}`, `QUEDAN ${fmtSpeechMinutes(remainTotal)} PARA TERMINAR LA ELÍPTICA. FIN PREVISTA A LAS ${eta.replace(':',' Y ')}.`, {cooldownMs:5000, notifyTitle:'Tiempo restante', notifyBody:`Quedan ${fmtSpeechMinutes(remainTotal)}. Fin ${eta}`, cls:'good', doNotify:true});
+  }
   const target = getCurrentBpmTarget();
   const bpm = bpmDisplay();
   if(target && bpm!=null && sec>0 && sec%60===0){
-    if(bpm < target.min - 2) enqueueVoice(`PULSO POR DEBAJO DEL OBJETIVO. OBJETIVO ${target.min} A ${target.max}.`,'bad',`bpm_low_${sec}`,1000);
-    if(bpm > target.max + 2) enqueueVoice(`PULSO POR ENCIMA DEL OBJETIVO. OBJETIVO ${target.min} A ${target.max}.`,'bad',`bpm_high_${sec}`,1000);
+    if(bpm < target.min - 2) pushAlert(`bpm_low_${sec}`, `PULSO POR DEBAJO DEL OBJETIVO. OBJETIVO ${target.min} A ${target.max}.`, {cooldownMs:20000, notifyTitle:'Pulso bajo', notifyBody:`Objetivo ${target.min}-${target.max}`, cls:'bad', doNotify:true, beepKind:'info'});
+    if(bpm > target.max + 2) pushAlert(`bpm_high_${sec}`, `PULSO POR ENCIMA DEL OBJETIVO. OBJETIVO ${target.min} A ${target.max}.`, {cooldownMs:20000, notifyTitle:'Pulso alto', notifyBody:`Objetivo ${target.min}-${target.max}`, cls:'bad', doNotify:true, beepKind:'info'});
+  }
+}
+function evaluateAlertsRange(prevSec, sec, cause='tick'){
+  if(!state.plan || state.phase!=='running') return;
+  const a = Math.max(0, Math.min(prevSec, sec));
+  const b = Math.max(0, Math.max(prevSec, sec));
+  if(b-a>600){
+    addLog(`[ALERT] Rango grande ${cause}: ${a}→${b}; se evalúa solo destino`);
+    evaluateVoiceAlerts(b-1, b);
+    return;
+  }
+  for(let s=a+1; s<=b; s++){
+    evaluateVoiceAlerts(s-1, s);
   }
 }
 
@@ -283,15 +351,15 @@ function toggleRun(){
       state.startTs = Date.now()-(state.elapsedSec*1000)-state.pausedAccumMs;
     }
     state.phase='running';
-    addLog('[SESSION] Iniciada/reanudada');
+    addLog('[SESSION] Iniciada/reanudada'); state.alerts.lastSecChecked = currentElapsed()-1;
   }
   persist();
   capturePoint(true);
   renderAll();
 }
 function resetSession(){state.phase='idle'; state.startTs=null; state.pauseTs=null; state.pausedAccumMs=0; state.elapsedSec=0; state.realOffset=0; state.history=[]; state.lastSec=-1; persist(); renderAll(); addLog('[SESSION] Reseteada')}
-function capturePoint(force=false){if(!state.plan) return; const sec=currentElapsed(); if(!force&&sec===state.lastSec) return; const info=currentSegInfo(sec); const point={sec,clock:fmt(sec),level:info?.seg?.level??null,segment:info?.seg?.id??null,kPlan:currentPlanKcal(),kReal:currentRealKcal(),bpm:bpmDisplay(),ts:Date.now()}; const h=state.history; if(h.length&&h[h.length-1].sec===sec) h[h.length-1]=point; else h.push(point); if(h.length>10000) h.shift(); state.lastSec=sec}
-function seek(delta){ if(!state.plan) throw new Error('Carga un plan primero'); const dur=planDuration(); const next=Math.max(0,Math.min(dur,currentElapsed()+delta)); state.elapsedSec=next; if(state.phase==='running'){ state.startTs=Date.now()-(next*1000)-state.pausedAccumMs; } else { state.startTs=null; } state.lastSec=-1; capturePoint(true); persist(); addLog(`[SEEK] ${delta>0?'+':''}${delta}s → ${fmt(next)}`); renderAll(); }
+function capturePoint(force=false){if(!state.plan) return; const sec=currentElapsed(); const prevSec = state.lastSec; if(!force&&sec===state.lastSec) return; const info=currentSegInfo(sec); const point={sec,clock:fmt(sec),level:info?.seg?.level??null,segment:info?.seg?.id??null,kPlan:currentPlanKcal(),kReal:currentRealKcal(),bpm:bpmDisplay(),ts:Date.now()}; const h=state.history; if(h.length&&h[h.length-1].sec===sec) h[h.length-1]=point; else h.push(point); if(h.length>10000) h.shift(); state.lastSec=sec; if(prevSec>=0) evaluateAlertsRange(prevSec, sec, force?'force':'tick'); }
+function seek(delta){ if(!state.plan) throw new Error('Carga un plan primero'); const dur=planDuration(); const prev=currentElapsed(); const next=Math.max(0,Math.min(dur,prev+delta)); state.elapsedSec=next; if(state.phase==='running'){ state.startTs=Date.now()-(next*1000)-state.pausedAccumMs; } else { state.startTs=null; } state.lastSec=prev; capturePoint(true); persist(); addLog(`[SEEK] ${delta>0?'+':''}${delta}s → ${fmt(next)}`); if(state.phase==='running') evaluateAlertsRange(prev, next, 'seek'); renderAll(); }
 function adjustReal(delta){ if(!state.plan) throw new Error('Carga un plan primero'); capturePoint(true); let cur=currentRealKcal(); cur=round1(cur+delta); state.realOffset=round1(cur-currentPlanKcal()); addLog(`[KCAL] ajuste ${delta>0?'+':''}${delta.toFixed(1)} → real ${cur.toFixed(1)}`); renderAll(); persist(); }
 function buildMinuteRows(){const rows=[]; for(let m=0;m<=Math.floor((state.history.at(-1)?.sec||0)/60);m++){const items=state.history.filter(x=>Math.floor(x.sec/60)===m); if(!items.length) continue; const first=items[0], last=items.at(-1); const bpmItems=items.filter(x=>x.bpm!=null); rows.push({minute:m,clock:fmt(m*60),level:last.level,segment:last.segment,kcalStart:first.kReal,kcalEnd:last.kReal,kcalMinute:round2(last.kReal-first.kReal),kcalPerMin:round2((last.kReal-first.kReal)/Math.max(1,(items.length/60))),bpmAvg:bpmItems.length?round1(bpmItems.reduce((a,b)=>a+b.bpm,0)/bpmItems.length):null})} return rows}
 function buildSegmentSummary(){const out=[]; if(!state.plan) return out; let cursor=0; for(const seg of state.plan.segments){const items=state.history.filter(x=>x.sec>=cursor&&x.sec<=cursor+seg.durationSec); const startPlan=items[0]?.kPlan??0, endPlan=items.at(-1)?.kPlan??startPlan, startReal=items[0]?.kReal??0, endReal=items.at(-1)?.kReal??startReal; const bpmItems=items.filter(x=>x.bpm!=null); out.push({segment:seg.id,level:seg.level,duration:fmt(seg.durationSec),kcalPlan:round1(endPlan-startPlan),kcalReal:round1(endReal-startReal),deviation:round1((endReal-startReal)-(endPlan-startPlan)),bpmAvg:bpmItems.length?round1(bpmItems.reduce((a,b)=>a+b.bpm,0)/bpmItems.length):null}); cursor+=seg.durationSec} return out}
@@ -349,7 +417,7 @@ async function clearAppData(){localStorage.clear(); sessionStorage.clear(); if('
 async function installApp(){if(state.installPrompt) await state.installPrompt.prompt(); else addLog('[PWA] No hay prompt disponible')}
 async function registerSW(){if(!('serviceWorker' in navigator)) return; try{state.swReg=await navigator.serviceWorker.register('./sw.js'); addLog('[SW] registrado')}catch(e){addLog('[SW] ERROR: '+(e.message||e))}}
 async function updateApp(){if(!state.swReg) throw new Error('No hay service worker'); await state.swReg.update(); addLog('[PWA] Update solicitado'); if(state.swReg.waiting){state.swReg.waiting.postMessage({type:'SKIP_WAITING'}); location.reload()} else location.reload()}
-function verifyAll(){const checks=[]; const push=(name,ok,detail='')=>{checks.push({name,ok,detail}); addLog(`[CHECK] ${name}: ${ok?'ok':'fail'}${detail?' · '+detail:''}`)}; push('DOM timeline',!!els.timelineBar); push('DOM ticker',!!els.tickerMsg); push('DOM BLE',!!$('bleConnectBtn')); push('Clipboard',!!navigator.clipboard||!!document.execCommand); push('Notifications','Notification' in window, ('Notification' in window ? Notification.permission : 'n/a')); push('Voice select', !!els.voiceSelect, state.voice.selectedURI||'sin seleccionar'); push('Web Bluetooth','bluetooth' in navigator);
+function verifyAll(){const checks=[]; const push=(name,ok,detail='')=>{checks.push({name,ok,detail}); addLog(`[CHECK] ${name}: ${ok?'ok':'fail'}${detail?' · '+detail:''}`)}; push('DOM timeline',!!els.timelineBar); push('DOM ticker',!!els.tickerMsg); push('DOM BLE',!!$('bleConnectBtn')); push('Clipboard',!!navigator.clipboard||!!document.execCommand); push('Notifications','Notification' in window, ('Notification' in window ? Notification.permission : 'n/a')); push('Notify toggle', true, state.voice.browserNotify?'ON':'OFF'); push('Voice select', !!els.voiceSelect, state.voice.selectedURI||'sin seleccionar'); push('Web Bluetooth','bluetooth' in navigator);
   push('SpeechSynthesis', state.voice.supported, `${state.voice.voices?.length||0} voces`); push('Service Worker','serviceWorker' in navigator); push('Parser',typeof parsePlan==='function'); push('Summary',typeof summaryText==='function'); push('Export CSV',typeof exportSessionCsv==='function'); push('Resume saved',typeof resumeSavedSession==='function'); push('Final summary',typeof showFinalSummary==='function'); push('Export JSON',typeof exportJson==='function'); push('Compare last',typeof compareLast==='function'); push('CSV tramos',typeof exportTramoCsv==='function'); push('Copy summary',typeof copyText==='function'); push('Export plan',typeof exportPlan==='function'); push('Clear app data',typeof clearAppData==='function'); push('Build',true,`${APP_VERSION} · ${BUILD}`); els.importOutput.textContent=checks.map(c=>`${c.ok?'OK':'FAIL'} · ${c.name}${c.detail?' · '+c.detail:''}`).join('\n')}
 async function bleConnect(){if(!navigator.bluetooth) throw new Error('Web Bluetooth no disponible'); const device=await navigator.bluetooth.requestDevice({filters:[{services:['heart_rate']}],optionalServices:['battery_service','device_information']}); await connectDevice(device)}
 async function bleReconnect(){if(state.ble.device) return connectDevice(state.ble.device); if(navigator.bluetooth.getDevices){const devices=await navigator.bluetooth.getDevices(); if(devices[0]) return connectDevice(devices[0])} throw new Error('No hay dispositivo previo')}
@@ -358,9 +426,10 @@ function bleDiag(){els.importOutput.textContent=`BLE connected: ${state.ble.conn
 async function tryAutoBLE(){if(!navigator.bluetooth||!navigator.bluetooth.getDevices||state.ble.autoAttempted) return; state.ble.autoAttempted=true; try{const devices=await navigator.bluetooth.getDevices(); if(devices.length){addLog('[BLE] Intento de autoconexión'); await connectDevice(devices[0])}}catch(e){addLog('[BLE] Auto ERROR: '+(e.message||e))}}
 async function connectDevice(device){state.ble.device=device; state.ble.deviceName=device.name||'Sin nombre'; device.addEventListener('gattserverdisconnected',()=>{state.ble.connected=false; addLog('[BLE] GATT desconectado'); renderAll()},{once:true}); const server=await device.gatt.connect(); const service=await server.getPrimaryService('heart_rate'); const chr=await service.getCharacteristic('heart_rate_measurement'); state._hrHandler=ev=>handleHeartRate(ev); await chr.startNotifications(); chr.addEventListener('characteristicvaluechanged',state._hrHandler); state.ble.server=server; state.ble.hrChar=chr; state.ble.connected=true; state.ble.lastPacketTs=Date.now(); addLog(`[BLE] conectado a ${state.ble.deviceName}`); renderAll()}
 function handleHeartRate(ev){const dv=ev.target.value; let idx=1; const flags=dv.getUint8(0); const is16=flags&0x1; const bpm=is16?dv.getUint16(idx,true):dv.getUint8(idx); state.bpmSamples.push({ts:Date.now(),bpm:Number(bpm)}); if(state.bpmSamples.length>600) state.bpmSamples.shift(); state.ble.lastPacketTs=Date.now(); renderAll()}
-function startLoops(){ setInterval(()=>{ if(state.phase==='running') capturePoint(); renderAll(); },200); setInterval(()=>persist(),1000); setInterval(()=>{ if(state.ble.connected && state.ble.lastPacketTs && Date.now()-state.ble.lastPacketTs>10000){ addLog('[BLE] Sin paquetes en 10s'); setChip(els.chipBle,'📶 BLE LENTO','warn'); } },3000); }
+function startLoops(){ setInterval(()=>{ if(state.phase==='running') capturePoint(); renderAll(); },200); setInterval(()=>persist(),1000); setInterval(()=>{ if(state.ble.connected && state.ble.lastPacketTs && Date.now()-state.ble.lastPacketTs>10000){ addLog('[BLE] Sin paquetes en 10s'); setChip(els.chipBle,'📶 BLE LENTO','warn'); pushAlert('ble_slow','PULSÓMETRO SIN PAQUETES RECIENTES. REVISAR CONEXIÓN.',{cooldownMs:30000,notifyTitle:'BLE lento',notifyBody:'Sin paquetes recientes',cls:'bad',doNotify:true,beepKind:'info'}); } },3000); }
 function init(){
   cacheEls(); bind(); registerSW(); loadPersisted();
+  state.voice.browserNotify = ('Notification' in window && Notification.permission==='granted');
   addLog(`[STARTUP] ${APP_VERSION} · ${BUILD}`);
   addLog('[STARTUP] UI enlazada y bucles iniciados');
   if(state.voice.supported){
