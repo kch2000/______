@@ -1,7 +1,7 @@
 (() => {
 'use strict';
-const APP_VERSION='v52';
-const BUILD='2026-04-06 23:59';
+const APP_VERSION='v53';
+const BUILD='2026-04-07 23:59';
 const $=id=>document.getElementById(id);
 const STATE_KEY=`eliptica_state_${APP_VERSION}`; const LAST_SESSION_KEY='lastCompletedSession'; const state={phase:'idle',plan:null,startTs:null,pausedAccumMs:0,pauseTs:null,elapsedSec:0,lastSec:-1,realOffset:0,history:[],logs:[],installPrompt:null,bannerIndex:0,bannerHoldMs:5000,bannerLastChange:0,bpmSamples:[],swReg:null,lastActionTs:0,lastRenderTick:0,voice:{supported:('speechSynthesis' in window),unlocked:false,enabled:true,voices:[],selectedURI:'',queue:[],speaking:false,lastByKey:{},volume:1,rate:1,browserNotify:false,beepEnabled:true},audio:{ctx:null,unlocked:false},alerts:{lastKey:{},lastSecChecked:-1,lastNotifTs:0},ble:{device:null,server:null,hrChar:null,connected:false,lastPacketTs:0,deviceName:'',autoAttempted:false}};
 const els={};
@@ -48,10 +48,10 @@ function alertKeyOk(key,cooldownMs){
   return true;
 }
 function pushAlert(key, text, opts={}){
-  const {cooldownMs=30000, notifyTitle='Eliptica PWA', notifyBody=text, cls='good', beepKind='', doVoice=true, doNotify=false} = opts;
+  const {cooldownMs=30000, notifyTitle='Eliptica PWA', notifyBody=text, cls='good', beepKind='', doVoice=true, doNotify=false, priority=1, category='generic', replaceCategory=false} = opts;
   if(!alertKeyOk(key,cooldownMs)) { addLog('[ALERT] SKIP DUPLICADO: '+key); return false; }
   addLog('[ALERT] '+text);
-  if(doVoice) enqueueVoice(text, cls, 'alert_'+key, 0);
+  if(doVoice) enqueueVoiceAdvanced(text,{priority, category, key:'alert_'+key, cooldownMs:0, replaceCategory});
   if(doNotify) notifyMaybe(notifyTitle, notifyBody, 'alert-'+key);
   if(beepKind) beep(beepKind);
   return true;
@@ -138,18 +138,13 @@ function shouldSpeak(key,cooldownMs){
   return true;
 }
 function enqueueVoice(text, cls='good', key='generic', cooldownMs=0){
-  if(!state.voice.supported || !state.voice.enabled) return;
-  if(cooldownMs && !shouldSpeak(key,cooldownMs)) return;
-  const msg = String(text||'').trim();
-  if(!msg) return;
-  state.voice.queue.push(msg);
-  addLog(`[VOICE] Encolado: ${msg}`);
-  processVoiceQueue();
+  enqueueVoiceAdvanced(text,{priority:1, category:key, key, cooldownMs, replaceCategory:false});
 }
 function processVoiceQueue(){
   if(!state.voice.supported || !state.voice.enabled || state.voice.speaking) return;
-  const msg = state.voice.queue.shift();
-  if(!msg) return;
+  const item = state.voice.queue.shift();
+  if(!item) return;
+  const msg = item.msg || item;
   if(!state.voice.unlocked){ addLog('[VOICE] Pendiente de desbloqueo'); return; }
   refreshVoices();
   const utter = new SpeechSynthesisUtterance(msg);
@@ -164,13 +159,43 @@ function processVoiceQueue(){
   utter.onerror = e=>{ state.voice.speaking = false; addLog('[VOICE] ERROR: '+(e.error||e.message||e)); if(state.voice.queue.length) setTimeout(processVoiceQueue,120); };
   window.speechSynthesis.speak(utter);
 }
-function testVoice(){ unlockVoice(); enqueueVoice('PRUEBA DE VOZ. PRÓXIMO CAMBIO EN TREINTA SEGUNDOS. FIN PREVISTA A LAS VEINTIUNA HORAS.','good','testVoice',0); }
+function testVoice(){ unlockVoice(); enqueueVoiceAdvanced('PRUEBA DE VOZ. PRÓXIMO CAMBIO EN TREINTA SEGUNDOS. FIN PREVISTA A LAS VEINTIUNA HORAS.',{priority:3,category:'test',key:'testVoice',cooldownMs:0,replaceCategory:true}); }
 function fmtSpeechMinutes(sec){
   sec = Math.max(0, Math.round(sec));
   const m = Math.floor(sec/60), s = sec%60;
-  if(m>0 && s>0) return `${m} MINUTOS Y ${s} SEGUNDOS`;
-  if(m>0) return `${m} MINUTOS`;
-  return `${s} SEGUNDOS`;
+  const minLabel = m===1 ? 'MINUTO' : 'MINUTOS';
+  const secLabel = s===1 ? 'SEGUNDO' : 'SEGUNDOS';
+  if(m>0 && s>0) return `${m} ${minLabel} Y ${s} ${secLabel}`;
+  if(m>0) return `${m} ${minLabel}`;
+  return `${s} ${secLabel}`;
+}
+function fmtSpeechClock(hhmm){
+  const [hRaw,mRaw]=String(hhmm||'--:--').split(':');
+  const h=Number(hRaw), m=Number(mRaw);
+  if(!Number.isFinite(h)||!Number.isFinite(m)) return String(hhmm||'--:--');
+  if(m===0) return `${h} HORAS`;
+  return `${h} HORAS Y ${m} ${m===1?'MINUTO':'MINUTOS'}`;
+}
+function clearVoiceQueue(reason=''){
+  const pending = state.voice.queue.length;
+  state.voice.queue = [];
+  try{ if(window.speechSynthesis){ window.speechSynthesis.cancel(); } }catch(e){}
+  state.voice.speaking = false;
+  addLog(`[VOICE] Cola reiniciada${reason?': '+reason:''} · ${pending} pendientes eliminados`);
+}
+function enqueueVoiceAdvanced(text, opts={}){
+  const {priority=1, category='generic', key='generic', cooldownMs=0, replaceCategory=false} = opts;
+  if(!state.voice.supported || !state.voice.enabled) return;
+  if(cooldownMs && !shouldSpeak(key,cooldownMs)) return;
+  const msg = String(text||'').trim();
+  if(!msg) return;
+  if(replaceCategory){
+    state.voice.queue = state.voice.queue.filter(item=>item.category!==category);
+  }
+  state.voice.queue.push({msg, priority, category, ts: Date.now()});
+  state.voice.queue.sort((a,b)=>b.priority-a.priority || a.ts-b.ts);
+  addLog(`[VOICE] Encolado: ${msg}`);
+  processVoiceQueue();
 }
 function getCurrentBpmTarget(){
   const info = currentSegInfo();
@@ -178,7 +203,7 @@ function getCurrentBpmTarget(){
   if(!level) return null;
   return state.plan?.bpmDay?.[level] || state.plan?.bpmApp?.[level] || null;
 }
-function evaluateVoiceAlerts(prevSec, sec){
+function evaluateVoiceAlerts(prevSec, sec, mode='tick'){
   if(state.phase!=='running' || !state.plan) return;
   if(sec<0) return;
   const info = currentSegInfo(sec);
@@ -186,51 +211,73 @@ function evaluateVoiceAlerts(prevSec, sec){
   const remainSeg = Math.max(0, info.endSec - sec);
   const remainTotal = Math.max(0, planDuration() - sec);
   const next = state.plan.segments[info.index+1] || null;
-  [180,60,30,10].forEach(t=>{
-    if(remainSeg===t && next){
+  const isSeek = mode==='seek';
+
+  const segThresholds = isSeek ? [180,60,30,10,0] : [180,60,30,10,0];
+  const waterThresholds = isSeek ? [180,60,30,10,0] : [180,60,30,10,0];
+
+  for(const t of segThresholds){
+    if(!next) break;
+    if((!isSeek && remainSeg===t) || (isSeek && (remainSeg<=t && (t===0 || remainSeg> (t===180?60:t===60?30:t===30?10:0))))){
       const dir = next.level>info.seg.level ? 'SUBIDA' : next.level<info.seg.level ? 'BAJADA' : 'CAMBIO';
       const kind = next.isTest ? 'TEST ' : '';
-      pushAlert(`seg_${info.index}_${t}`, `QUEDAN ${fmtSpeechMinutes(t)} DE TRAMO. PRÓXIMO ${kind}${dir} A NIVEL ${next.level}.`, {cooldownMs:60000, notifyTitle:'Cambio de tramo', notifyBody:`En ${fmtSpeechMinutes(t)}: ${kind}${dir} a nivel ${next.level}`, cls:'warn', doNotify:true, beepKind: t<=10 ? 'critical' : ''});
+      if(t===0){
+        pushAlert(`seg_now_${info.index}`, `CAMBIO AHORA. ${kind}${dir} A NIVEL ${next.level}.`, {cooldownMs:60000, notifyTitle:'Cambio ahora', notifyBody:`${kind}${dir} a nivel ${next.level}`, cls:'warn', doNotify:true, beepKind:'critical', priority:5, category:'segment', replaceCategory:isSeek});
+      } else {
+        pushAlert(`seg_${info.index}_${t}`, `QUEDAN ${fmtSpeechMinutes(t)} DE TRAMO. PRÓXIMO ${kind}${dir} A NIVEL ${next.level}.`, {cooldownMs:60000, notifyTitle:'Cambio de tramo', notifyBody:`En ${fmtSpeechMinutes(t)}: ${kind}${dir} a nivel ${next.level}`, cls:'warn', doNotify:true, beepKind: t<=10 ? 'critical' : '', priority:t<=30?4:3, category:'segment', replaceCategory:isSeek});
+      }
+      if(isSeek) break;
     }
-  });
-  if(remainSeg===0 && next){
-    const dir = next.level>info.seg.level ? 'SUBIDA' : next.level<info.seg.level ? 'BAJADA' : 'CAMBIO';
-    const kind = next.isTest ? 'TEST ' : '';
-    pushAlert(`seg_now_${info.index}`, `CAMBIO AHORA. ${kind}${dir} A NIVEL ${next.level}.`, {cooldownMs:60000, notifyTitle:'Cambio ahora', notifyBody:`${kind}${dir} a nivel ${next.level}`, cls:'warn', doNotify:true, beepKind:'critical'});
   }
-  (state.plan.water||[]).forEach(w=>{
+
+  for(const w of (state.plan.water||[])){
     const [mm,ss] = String(w).split(':').map(Number);
     const ws = mm*60+ss;
-    [180,60,30,10].forEach(t=>{
-      if(ws-sec===t) pushAlert(`water_${ws}_${t}`, `AGUA EN ${fmtSpeechMinutes(t)}.`, {cooldownMs:60000, notifyTitle:'Toma de agua', notifyBody:`Agua en ${fmtSpeechMinutes(t)}`, cls:'good', doNotify:true, beepKind: t<=10 ? 'critical' : ''});
-    });
-    if(ws===sec) pushAlert(`water_now_${ws}`, 'AGUA AHORA. DOS O TRES SORBOS Y VUELVES A CADENCIA.', {cooldownMs:60000, notifyTitle:'Agua ahora', notifyBody:'Dos o tres sorbos y vuelves a cadencia', cls:'good', doNotify:true, beepKind:'critical'});
-  });
-  if(sec>0 && sec%120===0){
-    pushAlert(`rem_tramo_${sec}`, `QUEDAN ${fmtSpeechMinutes(remainSeg)} DE ESTE TRAMO.`, {cooldownMs:5000, notifyTitle:'Tiempo de tramo', notifyBody:`Quedan ${fmtSpeechMinutes(remainSeg)} de tramo`, cls:'good', doNotify:false});
+    const remainWater = ws-sec;
+    for(const t of waterThresholds){
+      if((!isSeek && remainWater===t) || (isSeek && (remainWater<=t && remainWater>=0 && (t===0 || remainWater> (t===180?60:t===60?30:t===30?10:0))))){
+        if(t===0){
+          pushAlert(`water_now_${ws}`, 'AGUA AHORA. DOS O TRES SORBOS Y VUELVES A CADENCIA.', {cooldownMs:60000, notifyTitle:'Agua ahora', notifyBody:'Dos o tres sorbos y vuelves a cadencia', cls:'good', doNotify:true, beepKind:'critical', priority:5, category:'water', replaceCategory:isSeek});
+        } else {
+          pushAlert(`water_${ws}_${t}`, `AGUA EN ${fmtSpeechMinutes(t)}.`, {cooldownMs:60000, notifyTitle:'Toma de agua', notifyBody:`Agua en ${fmtSpeechMinutes(t)}`, cls:'good', doNotify:true, beepKind: t<=10 ? 'critical' : '', priority:t<=30?4:3, category:'water', replaceCategory:isSeek});
+        }
+        if(isSeek) break;
+      }
+    }
   }
-  if(sec>0 && sec%300===0){
+
+  if(!isSeek && sec>0 && sec%120===0){
+    pushAlert(`rem_tramo_${sec}`, `QUEDAN ${fmtSpeechMinutes(remainSeg)} DE ESTE TRAMO.`, {cooldownMs:5000, notifyTitle:'Tiempo de tramo', notifyBody:`Quedan ${fmtSpeechMinutes(remainSeg)} de tramo`, cls:'good', doNotify:false, priority:1, category:'reminder'});
+  }
+  if(!isSeek && sec>0 && sec%300===0){
     const eta = hm(new Date(Date.now()+remainTotal*1000));
-    pushAlert(`rem_total_${sec}`, `QUEDAN ${fmtSpeechMinutes(remainTotal)} PARA TERMINAR LA ELÍPTICA. FIN PREVISTA A LAS ${eta.replace(':',' Y ')}.`, {cooldownMs:5000, notifyTitle:'Tiempo restante', notifyBody:`Quedan ${fmtSpeechMinutes(remainTotal)}. Fin ${eta}`, cls:'good', doNotify:true});
+    pushAlert(`rem_total_${sec}`, `QUEDAN ${fmtSpeechMinutes(remainTotal)} PARA TERMINAR LA ELÍPTICA. FIN PREVISTA A LAS ${fmtSpeechClock(eta)}.`, {cooldownMs:5000, notifyTitle:'Tiempo restante', notifyBody:`Quedan ${fmtSpeechMinutes(remainTotal)}. Fin ${eta}`, cls:'good', doNotify:true, priority:2, category:'total', replaceCategory:false});
   }
   const target = getCurrentBpmTarget();
   const bpm = bpmDisplay();
-  if(target && bpm!=null && sec>0 && sec%60===0){
-    if(bpm < target.min - 2) pushAlert(`bpm_low_${sec}`, `PULSO POR DEBAJO DEL OBJETIVO. OBJETIVO ${target.min} A ${target.max}.`, {cooldownMs:20000, notifyTitle:'Pulso bajo', notifyBody:`Objetivo ${target.min}-${target.max}`, cls:'bad', doNotify:true, beepKind:'info'});
-    if(bpm > target.max + 2) pushAlert(`bpm_high_${sec}`, `PULSO POR ENCIMA DEL OBJETIVO. OBJETIVO ${target.min} A ${target.max}.`, {cooldownMs:20000, notifyTitle:'Pulso alto', notifyBody:`Objetivo ${target.min}-${target.max}`, cls:'bad', doNotify:true, beepKind:'info'});
+  if(target && bpm!=null && !isSeek && sec>0 && sec%60===0){
+    if(bpm < target.min - 2) pushAlert(`bpm_low_${sec}`, `PULSO POR DEBAJO DEL OBJETIVO. OBJETIVO ${target.min} A ${target.max}.`, {cooldownMs:20000, notifyTitle:'Pulso bajo', notifyBody:`Objetivo ${target.min}-${target.max}`, cls:'bad', doNotify:true, beepKind:'info', priority:3, category:'pulse', replaceCategory:true});
+    if(bpm > target.max + 2) pushAlert(`bpm_high_${sec}`, `PULSO POR ENCIMA DEL OBJETIVO. OBJETIVO ${target.min} A ${target.max}.`, {cooldownMs:20000, notifyTitle:'Pulso alto', notifyBody:`Objetivo ${target.min}-${target.max}`, cls:'bad', doNotify:true, beepKind:'info', priority:3, category:'pulse', replaceCategory:true});
   }
 }
 function evaluateAlertsRange(prevSec, sec, cause='tick'){
   if(!state.plan || state.phase!=='running') return;
   const a = Math.max(0, Math.min(prevSec, sec));
   const b = Math.max(0, Math.max(prevSec, sec));
+  const isSeek = cause==='seek';
+  if(isSeek){
+    clearVoiceQueue('SEEK');
+    addLog(`[ALERT] SEEK RECALC: ${a}→${b}`);
+    evaluateVoiceAlerts(Math.max(0,b-1), b, 'seek');
+    return;
+  }
   if(b-a>600){
     addLog(`[ALERT] Rango grande ${cause}: ${a}→${b}; se evalúa solo destino`);
-    evaluateVoiceAlerts(b-1, b);
+    evaluateVoiceAlerts(b-1, b, cause);
     return;
   }
   for(let s=a+1; s<=b; s++){
-    evaluateVoiceAlerts(s-1, s);
+    evaluateVoiceAlerts(s-1, s, cause);
   }
 }
 

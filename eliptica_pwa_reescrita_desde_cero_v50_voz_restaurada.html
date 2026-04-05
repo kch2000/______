@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0b0f16">
-<title>Eliptica PWA v53</title>
+<title>Eliptica PWA v50</title>
 <link rel="manifest" href="./manifest.webmanifest">
 <style>
 :root{--bg:#0b0f16;--panel:#111827;--panel2:#0f172a;--line:#263244;--text:#e5e7eb;--muted:#9ca3af;--good:#22c55e;--warn:#f59e0b;--bad:#ef4444;--accent:#60a5fa;--gold:#fbbf24}
@@ -79,24 +79,11 @@ button{background:#1f2937;border:1px solid #374151;color:#f3f4f6;border-radius:1
     <div class="outbox" id="importOutput"></div>
   </div>
   <div class="card">
-    <div class="between"><div class="title">App / PWA</div><div class="muted" id="versionLabel">v53 · BUILD</div></div>
-    <div class="pwa-buttons" style="margin-top:8px;"><button id="installAppBtn">Instalar app</button><button id="updateAppBtn">Actualizar app</button><button id="notifPermissionBtn">Permiso notificaciones</button><button id="testNotifyBtn">Probar notificación</button><button id="refreshVoicesBtn">Refrescar voces</button><button id="testVoiceBtn">Probar voz</button><button id="copyLogBtn">Copiar log</button><button id="verifyAllBtn">Verificar todo</button><button id="exportSessionBtn">Exportar sesión</button><button id="exportMinuteBtn">Exportar minuto a minuto</button><button id="resumeSessionBtn">Reanudar sesión guardada</button><button id="finalSummaryBtn">Resumen final</button><button id="exportJsonBtn">Exportar JSON</button><button id="compareLastBtn">Comparar con última</button><button id="exportTramoCsvBtn">CSV tramos</button><button id="copySummaryBtn">Copiar resumen</button><button id="copyChatgptBtn">Copiar para ChatGPT</button><button id="exportPlanBtn">Exportar plan</button><button id="clearAppDataBtn">Limpiar caché y datos</button></div>
-    <div class="card" style="margin-top:8px;padding:10px;">
-  <div class="title" style="font-size:14px;margin-bottom:6px;">Avisos y notificaciones</div>
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:center;">
-    <label class="small">Voz<select id="voiceSelect" style="width:100%;margin-top:4px;background:#0b1220;color:#fff;border:1px solid #334155;border-radius:8px;padding:8px;"></select></label>
-    <div>
-      <div class="small" id="voiceStatus">Cargando voces…</div>
-      <label class="small" style="display:flex;align-items:center;gap:6px;margin-top:6px;"><input id="browserNotifyChk" type="checkbox"> Notificaciones teléfono/reloj</label>
-      <label class="small" style="display:flex;align-items:center;gap:6px;margin-top:4px;"><input id="voiceAlertsChk" type="checkbox" checked> Avisos hablados</label>
-      <label class="small" style="display:flex;align-items:center;gap:6px;margin-top:4px;"><input id="beepAlertsChk" type="checkbox" checked> Pitidos</label>
-    </div>
-    <label class="small">Volumen hablado <input id="voiceVolumeRange" type="range" min="0.2" max="1" step="0.1" value="1"><span id="voiceVolumeVal">1.0</span></label>
-    <label class="small">Velocidad voz <input id="voiceRateRange" type="range" min="0.8" max="1.4" step="0.05" value="1"><span id="voiceRateVal">1.00</span></label>
-  </div>
-</div><div class="small" id="pwaStateLabel">PWA lista. Instálala desde Chrome como app.</div>
+    <div class="between"><div class="title">App / PWA</div><div class="muted" id="versionLabel">v50 · BUILD</div></div>
+    <div class="pwa-buttons" style="margin-top:8px;"><button id="installAppBtn">Instalar app</button><button id="updateAppBtn">Actualizar app</button><button id="refreshVoicesBtn">Refrescar voces</button><button id="testVoiceBtn">Probar voz</button><button id="copyLogBtn">Copiar log</button><button id="verifyAllBtn">Verificar todo</button><button id="exportSessionBtn">Exportar sesión</button><button id="exportMinuteBtn">Exportar minuto a minuto</button><button id="resumeSessionBtn">Reanudar sesión guardada</button><button id="finalSummaryBtn">Resumen final</button><button id="exportJsonBtn">Exportar JSON</button><button id="compareLastBtn">Comparar con última</button><button id="exportTramoCsvBtn">CSV tramos</button><button id="copySummaryBtn">Copiar resumen</button><button id="copyChatgptBtn">Copiar para ChatGPT</button><button id="exportPlanBtn">Exportar plan</button><button id="clearAppDataBtn">Limpiar caché y datos</button></div>
+    <div class="small" id="pwaStateLabel">PWA lista. Instálala desde Chrome como app.</div>
   </div>
   <div class="card"><div class="between"><div class="title">Log</div><div class="small muted">Acciones e incidencias</div></div><div class="logbox" id="logBox"></div></div>
 </div>
-<script src="./app.js?v=v53"></script>
+<script src="./app.js?v=v50"></script>
 </body></html>
