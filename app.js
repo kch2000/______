@@ -1,6 +1,6 @@
 (() => {
 'use strict';
-const APP_VERSION='v53';
+const APP_VERSION='v54';
 const BUILD='2026-04-07 23:59';
 const $=id=>document.getElementById(id);
 const STATE_KEY=`eliptica_state_${APP_VERSION}`; const LAST_SESSION_KEY='lastCompletedSession'; const state={phase:'idle',plan:null,startTs:null,pausedAccumMs:0,pauseTs:null,elapsedSec:0,lastSec:-1,realOffset:0,history:[],logs:[],installPrompt:null,bannerIndex:0,bannerHoldMs:5000,bannerLastChange:0,bpmSamples:[],swReg:null,lastActionTs:0,lastRenderTick:0,voice:{supported:('speechSynthesis' in window),unlocked:false,enabled:true,voices:[],selectedURI:'',queue:[],speaking:false,lastByKey:{},volume:1,rate:1,browserNotify:false,beepEnabled:true},audio:{ctx:null,unlocked:false},alerts:{lastKey:{},lastSecChecked:-1,lastNotifTs:0},ble:{device:null,server:null,hrChar:null,connected:false,lastPacketTs:0,deviceName:'',autoAttempted:false}};
@@ -203,9 +203,26 @@ function getCurrentBpmTarget(){
   if(!level) return null;
   return state.plan?.bpmDay?.[level] || state.plan?.bpmApp?.[level] || null;
 }
+
+function crossedThreshold(prevRemain, curRemain, threshold){
+  return prevRemain > threshold && curRemain <= threshold;
+}
+function pickSeekThreshold(prevRemain, curRemain, thresholds){
+  const crossed = thresholds.filter(t => crossedThreshold(prevRemain, curRemain, t));
+  if(!crossed.length) return null;
+  crossed.sort((a,b)=>a-b);
+  if(crossed.includes(0)) return 0;
+  if(crossed.includes(10)) return 10;
+  if(crossed.includes(30)) return 30;
+  if(crossed.includes(60)) return 60;
+  if(crossed.includes(180)) return 180;
+  return crossed[0];
+}
+
 function evaluateVoiceAlerts(prevSec, sec, mode='tick'){
   if(state.phase!=='running' || !state.plan) return;
   if(sec<0) return;
+  const infoPrev = currentSegInfo(prevSec);
   const info = currentSegInfo(sec);
   if(!info) return;
   const remainSeg = Math.max(0, info.endSec - sec);
@@ -213,35 +230,60 @@ function evaluateVoiceAlerts(prevSec, sec, mode='tick'){
   const next = state.plan.segments[info.index+1] || null;
   const isSeek = mode==='seek';
 
-  const segThresholds = isSeek ? [180,60,30,10,0] : [180,60,30,10,0];
-  const waterThresholds = isSeek ? [180,60,30,10,0] : [180,60,30,10,0];
+  const segThresholds = [180,60,30,10,0];
+  const waterThresholds = [180,60,30,10,0];
 
-  for(const t of segThresholds){
-    if(!next) break;
-    if((!isSeek && remainSeg===t) || (isSeek && (remainSeg<=t && (t===0 || remainSeg> (t===180?60:t===60?30:t===30?10:0))))){
-      const dir = next.level>info.seg.level ? 'SUBIDA' : next.level<info.seg.level ? 'BAJADA' : 'CAMBIO';
-      const kind = next.isTest ? 'TEST ' : '';
-      if(t===0){
-        pushAlert(`seg_now_${info.index}`, `CAMBIO AHORA. ${kind}${dir} A NIVEL ${next.level}.`, {cooldownMs:60000, notifyTitle:'Cambio ahora', notifyBody:`${kind}${dir} a nivel ${next.level}`, cls:'warn', doNotify:true, beepKind:'critical', priority:5, category:'segment', replaceCategory:isSeek});
-      } else {
-        pushAlert(`seg_${info.index}_${t}`, `QUEDAN ${fmtSpeechMinutes(t)} DE TRAMO. PRÓXIMO ${kind}${dir} A NIVEL ${next.level}.`, {cooldownMs:60000, notifyTitle:'Cambio de tramo', notifyBody:`En ${fmtSpeechMinutes(t)}: ${kind}${dir} a nivel ${next.level}`, cls:'warn', doNotify:true, beepKind: t<=10 ? 'critical' : '', priority:t<=30?4:3, category:'segment', replaceCategory:isSeek});
+  if(next){
+    const prevRemainSeg = infoPrev ? Math.max(0, infoPrev.endSec - prevSec) : remainSeg + Math.max(0,sec-prevSec);
+    if(!isSeek){
+      for(const t of segThresholds){
+        if(remainSeg===t){
+          const dir = next.level>info.seg.level ? 'SUBIDA' : next.level<info.seg.level ? 'BAJADA' : 'CAMBIO';
+          const kind = next.isTest ? 'TEST ' : '';
+          if(t===0){
+            pushAlert(`seg_now_${info.index}`, `CAMBIO AHORA. ${kind}${dir} A NIVEL ${next.level}.`, {cooldownMs:60000, notifyTitle:'Cambio ahora', notifyBody:`${kind}${dir} a nivel ${next.level}`, cls:'warn', doNotify:true, beepKind:'critical', priority:5, category:'segment', replaceCategory:false});
+          } else {
+            pushAlert(`seg_${info.index}_${t}`, `QUEDAN ${fmtSpeechMinutes(t)} DE TRAMO. PRÓXIMO ${kind}${dir} A NIVEL ${next.level}.`, {cooldownMs:60000, notifyTitle:'Cambio de tramo', notifyBody:`En ${fmtSpeechMinutes(t)}: ${kind}${dir} a nivel ${next.level}`, cls:'warn', doNotify:true, beepKind: t<=10 ? 'critical' : '', priority:t<=30?4:3, category:'segment', replaceCategory:false});
+          }
+        }
       }
-      if(isSeek) break;
+    } else {
+      const t = pickSeekThreshold(prevRemainSeg, remainSeg, segThresholds);
+      if(t!==null){
+        const dir = next.level>info.seg.level ? 'SUBIDA' : next.level<info.seg.level ? 'BAJADA' : 'CAMBIO';
+        const kind = next.isTest ? 'TEST ' : '';
+        if(t===0){
+          pushAlert(`seg_now_seek_${info.index}_${sec}`, `CAMBIO AHORA. ${kind}${dir} A NIVEL ${next.level}.`, {cooldownMs:2000, notifyTitle:'Cambio ahora', notifyBody:`${kind}${dir} a nivel ${next.level}`, cls:'warn', doNotify:true, beepKind:'critical', priority:5, category:'segment', replaceCategory:true});
+        } else {
+          pushAlert(`seg_seek_${info.index}_${t}_${sec}`, `QUEDAN ${fmtSpeechMinutes(t)} DE TRAMO. PRÓXIMO ${kind}${dir} A NIVEL ${next.level}.`, {cooldownMs:2000, notifyTitle:'Cambio de tramo', notifyBody:`En ${fmtSpeechMinutes(t)}: ${kind}${dir} a nivel ${next.level}`, cls:'warn', doNotify:true, beepKind: t<=10 ? 'critical' : '', priority:t<=30?4:3, category:'segment', replaceCategory:true});
+        }
+      }
     }
   }
 
   for(const w of (state.plan.water||[])){
     const [mm,ss] = String(w).split(':').map(Number);
     const ws = mm*60+ss;
+    const prevRemainWater = ws-prevSec;
     const remainWater = ws-sec;
-    for(const t of waterThresholds){
-      if((!isSeek && remainWater===t) || (isSeek && (remainWater<=t && remainWater>=0 && (t===0 || remainWater> (t===180?60:t===60?30:t===30?10:0))))){
-        if(t===0){
-          pushAlert(`water_now_${ws}`, 'AGUA AHORA. DOS O TRES SORBOS Y VUELVES A CADENCIA.', {cooldownMs:60000, notifyTitle:'Agua ahora', notifyBody:'Dos o tres sorbos y vuelves a cadencia', cls:'good', doNotify:true, beepKind:'critical', priority:5, category:'water', replaceCategory:isSeek});
-        } else {
-          pushAlert(`water_${ws}_${t}`, `AGUA EN ${fmtSpeechMinutes(t)}.`, {cooldownMs:60000, notifyTitle:'Toma de agua', notifyBody:`Agua en ${fmtSpeechMinutes(t)}`, cls:'good', doNotify:true, beepKind: t<=10 ? 'critical' : '', priority:t<=30?4:3, category:'water', replaceCategory:isSeek});
+    if(!isSeek){
+      for(const t of waterThresholds){
+        if(remainWater===t){
+          if(t===0){
+            pushAlert(`water_now_${ws}`, 'AGUA AHORA. DOS O TRES SORBOS Y VUELVES A CADENCIA.', {cooldownMs:60000, notifyTitle:'Agua ahora', notifyBody:'Dos o tres sorbos y vuelves a cadencia', cls:'good', doNotify:true, beepKind:'critical', priority:5, category:'water', replaceCategory:false});
+          } else {
+            pushAlert(`water_${ws}_${t}`, `AGUA EN ${fmtSpeechMinutes(t)}.`, {cooldownMs:60000, notifyTitle:'Toma de agua', notifyBody:`Agua en ${fmtSpeechMinutes(t)}`, cls:'good', doNotify:true, beepKind: t<=10 ? 'critical' : '', priority:t<=30?4:3, category:'water', replaceCategory:false});
+          }
         }
-        if(isSeek) break;
+      }
+    } else {
+      const t = pickSeekThreshold(prevRemainWater, remainWater, waterThresholds);
+      if(t!==null){
+        if(t===0){
+          pushAlert(`water_now_seek_${ws}_${sec}`, 'AGUA AHORA. DOS O TRES SORBOS Y VUELVES A CADENCIA.', {cooldownMs:2000, notifyTitle:'Agua ahora', notifyBody:'Dos o tres sorbos y vuelves a cadencia', cls:'good', doNotify:true, beepKind:'critical', priority:5, category:'water', replaceCategory:true});
+        } else {
+          pushAlert(`water_seek_${ws}_${t}_${sec}`, `AGUA EN ${fmtSpeechMinutes(t)}.`, {cooldownMs:2000, notifyTitle:'Toma de agua', notifyBody:`Agua en ${fmtSpeechMinutes(t)}`, cls:'good', doNotify:true, beepKind: t<=10 ? 'critical' : '', priority:t<=30?4:3, category:'water', replaceCategory:true});
+        }
       }
     }
   }
@@ -252,6 +294,13 @@ function evaluateVoiceAlerts(prevSec, sec, mode='tick'){
   if(!isSeek && sec>0 && sec%300===0){
     const eta = hm(new Date(Date.now()+remainTotal*1000));
     pushAlert(`rem_total_${sec}`, `QUEDAN ${fmtSpeechMinutes(remainTotal)} PARA TERMINAR LA ELÍPTICA. FIN PREVISTA A LAS ${fmtSpeechClock(eta)}.`, {cooldownMs:5000, notifyTitle:'Tiempo restante', notifyBody:`Quedan ${fmtSpeechMinutes(remainTotal)}. Fin ${eta}`, cls:'good', doNotify:true, priority:2, category:'total', replaceCategory:false});
+  } else if(isSeek){
+    const prevRemainTotal = Math.max(0, planDuration()-prevSec)
+    const t = pickSeekThreshold(prevRemainTotal, remainTotal, [1800,1200,600,300]);
+    if(t!==null){
+      const eta = hm(new Date(Date.now()+remainTotal*1000));
+      pushAlert(`rem_total_seek_${t}_${sec}`, `QUEDAN ${fmtSpeechMinutes(remainTotal)} PARA TERMINAR LA ELÍPTICA. FIN PREVISTA A LAS ${fmtSpeechClock(eta)}.`, {cooldownMs:2000, notifyTitle:'Tiempo restante', notifyBody:`Quedan ${fmtSpeechMinutes(remainTotal)}. Fin ${eta}`, cls:'good', doNotify:true, priority:2, category:'total', replaceCategory:true});
+    }
   }
   const target = getCurrentBpmTarget();
   const bpm = bpmDisplay();
@@ -260,7 +309,7 @@ function evaluateVoiceAlerts(prevSec, sec, mode='tick'){
     if(bpm > target.max + 2) pushAlert(`bpm_high_${sec}`, `PULSO POR ENCIMA DEL OBJETIVO. OBJETIVO ${target.min} A ${target.max}.`, {cooldownMs:20000, notifyTitle:'Pulso alto', notifyBody:`Objetivo ${target.min}-${target.max}`, cls:'bad', doNotify:true, beepKind:'info', priority:3, category:'pulse', replaceCategory:true});
   }
 }
-function evaluateAlertsRange(prevSec, sec, cause='tick'){
+function evaluateAlertsRangefunction evaluateAlertsRange(prevSec, sec, cause='tick'){
   if(!state.plan || state.phase!=='running') return;
   const a = Math.max(0, Math.min(prevSec, sec));
   const b = Math.max(0, Math.max(prevSec, sec));
@@ -268,7 +317,7 @@ function evaluateAlertsRange(prevSec, sec, cause='tick'){
   if(isSeek){
     clearVoiceQueue('SEEK');
     addLog(`[ALERT] SEEK RECALC: ${a}→${b}`);
-    evaluateVoiceAlerts(Math.max(0,b-1), b, 'seek');
+    evaluateVoiceAlerts(a, b, 'seek');
     return;
   }
   if(b-a>600){

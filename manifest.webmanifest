@@ -1,8 +1,8 @@
 {
-  "id": "eliptica-pwa-v53",
-  "name": "Eliptica PWA v53",
-  "short_name": "Eliptica v53",
-  "start_url": "./index.html?v=v53",
+  "id": "eliptica-pwa-v54",
+  "name": "Eliptica PWA v54",
+  "short_name": "Eliptica v54",
+  "start_url": "./index.html?v=v54",
   "display": "standalone",
   "background_color": "#0b0f16",
   "theme_color": "#0b0f16",
