@@ -1,12 +1,21 @@
 {
-  "name": "Eliptica PWA v55",
-  "short_name": "Eliptica v55",
-  "start_url": "./index.html?v=v55",
+  "id": "eliptica-pwa-v56",
+  "name": "Eliptica PWA v56",
+  "short_name": "Eliptica v56",
+  "start_url": "./index.html?v=v56",
   "display": "standalone",
   "background_color": "#0b0f16",
   "theme_color": "#0b0f16",
   "icons": [
-    {"src":"./icon-192.png","sizes":"192x192","type":"image/png"},
-    {"src":"./icon-512.png","sizes":"512x512","type":"image/png"}
+    {
+      "src": "./icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "./icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
   ]
 }
