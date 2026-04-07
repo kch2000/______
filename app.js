@@ -1,13 +1,15 @@
 (() => {
 'use strict';
-const APP_VERSION='v56';
-const BUILD='2026-04-09 23:59';
+const APP_VERSION='v58';
+const BUILD='2026-04-07 01:05';
 const $=id=>document.getElementById(id);
 const STATE_KEY=`eliptica_state_${APP_VERSION}`; const LAST_SESSION_KEY='lastCompletedSession'; const state={phase:'idle',plan:null,startTs:null,pausedAccumMs:0,pauseTs:null,elapsedSec:0,lastSec:-1,realOffset:0,history:[],logs:[],installPrompt:null,bannerIndex:0,bannerHoldMs:5000,bannerLastChange:0,bpmSamples:[],swReg:null,lastActionTs:0,lastRenderTick:0,voice:{supported:('speechSynthesis' in window),unlocked:false,enabled:true,voices:[],selectedURI:'',queue:[],speaking:false,lastByKey:{},volume:1,rate:1,browserNotify:false,beepEnabled:true},audio:{ctx:null,unlocked:false},alerts:{lastKey:{},lastSecChecked:-1,lastNotifTs:0},ble:{device:null,server:null,hrChar:null,connected:false,lastPacketTs:0,deviceName:'',autoAttempted:false}};
 const els={};
 const ids=['timelineBar','timelineMarkers','playhead','tickerNow','tickerMsg','tickerEta','sessionBadge','planTitle','timeBig','timeRealLabel','kPlanBig','kRealBig','bpmBig','bpmTargetLabel','avgPlanLabel','avgRealLabel','deviationTotalLabel','deviationSegmentLabel','realRateLabel','planRateLabel','waterCountLabel','upcomingBody','upcomingVisibleLabel','waterNextLabel','waterProgressBar','chipBle','chipPulse','chipSession','chipSaved','chipWater','chipAlerts','chipApp','chipTest','bleStatusLabel','bleBpmBig','ble5s','ble10s','ble30s','bleLastPkt','bleDeviceName','planInput','importOutput','versionLabel','pwaStateLabel','logBox','voiceSelect','voiceStatus','voiceVolumeRange','voiceVolumeVal','voiceRateRange','voiceRateVal','browserNotifyChk','voiceAlertsChk','beepAlertsChk'];
 function cacheEls(){ids.forEach(id=>els[id]=$(id)); if(els.versionLabel) els.versionLabel.textContent=`${APP_VERSION} · ${BUILD}`;}
 function addLog(msg){const t=new Date().toTimeString().slice(0,8); state.logs.push(`[${t}] ${msg}`); if(state.logs.length>800) state.logs.shift(); if(els.logBox){els.logBox.textContent=state.logs.join('\n'); els.logBox.scrollTop=els.logBox.scrollHeight;}}
+function setPwaState(msg){ if(els.pwaStateLabel) els.pwaStateLabel.textContent = msg; }
+function appUrl(path='index.html'){ return `./${path}?v=${APP_VERSION}&t=${Date.now()}`; }
 
 function unlockAudio(){
   try{
@@ -374,6 +376,7 @@ function bind(){
   B('bleDiagBtn','bleDiag',bleDiag);
   B('installAppBtn','installApp',installApp);
   B('updateAppBtn','updateApp',updateApp);
+  B('forceReloadBtn','forceReload',forceReloadApp);
   B('notifPermissionBtn','notifPermission',requestNotificationPermission);
   B('testNotifyBtn','testNotify',testNotify);
   B('refreshVoicesBtn','refreshVoices',()=>{ refreshVoices(); if(els.importOutput) els.importOutput.textContent = (state.voice.voices||[]).map(v=>`${v.name} · ${v.lang}`).join('\n') || 'Sin voces detectadas'; });
@@ -417,14 +420,14 @@ function bpmDisplay(){const arr=state.bpmSamples; if(!arr.length) return null; c
 function avgBpmWindow(secWindow){const now=Date.now(); const items=state.bpmSamples.filter(x=>now-x.ts<=secWindow*1000); if(!items.length) return null; return items.reduce((a,b)=>a+b.bpm,0)/items.length}
 function parsePlan(text){const lines=text.split(/\r?\n/).map(s=>s.trim()).filter(Boolean); const segments=[], water=[], bpmApp={}, bpmDay={}; let totalTime=null,totalKcal=null, mode=''; for(let i=0;i<lines.length;i++){const line=lines[i]; if(/^BPM OPERATIVO/i.test(line)){mode='bpmApp'; continue} if(/^BPM DEL DÍA/i.test(line)){mode='bpmDay'; continue} if(/^AGUA EN ELÍPTICA/i.test(line)){mode='water'; continue} if(/^TOTAL PREVISTO/i.test(line)){mode='total'; continue}
 const segLine=line.match(/^([A-Z])\)\s+(\d{2}:\d{2})\s*[·-].*?(TEST\s+)?NIVEL\s+(\d+)/i); if(segLine){const id=segLine[1]; const [mm,ss]=segLine[2].split(':').map(Number); const isTest=!!segLine[3]; const level=Number(segLine[4]); let kcalTarget=0; const next=lines[i+1]||''; const km=next.match(/objetivo\s*~?(\d+(?:[.,]\d+)?)(?:[–-](\d+(?:[.,]\d+)?))?/i); if(km) kcalTarget=Number(String(km[2]||km[1]).replace(',','.')); segments.push({id,durationSec:mm*60+ss,level,isTest,kcalTarget}); continue}
-const seg2=line.match(/^([A-Z])\)\s+\d{2}:\d{2}[–-]\d{2}:\d{2}\s*(?:→|->)\s*(TEST\s+)?NIVEL\s+(\d+)\s*(?:→|->)\s*~?(\d+(?:[.,]\d+)?)(?:[–-](\d+(?:[.,]\d+)?))?/i); if(seg2){segments.push({id:seg2[1],durationSec:0,level:Number(seg2[3]),isTest:!!seg2[2],kcalTarget:Number(String(seg2[4]||seg2[5]).replace(',','.'))}); continue}
+const seg2=line.match(/^([A-Z])\)\s+(\d{2}:\d{2})\s*[–-]\s*(\d{2}:\d{2})\s*(?:→|->)\s*(TEST\s+)?NIVEL\s+(\d+)\s*(?:→|->)\s*~?(\d+(?:[.,]\d+)?)(?:[–-](\d+(?:[.,]\d+)?))?/i); if(seg2){const [sh,sm]=seg2[2].split(':').map(Number); const [eh,em]=seg2[3].split(':').map(Number); let durationSec=((eh*60+em)-(sh*60+sm))*60; if(durationSec<=0) durationSec+=24*3600; segments.push({id:seg2[1],durationSec,level:Number(seg2[5]),isTest:!!seg2[4],kcalTarget:Number(String(seg2[7]||seg2[6]).replace(',','.'))}); continue}
 if(mode==='water'){const w=line.match(/(?:Minuto|min)\s*(\d{2}:\d{2})/i); if(w) water.push(w[1])}
 if(mode==='total'){const tm=line.match(/Tiempo:\s*(\d{2}:\d{2})/i); if(tm) totalTime=tm[1]; const km=line.match(/Kcal.*?~?(\d+(?:[.,]\d+)?)(?:[–-](\d+(?:[.,]\d+)?))?/i); if(km) totalKcal=Number(String(km[2]||km[1]).replace(',','.'))}
 if(mode==='bpmApp'){const bm=line.match(/Nivel\s+(\d+)\s*:\s*(\d+)[–-](\d+)/i); if(bm) bpmApp[Number(bm[1])]={min:Number(bm[2]),max:Number(bm[3])}}
 if(mode==='bpmDay'){const bm=line.match(/Nivel\s+(\d+).+?(\d+)[–-](\d+)/i); if(bm) bpmDay[Number(bm[1])]={min:Number(bm[2]),max:Number(bm[3])}}
 }
-if(!segments.length) throw new Error('No se detectaron tramos'); const duration=segments.reduce((a,s)=>a+s.durationSec,0); return {title:`ELÍPTICA ${APP_VERSION.toUpperCase()} · ${totalTime||fmt(duration)} · ~${Math.round(totalKcal||segments.reduce((a,s)=>a+s.kcalTarget,0))} kcal`,segments,water,bpmApp,bpmDay,totalTime,totalKcal,normalizedText:text}}
-function normalizeText(plan=state.plan){if(!plan) return ''; const rows=[]; rows.push(plan.title.replace(` ${APP_VERSION.toUpperCase()}`,'')); rows.push(''); plan.segments.forEach(seg=>{rows.push(`${seg.id}) ${fmt(seg.durationSec)} · ${seg.isTest?'TEST ':''}NIVEL ${seg.level}`); rows.push(`→ objetivo ~${seg.kcalTarget} kcal`); rows.push('');}); rows.push('AGUA EN ELÍPTICA'); plan.water.forEach(w=>rows.push(`Minuto ${w}`)); rows.push(''); rows.push('TOTAL PREVISTO'); rows.push(`- Tiempo: ${plan.totalTime||fmt(planDuration())}`); rows.push(`- Kcal máquina: ~${Math.round(plan.totalKcal||plan.segments.reduce((a,s)=>a+s.kcalTarget,0))} kcal`); return rows.join('\n')}
+if(!segments.length) throw new Error('No se detectaron tramos'); const duration=segments.reduce((a,s)=>a+s.durationSec,0); return {title:`ELÍPTICA ${APP_VERSION} · ${totalTime||fmt(duration)} · ~${Math.round(totalKcal||segments.reduce((a,s)=>a+s.kcalTarget,0))} kcal`,segments,water,bpmApp,bpmDay,totalTime,totalKcal,normalizedText:text}}
+function normalizeText(plan=state.plan){if(!plan) return ''; const rows=[]; rows.push(plan.title.replace(` ${APP_VERSION}`,'')); rows.push(''); plan.segments.forEach(seg=>{rows.push(`${seg.id}) ${fmt(seg.durationSec)} · ${seg.isTest?'TEST ':''}NIVEL ${seg.level}`); rows.push(`→ objetivo ~${seg.kcalTarget} kcal`); rows.push('');}); rows.push('AGUA EN ELÍPTICA'); plan.water.forEach(w=>rows.push(`Minuto ${w}`)); rows.push(''); rows.push('TOTAL PREVISTO'); rows.push(`- Tiempo: ${plan.totalTime||fmt(planDuration())}`); rows.push(`- Kcal máquina: ~${Math.round(plan.totalKcal||plan.segments.reduce((a,s)=>a+s.kcalTarget,0))} kcal`); return rows.join('\n')}
 function applyPlan(){const text=els.planInput.value.trim(); if(!text) throw new Error('No hay texto de plan'); state.plan=parsePlan(text); state.phase='idle'; state.elapsedSec=0; state.realOffset=0; state.history=[]; els.importOutput.textContent=normalizeText(); els.planTitle.textContent=state.plan.title; renderTimeline(); persist(); addLog(`[PLAN] Cargado · ${state.plan.segments.length} tramos · agua ${state.plan.water.length}`)}
 function previewPlan(){const text=els.planInput.value.trim(); const p=parsePlan(text); els.importOutput.textContent=`TRAMOS: ${p.segments.length}\nDURACIÓN: ${p.totalTime||fmt(p.segments.reduce((a,s)=>a+s.durationSec,0))}\nKCAL: ~${Math.round(p.totalKcal||p.segments.reduce((a,s)=>a+s.kcalTarget,0))}\nAGUA: ${p.water.join(', ')||'ninguna'}\nTESTS: ${p.segments.filter(s=>s.isTest).map(s=>s.id).join(', ')||'ninguno'}`}
 function normalizePlan(){const text=els.planInput.value.trim(); const p=parsePlan(text); els.planInput.value=normalizeText(p)}
@@ -456,7 +459,7 @@ function toggleRun(){
 function resetSession(){state.phase='idle'; state.startTs=null; state.pauseTs=null; state.pausedAccumMs=0; state.elapsedSec=0; state.realOffset=0; state.history=[]; state.lastSec=-1; persist(); renderAll(); addLog('[SESSION] Reseteada')}
 function capturePoint(force=false){if(!state.plan) return; const sec=currentElapsed(); const prevSec = state.lastSec; if(!force&&sec===state.lastSec) return; const info=currentSegInfo(sec); const point={sec,clock:fmt(sec),level:info?.seg?.level??null,segment:info?.seg?.id??null,kPlan:currentPlanKcal(),kReal:currentRealKcal(),bpm:bpmDisplay(),ts:Date.now()}; const h=state.history; if(h.length&&h[h.length-1].sec===sec) h[h.length-1]=point; else h.push(point); if(h.length>10000) h.shift(); state.lastSec=sec; if(prevSec>=0) evaluateAlertsRange(prevSec, sec, force?'force':'tick'); }
 function seek(delta){ if(!state.plan) throw new Error('Carga un plan primero'); const dur=planDuration(); const prev=currentElapsed(); const next=Math.max(0,Math.min(dur,prev+delta)); state.elapsedSec=next; if(state.phase==='running'){ state.startTs=Date.now()-(next*1000)-state.pausedAccumMs; } else { state.startTs=null; } state.lastSec=prev; capturePoint(true); persist(); addLog(`[SEEK] ${delta>0?'+':''}${delta}s → ${fmt(next)}`); if(state.phase==='running') evaluateAlertsRange(prev, next, 'seek'); renderAll(); }
-function adjustReal(delta){ if(!state.plan) throw new Error('Carga un plan primero'); capturePoint(true); let cur=currentRealKcal(); cur=round1(cur+delta); state.realOffset=round1(cur-currentPlanKcal()); addLog(`[KCAL] ajuste ${delta>0?'+':''}${delta.toFixed(1)} → real ${cur.toFixed(1)}`); renderAll(); persist(); }
+function adjustReal(delta){ if(!state.plan) throw new Error('Carga un plan primero'); capturePoint(true); let cur=currentRealKcal(); if(Math.abs(delta)===1){ cur=Math.floor(Math.max(0,cur+delta)); } else { cur=round1(cur+delta); } state.realOffset=round1(cur-currentPlanKcal()); addLog(`[KCAL] ajuste ${delta>0?'+':''}${delta.toFixed(1)} → real ${cur.toFixed(1)}`); renderAll(); persist(); }
 function buildMinuteRows(){const rows=[]; for(let m=0;m<=Math.floor((state.history.at(-1)?.sec||0)/60);m++){const items=state.history.filter(x=>Math.floor(x.sec/60)===m); if(!items.length) continue; const first=items[0], last=items.at(-1); const bpmItems=items.filter(x=>x.bpm!=null); rows.push({minute:m,clock:fmt(m*60),level:last.level,segment:last.segment,kcalStart:first.kReal,kcalEnd:last.kReal,kcalMinute:round2(last.kReal-first.kReal),kcalPerMin:round2((last.kReal-first.kReal)/Math.max(1,(items.length/60))),bpmAvg:bpmItems.length?round1(bpmItems.reduce((a,b)=>a+b.bpm,0)/bpmItems.length):null})} return rows}
 function buildSegmentSummary(){const out=[]; if(!state.plan) return out; let cursor=0; for(const seg of state.plan.segments){const items=state.history.filter(x=>x.sec>=cursor&&x.sec<=cursor+seg.durationSec); const startPlan=items[0]?.kPlan??0, endPlan=items.at(-1)?.kPlan??startPlan, startReal=items[0]?.kReal??0, endReal=items.at(-1)?.kReal??startReal; const bpmItems=items.filter(x=>x.bpm!=null); out.push({segment:seg.id,level:seg.level,duration:fmt(seg.durationSec),kcalPlan:round1(endPlan-startPlan),kcalReal:round1(endReal-startReal),deviation:round1((endReal-startReal)-(endPlan-startPlan)),bpmAvg:bpmItems.length?round1(bpmItems.reduce((a,b)=>a+b.bpm,0)/bpmItems.length):null}); cursor+=seg.durationSec} return out}
 function renderTimeline(){const bar=els.timelineBar,mks=els.timelineMarkers; bar.querySelectorAll('.seg').forEach(n=>n.remove()); mks.innerHTML=''; if(!state.plan) return; const total=planDuration(); state.plan.segments.forEach(seg=>{const el=document.createElement('div'); el.className='seg'+(seg.isTest?' test':''); el.dataset.level=String(seg.level); el.style.setProperty('--flex',seg.durationSec); el.textContent=`${seg.id} · ${seg.level}`; bar.appendChild(el)}); let c=0; const add=(left,label,water=false)=>{const d=document.createElement('div'); d.className='mkr'; d.style.left=left+'%'; d.innerHTML=`<div class="stick" style="background:${water?'#60a5fa':'#fff'}"></div><div class="label">${label}</div>`; mks.appendChild(d)}; state.plan.segments.forEach(seg=>{add((c/total)*100,`${fmt(c)} ${seg.id}`); c+=seg.durationSec}); add(100,`${fmt(total)} Fin`); state.plan.water.forEach(w=>{const [mm,ss]=w.split(':').map(Number); const sec=mm*60+ss; add((sec/total)*100,`${w} 💧`,true)})}
@@ -500,7 +503,7 @@ function renderAll(){renderMetrics(); renderPlayhead(); renderUpcoming(); render
 function persist(){try{localStorage.setItem(STATE_KEY,JSON.stringify({plan:state.plan,phase:state.phase,startTs:state.startTs,pausedAccumMs:state.pausedAccumMs,pauseTs:state.pauseTs,elapsedSec:currentElapsed(),realOffset:state.realOffset,history:state.history.slice(-5000)}))}catch(e){addLog('[SAVE] ERROR: '+(e.message||e))}}
 function loadPersisted(){try{const raw=localStorage.getItem(STATE_KEY); if(!raw) return; const d=JSON.parse(raw); Object.assign(state,{plan:d.plan||null,phase:d.phase||'idle',startTs:d.startTs||null,pausedAccumMs:d.pausedAccumMs||0,pauseTs:d.pauseTs||null,elapsedSec:d.elapsedSec||0,realOffset:d.realOffset||0,history:d.history||[]}); if(state.plan){els.importOutput.textContent=normalizeText(); els.planTitle.textContent=state.plan.title; renderTimeline()} addLog('[LOAD] Sesión recuperada desde guardado local')}catch(e){addLog('[LOAD] ERROR: '+(e.message||e))}}
 function resumeSavedSession(){loadPersisted(); renderAll(); if(state.plan) addLog('[LOAD] Reanudada desde guardado local'); else throw new Error('No hay sesión guardada')}
-function summaryText(){const segs=buildSegmentSummary(); const lines=[`ELÍPTICA ${APP_VERSION.toUpperCase()}`,`Tiempo: ${fmt(currentElapsed())}`,`Kcal plan: ${currentPlanKcal().toFixed(1)}`,`Kcal real: ${currentRealKcal().toFixed(1)}`,`Desvío total: ${totalDeviation().toFixed(1)} kcal`,`Ritmo real: ${realRate().toFixed(2)} kcal/min`,`Pulso: ${bpmDisplay()?.toFixed(1)??'--.-'}`,'']; segs.forEach(s=>lines.push(`${s.segment} · N${s.level} · plan ${s.kcalPlan} · real ${s.kcalReal} · desvío ${s.deviation}`)); return lines.join('\n')}
+function summaryText(){const segs=buildSegmentSummary(); const lines=[`ELÍPTICA ${APP_VERSION}`,`Tiempo: ${fmt(currentElapsed())}`,`Kcal plan: ${currentPlanKcal().toFixed(1)}`,`Kcal real: ${currentRealKcal().toFixed(1)}`,`Desvío total: ${totalDeviation().toFixed(1)} kcal`,`Ritmo real: ${realRate().toFixed(2)} kcal/min`,`Pulso: ${bpmDisplay()?.toFixed(1)??'--.-'}`,'']; segs.forEach(s=>lines.push(`${s.segment} · N${s.level} · plan ${s.kcalPlan} · real ${s.kcalReal} · desvío ${s.deviation}`)); return lines.join('\n')}
 function showFinalSummary(){const txt=summaryText(); els.importOutput.textContent=txt; localStorage.setItem(LAST_SESSION_KEY,JSON.stringify({elapsedSec:currentElapsed(),kReal:currentRealKcal(),summary:txt,when:Date.now()})); addLog('[SUMMARY] Resumen final generado')}
 function download(name, content, mime='text/plain;charset=utf-8'){const blob=new Blob([content],{type:mime}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(url),500)}
 function exportJson(){download(`eliptica_${APP_VERSION}.json`,JSON.stringify({version:APP_VERSION,build:BUILD,plan:state.plan,current:{elapsedSec:currentElapsed(),kPlan:currentPlanKcal(),kReal:currentRealKcal(),bpm:bpmDisplay()},history:state.history,segmentSummary:buildSegmentSummary(),logs:state.logs},null,2),'application/json'); addLog('[EXPORT] JSON exportado'); if(els.importOutput) els.importOutput.textContent='JSON exportado'}
@@ -511,10 +514,57 @@ function exportPlan(){const txt=state.plan?normalizeText():els.planInput.value; 
 function compareLast(){const raw=localStorage.getItem('lastCompletedSession'); if(!raw) throw new Error('No hay sesión anterior guardada'); const prev=JSON.parse(raw); els.importOutput.textContent=`COMPARAR CON ÚLTIMA\nAnterior kcal: ${prev.kReal??'--'}\nActual kcal: ${currentRealKcal().toFixed(1)}\nDiff kcal: ${((currentRealKcal()||0)-(prev.kReal||0)).toFixed(1)}`}
 async function clearAppData(){localStorage.clear(); sessionStorage.clear(); if('caches' in window){const keys=await caches.keys(); await Promise.all(keys.map(k=>caches.delete(k)))} if('serviceWorker' in navigator){const regs=await navigator.serviceWorker.getRegistrations(); await Promise.all(regs.map(r=>r.unregister()))} addLog('[CLEAR] Datos locales y caché borrados'); if(els.importOutput) els.importOutput.textContent='Datos locales y caché borrados'; setTimeout(()=>location.reload(),300)}
 async function installApp(){if(state.installPrompt) await state.installPrompt.prompt(); else addLog('[PWA] No hay prompt disponible')}
-async function registerSW(){if(!('serviceWorker' in navigator)) return; try{state.swReg=await navigator.serviceWorker.register('./sw.js'); addLog('[SW] registrado')}catch(e){addLog('[SW] ERROR: '+(e.message||e))}}
-async function updateApp(){if(!state.swReg) throw new Error('No hay service worker'); await state.swReg.update(); addLog('[PWA] Update solicitado'); if(state.swReg.waiting){state.swReg.waiting.postMessage({type:'SKIP_WAITING'}); location.reload()} else location.reload()}
+async function registerSW(){
+  if(!('serviceWorker' in navigator)){ setPwaState('Service Worker no soportado en este navegador.'); return; }
+  try{
+    navigator.serviceWorker.addEventListener('controllerchange', ()=>{ addLog('[SW] controllerchange'); setPwaState(`Eliptica PWA ${APP_VERSION} activa. Recargando…`); setTimeout(()=>location.reload(), 120); });
+    state.swReg = await navigator.serviceWorker.register(`./sw.js?v=${APP_VERSION}`, { updateViaCache:'none' });
+    addLog('[SW] registrado');
+    setPwaState(`Eliptica PWA ${APP_VERSION} lista. Puedes forzar actualización desde aquí.`);
+    state.swReg.addEventListener('updatefound', ()=>{
+      addLog('[SW] updatefound');
+      setPwaState('Actualización detectada. Pulsa “Actualizar app” para activarla.');
+      const nw = state.swReg.installing;
+      if(nw){
+        nw.addEventListener('statechange', ()=>{
+          addLog(`[SW] nuevo worker: ${nw.state}`);
+          if(nw.state==='installed' && navigator.serviceWorker.controller){
+            setPwaState('Nueva versión descargada. Pulsa “Actualizar app”.');
+          }
+        });
+      }
+    });
+  }catch(e){ addLog('[SW] ERROR: '+(e.message||e)); setPwaState('Error registrando Service Worker'); }
+}
+async function updateApp(){
+  if(!state.swReg) throw new Error('No hay service worker');
+  setPwaState('Buscando actualización…');
+  await state.swReg.update();
+  addLog('[PWA] Update solicitado');
+  if(state.swReg.waiting){
+    addLog('[PWA] waiting encontrado; skipWaiting enviado');
+    setPwaState('Nueva versión lista. Activando…');
+    state.swReg.waiting.postMessage({type:'SKIP_WAITING'});
+    return;
+  }
+  setPwaState('Recarga solicitada para buscar recursos nuevos…');
+  location.href = appUrl('index.html');
+}
+async function forceReloadApp(){
+  setPwaState('Borrando caché local y recargando limpio…');
+  addLog('[PWA] Forzar recarga limpia');
+  if('caches' in window){
+    const keys = await caches.keys();
+    await Promise.all(keys.filter(k=>/^eliptica-/i.test(k)).map(k=>caches.delete(k)));
+    addLog('[PWA] Cachés de la app borradas');
+  }
+  if(state.swReg){
+    try{ await state.swReg.unregister(); addLog('[PWA] SW desregistrado temporalmente'); }catch(e){ addLog('[PWA] SW unregister ERROR: '+(e.message||e)); }
+  }
+  location.href = appUrl('index.html');
+}
 function verifyAll(){const checks=[]; const push=(name,ok,detail='')=>{checks.push({name,ok,detail}); addLog(`[CHECK] ${name}: ${ok?'ok':'fail'}${detail?' · '+detail:''}`)}; push('DOM timeline',!!els.timelineBar); push('DOM ticker',!!els.tickerMsg); push('DOM BLE',!!$('bleConnectBtn')); push('Clipboard',!!navigator.clipboard||!!document.execCommand); push('Notifications','Notification' in window, ('Notification' in window ? Notification.permission : 'n/a')); push('Notify toggle', true, state.voice.browserNotify?'ON':'OFF'); push('Voice select', !!els.voiceSelect, state.voice.selectedURI||'sin seleccionar'); push('Web Bluetooth','bluetooth' in navigator);
-  push('SpeechSynthesis', state.voice.supported, `${state.voice.voices?.length||0} voces`); push('Service Worker','serviceWorker' in navigator); push('Parser',typeof parsePlan==='function'); push('Summary',typeof summaryText==='function'); push('Export CSV',typeof exportSessionCsv==='function'); push('Resume saved',typeof resumeSavedSession==='function'); push('Final summary',typeof showFinalSummary==='function'); push('Export JSON',typeof exportJson==='function'); push('Compare last',typeof compareLast==='function'); push('CSV tramos',typeof exportTramoCsv==='function'); push('Copy summary',typeof copyText==='function'); push('Export plan',typeof exportPlan==='function'); push('Clear app data',typeof clearAppData==='function'); push('Build',true,`${APP_VERSION} · ${BUILD}`); els.importOutput.textContent=checks.map(c=>`${c.ok?'OK':'FAIL'} · ${c.name}${c.detail?' · '+c.detail:''}`).join('\n')}
+  push('SpeechSynthesis', state.voice.supported, `${state.voice.voices?.length||0} voces`); push('Service Worker','serviceWorker' in navigator, state.swReg ? 'registrado' : 'pendiente'); push('PWA label', !!els.pwaStateLabel, els.pwaStateLabel?.textContent || ''); push('Parser',typeof parsePlan==='function'); push('Summary',typeof summaryText==='function'); push('Export CSV',typeof exportSessionCsv==='function'); push('Resume saved',typeof resumeSavedSession==='function'); push('Final summary',typeof showFinalSummary==='function'); push('Export JSON',typeof exportJson==='function'); push('Compare last',typeof compareLast==='function'); push('CSV tramos',typeof exportTramoCsv==='function'); push('Copy summary',typeof copyText==='function'); push('Export plan',typeof exportPlan==='function'); push('Clear app data',typeof clearAppData==='function'); push('Build',true,`${APP_VERSION} · ${BUILD}`); els.importOutput.textContent=checks.map(c=>`${c.ok?'OK':'FAIL'} · ${c.name}${c.detail?' · '+c.detail:''}`).join('\n')}
 async function bleConnect(){if(!navigator.bluetooth) throw new Error('Web Bluetooth no disponible'); const device=await navigator.bluetooth.requestDevice({filters:[{services:['heart_rate']}],optionalServices:['battery_service','device_information']}); await connectDevice(device)}
 async function bleReconnect(){if(state.ble.device) return connectDevice(state.ble.device); if(navigator.bluetooth.getDevices){const devices=await navigator.bluetooth.getDevices(); if(devices[0]) return connectDevice(devices[0])} throw new Error('No hay dispositivo previo')}
 async function bleDisconnect(){try{if(state.ble.hrChar&&state._hrHandler) state.ble.hrChar.removeEventListener('characteristicvaluechanged',state._hrHandler)}catch{} try{state.ble.server&&state.ble.server.disconnect()}catch{} state.ble.connected=false; addLog('[BLE] desconectado'); renderAll()}
@@ -528,6 +578,9 @@ function init(){
   state.voice.browserNotify = ('Notification' in window && Notification.permission==='granted');
   addLog(`[STARTUP] ${APP_VERSION} · ${BUILD}`);
   addLog('[STARTUP] UI enlazada y bucles iniciados');
+  setPwaState(`Eliptica PWA ${APP_VERSION} iniciada. Esperando estado de PWA…`);
+  window.addEventListener('online', ()=>{ addLog('[NET] online'); setPwaState(`Conexión recuperada · ${APP_VERSION}`); });
+  window.addEventListener('offline', ()=>{ addLog('[NET] offline'); setPwaState('Sin conexión. La app sigue con caché local.'); });
   if(state.voice.supported){
     if(typeof window.speechSynthesis.onvoiceschanged !== 'undefined'){
       window.speechSynthesis.onvoiceschanged = ()=>refreshVoices();
