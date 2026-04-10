@@ -1,11 +1,12 @@
 (() => {
 'use strict';
-const APP_VERSION='v59';
-const BUILD='2026-04-09 13:45';
+const APP_VERSION='v62';
+const BUILD='2026-04-10 14:20';
 const $=id=>document.getElementById(id);
-const STATE_KEY='eliptica_state_current'; const VERSIONED_STATE_KEY=`eliptica_state_${APP_VERSION}`; const LAST_SESSION_KEY='lastCompletedSession'; const state={phase:'idle',plan:null,startTs:null,pausedAccumMs:0,pauseTs:null,elapsedSec:0,lastSec:-1,realOffset:0,history:[],logs:[],installPrompt:null,bannerIndex:0,bannerHoldMs:5000,bannerLastChange:0,bpmSamples:[],swReg:null,lastActionTs:0,lastRenderTick:0,wakeLock:null,voice:{supported:('speechSynthesis' in window),unlocked:false,enabled:true,voices:[],selectedURI:'',queue:[],speaking:false,lastByKey:{},volume:1,rate:1,browserNotify:false,beepEnabled:true},audio:{ctx:null,unlocked:false},alerts:{lastKey:{},lastSecChecked:-1,lastNotifTs:0,finished:false},ble:{device:null,server:null,hrChar:null,connected:false,lastPacketTs:0,deviceName:'',autoAttempted:false,status:'EMparejar requerido',detail:'',reconnectAttempts:0,reconnectTimer:null,battery:null,lastRR:null}};
+const STATE_KEY='eliptica_state_current'; const VERSIONED_STATE_KEY=`eliptica_state_${APP_VERSION}`; const LAST_SESSION_KEY='lastCompletedSession'; const state={phase:'idle',countdown:{active:false},plan:null,startTs:null,pausedAccumMs:0,pauseTs:null,elapsedSec:0,lastSec:-1,realOffset:0,history:[],logs:[],installPrompt:null,bannerIndex:0,bannerHoldMs:5000,bannerLastChange:0,bpmSamples:[],swReg:null,lastActionTs:0,lastRenderTick:0,wakeLock:null,voice:{supported:('speechSynthesis' in window),unlocked:false,enabled:true,voices:[],selectedURI:'',queue:[],speaking:false,lastByKey:{},volume:1,rate:1,browserNotify:false,beepEnabled:true},audio:{ctx:null,unlocked:false},alerts:{lastKey:{},lastSecChecked:-1,lastNotifTs:0,finished:false},ble:{device:null,server:null,hrChar:null,connected:false,lastPacketTs:0,deviceName:'',autoAttempted:false,status:'EMparejar requerido',detail:'',reconnectAttempts:0,reconnectTimer:null,battery:null,lastRR:null}};
 const els={};
-const ids=['timelineBar','timelineMarkers','playhead','tickerNow','tickerMsg','tickerEta','sessionBadge','planTitle','timeBig','timeRealLabel','kPlanBig','kRealBig','bpmBig','bpmTargetLabel','avgPlanLabel','avgRealLabel','deviationTotalLabel','deviationSegmentLabel','realRateLabel','planRateLabel','waterCountLabel','upcomingBody','upcomingVisibleLabel','waterNextLabel','waterProgressBar','chipBle','chipPulse','chipSession','chipSaved','chipWater','chipAlerts','chipApp','chipTest','bleStatusLabel','bleBpmBig','ble5s','ble10s','ble30s','bleLastPkt','bleDeviceName','planInput','importOutput','versionLabel','pwaStateLabel','logBox','voiceSelect','voiceStatus','voiceVolumeRange','voiceVolumeVal','voiceRateRange','voiceRateVal','browserNotifyChk','voiceAlertsChk','beepAlertsChk','bleState','bleBattery','bleRR','wakeLockLabel'];
+const MACHINE_TIME_FACTOR=2478/2520;
+const ids=['timelineBar','timelineMarkers','playhead','tickerNow','tickerMsg','tickerEta','sessionBadge','planTitle','timeBig','timeRealLabel','kPlanBig','kRealBig','bpmBig','bpmTargetLabel','avgPlanLabel','avgRealLabel','deviationTotalLabel','deviationSegmentLabel','realRateLabel','planRateLabel','waterCountLabel','upcomingBody','upcomingVisibleLabel','waterNextLabel','waterProgressBar','chipBle','chipPulse','chipSession','chipSaved','chipWater','chipAlerts','chipApp','chipTest','bleStatusLabel','bleBpmBig','ble5s','ble10s','ble30s','bleLastPkt','bleDeviceName','planInput','importOutput','versionLabel','pwaStateLabel','logBox','voiceSelect','voiceStatus','voiceVolumeRange','voiceVolumeVal','voiceRateRange','voiceRateVal','browserNotifyChk','voiceAlertsChk','beepAlertsChk','bleState','bleBattery','bleRR','wakeLockLabel','countdownOverlay','countdownRing','countdownNumber','countdownSub'];
 function cacheEls(){ids.forEach(id=>els[id]=$(id)); if(els.versionLabel) els.versionLabel.textContent=`${APP_VERSION} · ${BUILD}`;}
 function addLog(msg){const t=new Date().toTimeString().slice(0,8); state.logs.push(`[${t}] ${msg}`); if(state.logs.length>800) state.logs.shift(); if(els.logBox){els.logBox.textContent=state.logs.join('\n'); els.logBox.scrollTop=els.logBox.scrollHeight;}}
 function setPwaState(msg){ if(els.pwaStateLabel) els.pwaStateLabel.textContent = msg; }
@@ -14,6 +15,86 @@ function appUrl(path='index.html'){ return `./${path}?v=${APP_VERSION}&t=${Date.
 function setBleStatus(status, detail=''){
   state.ble.status = status;
   state.ble.detail = detail || '';
+}
+
+function sleep(ms){ return new Promise(r=>setTimeout(r, ms)); }
+function showCountdownUi(value, sub='EL EJERCICIO COMIENZA EN…', go=false){
+  if(!els.countdownOverlay) return;
+  els.countdownOverlay.classList.add('show');
+  els.countdownOverlay.setAttribute('aria-hidden','false');
+  if(els.countdownNumber) els.countdownNumber.textContent = String(value);
+  if(els.countdownSub) els.countdownSub.textContent = sub;
+  if(els.countdownOverlay) els.countdownOverlay.classList.toggle('countdown-go', !!go);
+}
+function hideCountdownUi(){
+  if(!els.countdownOverlay) return;
+  els.countdownOverlay.classList.remove('show','countdown-go');
+  els.countdownOverlay.setAttribute('aria-hidden','true');
+}
+function startSessionNow(origin='start'){
+  state.startTs = Date.now() - (state.elapsedSec*1000);
+  state.pauseTs = null;
+  state.phase='running';
+  state.lastSec = Math.max(-1, state.elapsedSec-1);
+  state.alerts.finished=false;
+  requestWakeLock();
+  addLog(`[SESSION] ${origin==='resume'?'Reanudada':'Iniciada'}`);
+  persist();
+  capturePoint(true);
+  renderAll();
+}
+async function runInitialCountdown(){
+  if(state.countdown.active) return;
+  state.countdown.active = true;
+  renderAll();
+  clearVoiceQueue('COUNTDOWN');
+  showCountdownUi(10);
+  for(let n=10; n>=1; n--){
+    showCountdownUi(n);
+    if(state.voice.beepEnabled) beep(n<=3?'critical':'info');
+    if(n<=3 && state.voice.enabled && state.voice.supported && state.voice.unlocked){
+      enqueueVoiceAdvanced(String(n),{priority:5,category:'countdown',key:`count_${n}_${Date.now()}`,cooldownMs:0,replaceCategory:true});
+    }
+    await sleep(1000);
+  }
+  showCountdownUi('COMIENZA', 'YA PUEDES EMPEZAR A DARLE', true);
+  if(state.voice.beepEnabled) beep('critical');
+  if(state.voice.enabled && state.voice.supported && state.voice.unlocked){
+    enqueueVoiceAdvanced('COMIENZA.',{priority:6,category:'countdown',key:`count_go_${Date.now()}`,cooldownMs:0,replaceCategory:true});
+  }
+  await sleep(700);
+  hideCountdownUi();
+  state.countdown.active = false;
+  startSessionNow('start');
+}
+function previewVoiceSettings(){
+  if(!state.voice.supported || !state.voice.unlocked) return;
+  clearVoiceQueue('PREVIEW VOZ');
+  enqueueVoiceAdvanced('PRUEBA RÁPIDA DE VOZ.',{priority:6,category:'preview',key:`preview_${Date.now()}`,cooldownMs:0,replaceCategory:true});
+}
+function updateTickerOverflow(){
+  const el=els.tickerMsg;
+  const box=el?.parentElement;
+  if(!el || !box) return;
+  el.classList.remove('scroll');
+  el.style.removeProperty('--ticker-travel');
+  el.style.removeProperty('--ticker-duration');
+  requestAnimationFrame(()=>{
+    const overflow = Math.ceil(el.scrollWidth - box.clientWidth);
+    if(overflow>12){
+      const travel = overflow + box.clientWidth + 36;
+      el.style.setProperty('--ticker-travel', `${travel}px`);
+      el.style.setProperty('--ticker-duration', `${Math.max(10, Math.round(travel/55))}s`);
+      el.classList.add('scroll');
+    }
+  });
+}
+function updateButtonDisabledStates(){
+  const needPlan=['startBtn','resetBtn','seekPlus60','seekPlus10','seekPlus5','seekPlus1','seekMinus1','seekMinus5','seekMinus10','seekMinus60','kPlus1','kPlus05','kPlus01','kMinus01','kMinus05','kMinus1','eqSegmentBtn'];
+  needPlan.forEach(id=>{ const el=$(id); if(el) el.disabled = !state.plan; });
+  const minuteBtn=$('exportMinuteBtn'); if(minuteBtn) minuteBtn.disabled = !buildMinuteRows().length;
+  const sessionBtn=$('exportSessionBtn'); if(sessionBtn) sessionBtn.disabled = !state.history.length;
+  const tramoBtn=$('exportTramoCsvBtn'); if(tramoBtn) tramoBtn.disabled = !buildSegmentSummary().length;
 }
 async function requestWakeLock(){
   try{
@@ -32,7 +113,7 @@ async function releaseWakeLock(){
   }catch(e){ addLog('[WAKE] release ERROR: '+(e.message||e)); }
 }
 function saveCompletedSession(reason='manual'){
-  const payload = {elapsedSec:currentElapsed(),kReal:currentRealKcal(),kPlan:currentPlanKcal(),summary:summaryText(),when:Date.now(),reason,version:APP_VERSION};
+  const payload = {elapsedSec:currentElapsed(),realElapsedSec:currentRealElapsed(),kReal:currentRealKcal(),kPlan:currentPlanKcal(),summary:summaryText(),when:Date.now(),reason,version:APP_VERSION};
   try{ localStorage.setItem(LAST_SESSION_KEY, JSON.stringify(payload)); addLog('[SAVE] Sesión final guardada'); }catch(e){ addLog('[SAVE] ERROR final: '+(e.message||e)); }
 }
 
@@ -173,7 +254,7 @@ function processVoiceQueue(){
   if(!item) return;
   const msg = item.msg || item;
   if(!state.voice.unlocked){ addLog('[VOICE] Pendiente de desbloqueo'); return; }
-  refreshVoices();
+  if(!state.voice.voices?.length) refreshVoices();
   const utter = new SpeechSynthesisUtterance(msg);
   const v = state.voice.voices.find(x=>x.voiceURI===state.voice.selectedURI) || selectBestVoice();
   if(v) utter.voice = v;
@@ -183,7 +264,18 @@ function processVoiceQueue(){
   utter.pitch = 1.0;
   utter.onstart = ()=>{ state.voice.speaking = true; addLog(`[VOICE] Hablando: ${msg}`); };
   utter.onend = ()=>{ state.voice.speaking = false; addLog('[VOICE] Fin'); if(state.voice.queue.length) setTimeout(processVoiceQueue,120); };
-  utter.onerror = e=>{ state.voice.speaking = false; addLog('[VOICE] ERROR: '+(e.error||e.message||e)); if(state.voice.queue.length) setTimeout(processVoiceQueue,120); };
+  utter.onerror = e=>{
+    state.voice.speaking = false;
+    const err=(e.error||e.message||e);
+    addLog('[VOICE] ERROR: '+err);
+    if((item.retries||0)<1){
+      state.voice.queue.unshift({...item,retries:(item.retries||0)+1,ts:Date.now()});
+      setTimeout(processVoiceQueue,250);
+      return;
+    }
+    if(state.voice.queue.length) setTimeout(processVoiceQueue,120);
+  };
+  try{ window.speechSynthesis.resume(); }catch(e){}
   window.speechSynthesis.speak(utter);
 }
 function testVoice(){ unlockVoice(); enqueueVoiceAdvanced('PRUEBA DE VOZ. PRÓXIMO CAMBIO EN TREINTA SEGUNDOS. FIN PREVISTA A LAS VEINTIUNA HORAS.',{priority:3,category:'test',key:'testVoice',cooldownMs:0,replaceCategory:true}); }
@@ -422,11 +514,12 @@ function bind(){
   B('copyChatgptBtn','copyChatgpt',()=>copyText(`PUNTO DE CONTROL\n\n${summaryText()}\n\nLOGS\n${state.logs.slice(-20).join('\n')}`));
   B('exportPlanBtn','exportPlan',exportPlan);
   B('clearAppDataBtn','clearAppData',clearAppData);
-  [['seekPlus60',60],['seekPlus30',30],['seekPlus10',10],['seekPlus5',5],['seekPlus1',1],['seekMinus1',-1],['seekMinus5',-5],['seekMinus10',-10],['seekMinus30',-30],['seekMinus60',-60]].forEach(([id,d])=>B(id,id,()=>seek(d)));
+  [['seekPlus60',60],['seekPlus10',10],['seekPlus5',5],['seekPlus1',1],['seekMinus1',-1],['seekMinus5',-5],['seekMinus10',-10],['seekMinus60',-60]].forEach(([id,d])=>B(id,id,()=>seek(d)));
+  B('eqSegmentBtn','eqSegment',equalizeSegmentKcal);
   [['kPlus1',1],['kPlus05',0.5],['kPlus01',0.1],['kMinus01',-0.1],['kMinus05',-0.5],['kMinus1',-1]].forEach(([id,d])=>B(id,id,()=>adjustReal(d)));
   if(els.voiceSelect) els.voiceSelect.addEventListener('change',ev=>{ state.voice.selectedURI = ev.target.value||''; const v=state.voice.voices.find(v=>v.voiceURI===state.voice.selectedURI); if(v) addLog(`[VOICE] Voz seleccionada manual: ${v.name} · ${v.lang}`); populateVoiceSelect(); });
-  if(els.voiceVolumeRange) els.voiceVolumeRange.addEventListener('input',ev=>{ state.voice.volume = Number(ev.target.value||1); syncVoiceUi(); addLog(`[VOICE] Volumen: ${state.voice.volume.toFixed(1)}`); });
-  if(els.voiceRateRange) els.voiceRateRange.addEventListener('input',ev=>{ state.voice.rate = Number(ev.target.value||1); syncVoiceUi(); addLog(`[VOICE] Velocidad: ${state.voice.rate.toFixed(2)}`); });
+  if(els.voiceVolumeRange) { els.voiceVolumeRange.addEventListener('input',ev=>{ state.voice.volume = Number(ev.target.value||1); syncVoiceUi(); addLog(`[VOICE] Volumen: ${state.voice.volume.toFixed(1)}`); }); els.voiceVolumeRange.addEventListener('change',()=>previewVoiceSettings()); }
+  if(els.voiceRateRange) { els.voiceRateRange.addEventListener('input',ev=>{ state.voice.rate = Number(ev.target.value||1); syncVoiceUi(); addLog(`[VOICE] Velocidad: ${state.voice.rate.toFixed(2)}`); }); els.voiceRateRange.addEventListener('change',()=>previewVoiceSettings()); }
   if(els.browserNotifyChk) els.browserNotifyChk.addEventListener('change',ev=>{ state.voice.browserNotify = !!ev.target.checked; syncVoiceUi(); addLog(`[NOTIF] Toggle navegador/reloj: ${state.voice.browserNotify?'ON':'OFF'}`); });
   if(els.voiceAlertsChk) els.voiceAlertsChk.addEventListener('change',ev=>{ state.voice.enabled = !!ev.target.checked; syncVoiceUi(); addLog(`[VOICE] Avisos hablados: ${state.voice.enabled?'ON':'OFF'}`); });
   if(els.beepAlertsChk) els.beepAlertsChk.addEventListener('change',ev=>{ state.voice.beepEnabled = !!ev.target.checked; syncVoiceUi(); addLog(`[AUDIO] Pitidos: ${state.voice.beepEnabled?'ON':'OFF'}`); });
@@ -436,7 +529,10 @@ function bind(){
 function round1(n){return Math.round(n*10)/10} function round2(n){return Math.round(n*100)/100} function fmt(sec){sec=Math.max(0,Math.round(sec)); const m=String(Math.floor(sec/60)).padStart(2,'0'); const s=String(sec%60).padStart(2,'0'); return `${m}:${s}`}
 function hm(d){return d?d.toTimeString().slice(0,5):'--:--'}
 function planDuration(){return state.plan?.segments?.reduce((a,s)=>a+s.durationSec,0)||0}
-function currentElapsed(){if(state.phase==='running'&&state.startTs!=null) return Math.max(0,Math.floor((Date.now()-state.startTs)/1000)); return state.elapsedSec||0}
+function realToMachineSec(realSec){ realSec=Math.max(0,Number(realSec||0)); return Math.max(0, Math.floor(realSec*MACHINE_TIME_FACTOR)); }
+function machineToRealSec(machineSec){ machineSec=Math.max(0,Number(machineSec||0)); return Math.max(0, Math.round(machineSec/MACHINE_TIME_FACTOR)); }
+function currentRealElapsed(){if(state.phase==='running'&&state.startTs!=null) return Math.max(0,Math.floor((Date.now()-state.startTs)/1000)); return state.elapsedSec||0}
+function currentElapsed(){return realToMachineSec(currentRealElapsed())}
 function currentSegInfo(sec=currentElapsed()){if(!state.plan) return null; let c=0; for(let i=0;i<state.plan.segments.length;i++){const seg=state.plan.segments[i]; if(sec < c+seg.durationSec) return {index:i,seg,startSec:c,endSec:c+seg.durationSec}; c+=seg.durationSec;} const last=state.plan.segments.at(-1); return last?{index:state.plan.segments.length-1,seg:last,startSec:c-last.durationSec,endSec:c}:null}
 function currentPlanKcal(){if(!state.plan) return 0; let rem=currentElapsed(), total=0; for(const seg of state.plan.segments){if(rem<=0) break; const used=Math.min(seg.durationSec, rem); total += seg.kcalTarget*(used/seg.durationSec); rem-=used;} return round1(total)}
 function currentRealKcal(){return Math.max(0, round1(currentPlanKcal()+state.realOffset))}
@@ -582,29 +678,29 @@ function normalizePlan(){const text=els.planInput.value.trim(); const p=parsePla
 async function copyText(txt){if(!txt) throw new Error('No hay texto'); try{if(navigator.clipboard&&window.isSecureContext){await navigator.clipboard.writeText(txt); return true}}catch(e){} const ta=document.createElement('textarea'); ta.value=txt; ta.setAttribute('readonly',''); ta.style.position='fixed'; ta.style.left='-9999px'; ta.style.opacity='0'; document.body.appendChild(ta); ta.focus(); ta.select(); ta.setSelectionRange(0, ta.value.length); let ok=false; try{ok=document.execCommand('copy')}catch(e){} ta.remove(); if(ok) return true; download(`copiado_${APP_VERSION}.txt`,txt,'text/plain;charset=utf-8'); addLog('[COPY] Portapapeles no disponible; descargado como TXT'); return false}
 function copyPlanText(){return copyText(els.planInput.value||'')}
 
-function toggleRun(){
+async function toggleRun(){
   if(!state.plan) throw new Error('Carga un plan primero');
+  if(state.countdown.active) return;
   if(state.phase==='running'){
-    state.elapsedSec=currentElapsed();
+    state.elapsedSec=currentRealElapsed();
     state.phase='paused';
     state.pauseTs=Date.now();
     state.startTs=null;
     releaseWakeLock();
     addLog('[SESSION] Pausada');
-  } else {
-    state.startTs = Date.now() - (state.elapsedSec*1000);
-    state.pauseTs = null;
-    state.phase='running';
-    state.lastSec = Math.max(-1, state.elapsedSec-1);
-    state.alerts.finished=false;
-    requestWakeLock();
-    clearVoiceQueue('START');
-    enqueueVoiceAdvanced('TRES. DOS. UNO. COMIENZA.',{priority:5,category:'start',key:'sessionStart',cooldownMs:0,replaceCategory:true});
-    addLog('[SESSION] Iniciada/reanudada');
+    persist();
+    renderAll();
+    return;
   }
-  persist();
-  capturePoint(true);
-  renderAll();
+  if(state.phase==='paused'){
+    startSessionNow('resume');
+    return;
+  }
+  if(currentElapsed()===0){
+    await runInitialCountdown();
+    return;
+  }
+  startSessionNow('start');
 }
 
 
@@ -632,16 +728,17 @@ function seek(delta){
   const dur=planDuration();
   const prev=currentElapsed();
   const next=Math.max(0,Math.min(dur,prev+delta));
-  state.elapsedSec=next;
+  const nextReal=machineToRealSec(next);
+  state.elapsedSec=nextReal;
   if(state.phase==='running'){
-    state.startTs=Date.now()-(next*1000);
+    state.startTs=Date.now()-(nextReal*1000);
   } else {
     state.startTs=null;
   }
   state.lastSec=prev;
   capturePoint(true);
   persist();
-  addLog(`[SEEK] ${delta>0?'+':''}${delta}s → ${fmt(next)}`);
+  addLog(`[SEEK] ${delta>0?'+':''}${delta}s → MÁQ ${fmt(next)} · REAL ${fmt(nextReal)}`);
   if(state.phase==='running') evaluateAlertsRange(prev, next, 'seek');
   renderAll();
 }
@@ -662,6 +759,20 @@ function adjustReal(delta){
   persist();
 }
 
+function equalizeSegmentKcal(){
+  if(!state.plan) throw new Error('Carga un plan primero');
+  capturePoint(true);
+  const info=currentSegInfo();
+  if(!info) throw new Error('No hay tramo actual');
+  const items=state.history.filter(x=>x.sec>=info.startSec && x.sec<=currentElapsed());
+  const first=items[0] || {kPlan: info.startSec?state.history.filter(x=>x.sec<=info.startSec).at(-1)?.kPlan||0:0, kReal: info.startSec?state.history.filter(x=>x.sec<=info.startSec).at(-1)?.kReal||0:0};
+  const desiredReal = round1((first.kReal||0) + (currentPlanKcal() - (first.kPlan||0)));
+  state.realOffset = round1(desiredReal - currentPlanKcal());
+  addLog(`[KCAL] tramo igualado → real ${desiredReal.toFixed(1)} · desvío tramo 0.0`);
+  renderAll();
+  persist();
+}
+
 function buildMinuteRows(){const rows=[]; for(let m=0;m<=Math.floor((state.history.at(-1)?.sec||0)/60);m++){const items=state.history.filter(x=>Math.floor(x.sec/60)===m); if(!items.length) continue; const first=items[0], last=items.at(-1); const bpmItems=items.filter(x=>x.bpm!=null); rows.push({minute:m,clock:fmt(m*60),level:last.level,segment:last.segment,kcalStart:first.kReal,kcalEnd:last.kReal,kcalMinute:round2(last.kReal-first.kReal),kcalPerMin:round2((last.kReal-first.kReal)/Math.max(1,(items.length/60))),bpmAvg:bpmItems.length?round1(bpmItems.reduce((a,b)=>a+b.bpm,0)/bpmItems.length):null})} return rows}
 function buildSegmentSummary(){const out=[]; if(!state.plan) return out; let cursor=0; for(const seg of state.plan.segments){const items=state.history.filter(x=>x.sec>=cursor&&x.sec<=cursor+seg.durationSec); const startPlan=items[0]?.kPlan??0, endPlan=items.at(-1)?.kPlan??startPlan, startReal=items[0]?.kReal??0, endReal=items.at(-1)?.kReal??startReal; const bpmItems=items.filter(x=>x.bpm!=null); out.push({segment:seg.id,level:seg.level,duration:fmt(seg.durationSec),kcalPlan:round1(endPlan-startPlan),kcalReal:round1(endReal-startReal),deviation:round1((endReal-startReal)-(endPlan-startPlan)),bpmAvg:bpmItems.length?round1(bpmItems.reduce((a,b)=>a+b.bpm,0)/bpmItems.length):null}); cursor+=seg.durationSec} return out}
 function renderTimeline(){const bar=els.timelineBar,mks=els.timelineMarkers; bar.querySelectorAll('.seg').forEach(n=>n.remove()); mks.innerHTML=''; if(!state.plan) return; const total=planDuration(); state.plan.segments.forEach(seg=>{const el=document.createElement('div'); el.className='seg'+(seg.isTest?' test':''); el.dataset.level=String(seg.level); el.style.setProperty('--flex',seg.durationSec); el.textContent=`${seg.id} · ${seg.level}`; bar.appendChild(el)}); let c=0; const add=(left,label,water=false)=>{const d=document.createElement('div'); d.className='mkr'; d.style.left=left+'%'; d.innerHTML=`<div class="stick" style="background:${water?'#60a5fa':'#fff'}"></div><div class="label">${label}</div>`; mks.appendChild(d)}; state.plan.segments.forEach(seg=>{add((c/total)*100,`${fmt(c)} ${seg.id}`); c+=seg.durationSec}); add(100,`${fmt(total)} Fin`); state.plan.water.forEach(w=>{const [mm,ss]=w.split(':').map(Number); const sec=mm*60+ss; add((sec/total)*100,`${w} 💧`,true)})}
@@ -671,11 +782,11 @@ function segmentDeviation(){const info=currentSegInfo(); if(!info) return 0; con
 function totalDeviation(){return round1(currentRealKcal()-currentPlanKcal())}
 function realRate(){const sec=Math.max(1,currentElapsed()); return round2(currentRealKcal()/(sec/60))}
 function planRateNeeded(){const remainSec=Math.max(1,planDuration()-currentElapsed()); const remainK=Math.max(0,(state.plan?.totalKcal||0)-currentRealKcal()); return round2(remainK/(remainSec/60))}
-function renderUpcoming(){const body=els.upcomingBody; body.innerHTML=''; if(!state.plan) return; const now=currentElapsed(), total=planDuration(), info=currentSegInfo(now), rows=[]; if(info) rows.push({en:'AHORA',hora:fmt(now),nivel:info.seg.level,tramo:info.seg.id,current:true}); let c=0; for(const seg of state.plan.segments){if(c>now&&rows.length<4) rows.push({en:fmt(c-now),hora:fmt(c),nivel:seg.level,tramo:seg.id}); c+=seg.durationSec} state.plan.water.forEach(w=>{const [m,s]=w.split(':').map(Number); const sec=m*60+s; if(sec>now&&rows.length<5) rows.push({en:fmt(sec-now),hora:w,nivel:'Agua',tramo:'💧'})}); rows.push({en:fmt(Math.max(0,total-now)),hora:fmt(total),nivel:'Fin',tramo:'Fin'}); rows.slice(0,5).forEach(r=>{const tr=document.createElement('tr'); if(r.current) tr.className='current'; tr.innerHTML=`<td>${r.en}</td><td>${r.hora}</td><td>${r.nivel}</td><td>${r.tramo}</td>`; body.appendChild(tr)}); els.upcomingVisibleLabel.textContent=`Cambios visibles: ${Math.max(0,rows.length-1)}`}
+function renderUpcoming(){const body=els.upcomingBody; body.innerHTML=''; if(!state.plan) return; const now=currentElapsed(), total=planDuration(), info=currentSegInfo(now), rows=[]; if(info) rows.push({en:'AHORA',hora:fmt(now),nivel:info.seg.level,tramo:info.seg.id,current:true,atSec:now}); let c=0; const future=[]; for(const seg of state.plan.segments){ if(c>now) future.push({atSec:c,en:fmt(c-now),hora:fmt(c),nivel:seg.level,tramo:seg.id,type:'segment'}); c+=seg.durationSec; } state.plan.water.forEach(w=>{ const [m,s]=w.split(':').map(Number); const sec=m*60+s; if(sec>now) future.push({atSec:sec,en:fmt(sec-now),hora:w,nivel:'Agua',tramo:'💧',type:'water'}); }); future.push({atSec:total,en:fmt(Math.max(0,total-now)),hora:fmt(total),nivel:'Fin',tramo:'Fin',type:'end'}); future.sort((a,b)=>a.atSec-b.atSec || (a.type==='water'?1:-1)); rows.push(...future.slice(0,4)); rows.slice(0,5).forEach(r=>{const tr=document.createElement('tr'); if(r.current) tr.className='current'; tr.innerHTML=`<td>${r.en}</td><td>${r.hora}</td><td>${r.nivel}</td><td>${r.tramo}</td>`; body.appendChild(tr)}); els.upcomingVisibleLabel.textContent=`Cambios visibles: ${Math.max(0,rows.length-1)}`}
 
 function renderTicker(){
   els.tickerNow.textContent=hm(new Date());
-  const eta=state.plan?new Date(Date.now()+Math.max(0,planDuration()-currentElapsed())*1000):null;
+  const eta=state.plan?new Date(Date.now()+machineToRealSec(Math.max(0,planDuration()-currentElapsed()))*1000):null;
   els.tickerEta.textContent='FIN '+hm(eta);
   const msgs=[];
   const info=currentSegInfo();
@@ -684,18 +795,20 @@ function renderTicker(){
   const real=realRate();
   const next=nextChangeInfo();
   const water=nextWaterInfo();
-  if(info){msgs.push({t:`▶ ESTADO ACTUAL · TRAMO ${info.seg.id} · NIVEL ${info.seg.level} · DESVÍO TRAMO ${segDev>=0?'+':''}${segDev.toFixed(1)} KCAL · RITMO ${real.toFixed(2)} KCAL/MIN`,c:Math.abs(segDev)>=3?'warn':'good'});}
-  if(next){msgs.push({t:`⏭ PRÓXIMO CAMBIO EN ${fmt(next.inSec)} · TRAMO ${next.seg.id} · NIVEL ${next.seg.level}`,c:'warn'});}
-  if(water){msgs.push({t:`💧 PRÓXIMA TOMA DE AGUA EN ${fmt(water.inSec)} · HORA ${water.at}`,c:'warn'});}
-  msgs.push({t:`📈 DESVÍO TOTAL ${totalDev>=0?'+':''}${totalDev.toFixed(1)} KCAL · PLAN ${currentPlanKcal().toFixed(1)} · REALES ${currentRealKcal().toFixed(1)}`,c:Math.abs(totalDev)>=6?'bad':'good'});
-  if(state.ble.connected){msgs.push({t:`📶 BLE CONECTADO · ${state.ble.deviceName||'PULSÓMETRO'} · BPM ${bpmDisplay()?.toFixed(1)??'--.-'} · 5S ${avgBpmWindow(5)?.toFixed(1)??'--.-'}`,c:'good'});} else {msgs.push({t:'📶 BLE DESCONECTADO · PULSA CONECTAR PULSÓMETRO',c:'bad'});}
-  if(state.phase==='running'){msgs.push({t:`⏱ SESIÓN CORRIENDO · RESTAN ${fmt(Math.max(0,planDuration()-currentElapsed()))} · FIN ${hm(eta)}`,c:''});}
+  if(info){msgs.push({t:`TRAMO ${info.seg.id} · NIVEL ${info.seg.level} · DESVÍO ${segDev>=0?'+':''}${segDev.toFixed(1)} KCAL · RITMO ${real.toFixed(2)} KCAL/MIN`,c:Math.abs(segDev)>=3?'warn':'good'});}
+  if(next){msgs.push({t:`PRÓXIMO CAMBIO EN ${fmt(next.inSec)} · TRAMO ${next.seg.id} · NIVEL ${next.seg.level}`,c:'warn'});}
+  if(water){msgs.push({t:`AGUA EN ${fmt(water.inSec)} · HORA ${water.at}`,c:'warn'});}
+  msgs.push({t:`DESVÍO TOTAL ${totalDev>=0?'+':''}${totalDev.toFixed(1)} KCAL · PLAN ${currentPlanKcal().toFixed(1)} · REAL ${currentRealKcal().toFixed(1)}`,c:Math.abs(totalDev)>=6?'bad':'good'});
+  if(state.ble.connected){msgs.push({t:`BLE OK · ${state.ble.deviceName||'PULSÓMETRO'} · BPM ${bpmDisplay()?.toFixed(1)??'--.-'} · 5S ${avgBpmWindow(5)?.toFixed(1)??'--.-'}`,c:'good'});} else {msgs.push({t:'BLE DESCONECTADO · PULSA CONECTAR PULSÓMETRO',c:'bad'});}
+  if(state.phase==='running'){msgs.push({t:`SESIÓN CORRIENDO · RESTAN ${fmt(Math.max(0,planDuration()-currentElapsed()))} · FIN ${hm(eta)}`,c:''});}
+  if(state.countdown.active){msgs.push({t:'CUENTA ATRÁS DE INICIO EN MARCHA',c:'warn'});}
   if(!msgs.length) msgs.push({t:'APP LISTA PARA EMPEZAR',c:''});
   const now=Date.now();
   if(!state.bannerLastChange||now-state.bannerLastChange>state.bannerHoldMs){state.bannerIndex=(state.bannerIndex+1)%msgs.length; state.bannerLastChange=now;}
   const msg=msgs[state.bannerIndex]||msgs[0];
   els.tickerMsg.textContent=msg.t.toUpperCase();
   els.tickerMsg.className='ticker-msg'+(msg.c?' '+msg.c:'');
+  updateTickerOverflow();
 }
 function renderWater(){ const next=nextWaterInfo(); const total=(state.plan?.water||[]).length; const done=(state.plan?.water||[]).filter(w=>{const [m,s]=w.split(':').map(Number); return (m*60+s)<=currentElapsed();}).length; els.waterCountLabel.textContent=`${done} / ${total}`; if(!next){ els.waterNextLabel.textContent = total? 'TOMAS COMPLETADAS' : 'SIN TOMA PENDIENTE'; els.waterProgressBar.style.width='100%'; return; } const [m,s]=next.at.split(':').map(Number); const atSec=m*60+s; const prev=(state.plan?.water||[]).map(w=>{const [mm,ss]=w.split(':').map(Number); return mm*60+ss}).filter(v=>v<atSec).sort((a,b)=>a-b).at(-1) ?? 0; const span=Math.max(1,atSec-prev); const pct=Math.min(100,Math.max(0,((currentElapsed()-prev)/span)*100)); els.waterNextLabel.textContent=`PRÓXIMA EN ${fmt(next.inSec)} · ${next.at}`; els.waterProgressBar.style.width=pct+'%'; }
 function setChip(el, text, kind){ if(!el) return; el.textContent=text; el.classList.remove('ok','warn','bad'); if(kind) el.classList.add(kind); } 
@@ -736,10 +849,10 @@ function renderStatus(){
 
 
 function renderMetrics(){
-  const sec=currentElapsed(), info=currentSegInfo(sec), bpm=bpmDisplay();
+  const sec=currentElapsed(), realSec=currentRealElapsed(), info=currentSegInfo(sec), bpm=bpmDisplay();
   $('startBtn').textContent = state.phase==='running' ? '⏸ Pausa' : (state.phase==='paused' ? '▶ Reanudar' : '▶ Empezar');
   els.timeBig.textContent=fmt(sec);
-  els.timeRealLabel.textContent=`REAL ${fmt(sec)}`;
+  els.timeRealLabel.textContent=`REAL ${fmt(realSec)} · MÁQ ${fmt(sec)}`;
   els.kPlanBig.textContent=currentPlanKcal().toFixed(1);
   els.kRealBig.textContent=currentRealKcal().toFixed(1);
   els.bpmBig.textContent=bpm==null?'--.-':round1(bpm).toFixed(1);
@@ -776,16 +889,16 @@ function renderMetrics(){
   els.waterCountLabel.textContent=`${doneWater} / ${totalWater}`;
   els.sessionBadge.textContent=state.phase==='running'?'Corriendo':state.phase==='paused'?'Pausada':'Lista';
   const startBtn=$('startBtn');
-  if(startBtn) startBtn.textContent=state.phase==='running'?'⏸ Pausa':state.phase==='paused'?'▶ Reanudar':'▶ Empezar';
+  if(startBtn) startBtn.textContent=state.countdown.active?'⏳ Cuenta atrás':state.phase==='running'?'⏸ Pausa':state.phase==='paused'?'▶ Reanudar':'▶ Empezar';
   if(state.plan) els.planTitle.textContent=state.plan.title;
 }
 
 function renderPlayhead(){const pct=planDuration()?Math.min(100,(currentElapsed()/planDuration())*100):0; els.playhead.style.left=pct+'%'}
-function renderAll(){renderMetrics(); renderPlayhead(); renderUpcoming(); renderWater(); renderStatus(); renderTicker()}
+function renderAll(){renderMetrics(); renderPlayhead(); renderUpcoming(); renderWater(); renderStatus(); renderTicker(); updateButtonDisabledStates()}
 
 function persist(){
   try{
-    const payload={version:APP_VERSION,plan:state.plan,phase:state.phase,startTs:state.startTs,pausedAccumMs:state.pausedAccumMs,pauseTs:state.pauseTs,elapsedSec:currentElapsed(),realOffset:state.realOffset,history:state.history.slice(-5000)};
+    const payload={version:APP_VERSION,plan:state.plan,phase:state.phase,startTs:state.startTs,pausedAccumMs:state.pausedAccumMs,pauseTs:state.pauseTs,elapsedSec:currentRealElapsed(),machineElapsedSec:currentElapsed(),realOffset:state.realOffset,history:state.history.slice(-5000)};
     localStorage.setItem(STATE_KEY,JSON.stringify(payload));
     localStorage.setItem(VERSIONED_STATE_KEY,JSON.stringify(payload));
   }catch(e){addLog('[SAVE] ERROR: '+(e.message||e))}
@@ -808,7 +921,7 @@ function loadPersisted(){
   }catch(e){addLog('[LOAD] ERROR: '+(e.message||e))}
 }
 function resumeSavedSession(){loadPersisted(); renderAll(); if(state.plan) addLog('[LOAD] Reanudada desde guardado local'); else throw new Error('No hay sesión guardada')}
-function summaryText(){const segs=buildSegmentSummary(); const lines=[`ELÍPTICA ${APP_VERSION}`,`Tiempo: ${fmt(currentElapsed())}`,`Kcal plan: ${currentPlanKcal().toFixed(1)}`,`Kcal real: ${currentRealKcal().toFixed(1)}`,`Desvío total: ${totalDeviation().toFixed(1)} kcal`,`Ritmo real: ${realRate().toFixed(2)} kcal/min`,`Pulso: ${bpmDisplay()?.toFixed(1)??'--.-'}`,'']; segs.forEach(s=>lines.push(`${s.segment} · N${s.level} · plan ${s.kcalPlan} · real ${s.kcalReal} · desvío ${s.deviation}`)); return lines.join('\n')}
+function summaryText(){const segs=buildSegmentSummary(); const lines=[`ELÍPTICA ${APP_VERSION}`,`Tiempo máquina: ${fmt(currentElapsed())}`,`Tiempo real: ${fmt(currentRealElapsed())}`,`Kcal plan: ${currentPlanKcal().toFixed(1)}`,`Kcal real: ${currentRealKcal().toFixed(1)}`,`Desvío total: ${totalDeviation().toFixed(1)} kcal`,`Ritmo real: ${realRate().toFixed(2)} kcal/min`,`Pulso: ${bpmDisplay()?.toFixed(1)??'--.-'}`,'']; segs.forEach(s=>lines.push(`${s.segment} · N${s.level} · plan ${s.kcalPlan} · real ${s.kcalReal} · desvío ${s.deviation}`)); return lines.join('\n')}
 
 function showFinalSummary(){
   const txt=summaryText();
@@ -818,7 +931,7 @@ function showFinalSummary(){
 }
 
 function download(name, content, mime='text/plain;charset=utf-8'){const blob=new Blob([content],{type:mime}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(url),500)}
-function exportJson(){download(`eliptica_${APP_VERSION}.json`,JSON.stringify({version:APP_VERSION,build:BUILD,plan:state.plan,current:{elapsedSec:currentElapsed(),kPlan:currentPlanKcal(),kReal:currentRealKcal(),bpm:bpmDisplay()},history:state.history,segmentSummary:buildSegmentSummary(),logs:state.logs},null,2),'application/json'); addLog('[EXPORT] JSON exportado'); if(els.importOutput) els.importOutput.textContent='JSON exportado'}
+function exportJson(){download(`eliptica_${APP_VERSION}.json`,JSON.stringify({version:APP_VERSION,build:BUILD,plan:state.plan,current:{elapsedSec:currentElapsed(),realElapsedSec:currentRealElapsed(),kPlan:currentPlanKcal(),kReal:currentRealKcal(),bpm:bpmDisplay()},history:state.history,segmentSummary:buildSegmentSummary(),logs:state.logs},null,2),'application/json'); addLog('[EXPORT] JSON exportado'); if(els.importOutput) els.importOutput.textContent='JSON exportado'}
 function exportSessionCsv(){if(!state.history.length) throw new Error('No hay datos segundo a segundo'); const rows=['seg;clock;level;segment;kcal_plan;kcal_real;bpm']; state.history.forEach(h=>rows.push([h.sec,h.clock,h.level,h.segment,h.kPlan,h.kReal,h.bpm??''].join(';'))); download(`sesion_${APP_VERSION}.csv`,'\ufeff'+rows.join('\r\n'),'text/csv;charset=utf-8'); addLog('[EXPORT] Sesión CSV exportada')}
 function exportMinuteCsv(){const rowsData=buildMinuteRows(); if(!rowsData.length) throw new Error('No hay datos minuto a minuto todavía'); const rows=['minute;clock;level;segment;kcal_start;kcal_end;kcal_minute;kcal_per_min;bpm_avg']; rowsData.forEach(r=>rows.push([r.minute,r.clock,r.level,r.segment,r.kcalStart,r.kcalEnd,r.kcalMinute,r.kcalPerMin,r.bpmAvg??''].join(';'))); download(`minuto_${APP_VERSION}.csv`,'\ufeff'+rows.join('\r\n'),'text/csv;charset=utf-8'); addLog('[EXPORT] Minuto a minuto exportado')}
 function exportTramoCsv(){const segs=buildSegmentSummary(); if(!segs.length) throw new Error('No hay datos por tramo'); const rows=['segment;level;duration;kcal_plan;kcal_real;deviation;bpm_avg']; segs.forEach(s=>rows.push([s.segment,s.level,s.duration,s.kcalPlan,s.kcalReal,s.deviation,s.bpmAvg??''].join(';'))); download(`tramos_${APP_VERSION}.csv`,'\ufeff'+rows.join('\r\n'),'text/csv;charset=utf-8'); addLog('[EXPORT] CSV por tramos exportado')}
@@ -1100,6 +1213,7 @@ function init(){
   cacheEls(); bind(); registerSW(); loadPersisted();
   state.voice.browserNotify = ('Notification' in window && Notification.permission==='granted');
   addLog(`[STARTUP] ${APP_VERSION} · ${BUILD}`);
+  addLog('[TIME] Calibración máquina activa: -1 s por minuto');
   addLog('[STARTUP] UI enlazada y bucles iniciados');
   setPwaState(`Eliptica PWA ${APP_VERSION} iniciada. Esperando estado de PWA…`);
   window.addEventListener('online', ()=>{ addLog('[NET] online'); setPwaState(`Conexión recuperada · ${APP_VERSION}`); });
