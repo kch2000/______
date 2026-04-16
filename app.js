@@ -1,7 +1,7 @@
 (() => {
 'use strict';
-const APP_VERSION='v64';
-const BUILD='2026-04-15 12:10';
+const APP_VERSION='v65';
+const BUILD='2026-04-16 10:20';
 const $=id=>document.getElementById(id);
 const STATE_KEY='eliptica_state_current'; const VERSIONED_STATE_KEY=`eliptica_state_${APP_VERSION}`; const LAST_SESSION_KEY='lastCompletedSession'; const state={phase:'idle',countdown:{active:false},plan:null,startTs:null,pausedAccumMs:0,pauseTs:null,elapsedSec:0,machineOffsetSec:0,lastSec:-1,realOffset:0,history:[],logs:[],installPrompt:null,bannerIndex:0,bannerHoldMs:5000,bannerLastChange:0,bpmSamples:[],swReg:null,lastActionTs:0,lastRenderTick:0,wakeLock:null,voice:{supported:('speechSynthesis' in window),unlocked:false,enabled:true,voices:[],selectedURI:'',queue:[],speaking:false,lastByKey:{},volume:1,rate:1,browserNotify:false,beepEnabled:true},audio:{ctx:null,unlocked:false},alerts:{lastKey:{},lastSecChecked:-1,lastNotifTs:0,finished:false},ble:{device:null,server:null,hrChar:null,connected:false,lastPacketTs:0,deviceName:'',autoAttempted:false,status:'EMparejar requerido',detail:'',reconnectAttempts:0,reconnectTimer:null,battery:null,lastRR:null}};
 const els={};
@@ -871,9 +871,10 @@ function renderStatus(){
 
 
 function renderMetrics(){
-  const sec=currentElapsed(), realSec=currentRealElapsed(), info=currentSegInfo(sec), bpm=bpmDisplay();
-  $('startBtn').textContent = state.phase==='running' ? '⏸ Pausa' : (state.phase==='paused' ? '▶ Reanudar' : '▶ Empezar');
-  els.timeBig.textContent=fmt(machineRawSec);
+  const sec=currentElapsed(), realSec=currentRealElapsed(), machineRawSec=currentMachineElapsedRaw(), info=currentSegInfo(sec), bpm=bpmDisplay();
+  const startBtnNode=$('startBtn');
+  if(startBtnNode) startBtnNode.textContent = state.phase==='running' ? '⏸ Pausa' : (state.phase==='paused' ? '▶ Reanudar' : '▶ Empezar');
+  if(els.timeBig) els.timeBig.textContent=fmt(machineRawSec);
   els.timeRealLabel.textContent=`REAL ${fmt(realSec)} · PLAN ${fmt(sec)} · AJ ${state.machineOffsetSec>=0?'+':'-'}${fmt(Math.abs(state.machineOffsetSec||0))}`;
   els.kPlanBig.textContent=currentPlanKcal().toFixed(1);
   els.kRealBig.textContent=currentRealKcal().toFixed(1);
@@ -916,7 +917,7 @@ function renderMetrics(){
 }
 
 function renderPlayhead(){const pct=planDuration()?Math.min(100,(currentElapsed()/planDuration())*100):0; els.playhead.style.left=pct+'%'}
-function renderAll(){renderMetrics(); renderPlayhead(); renderUpcoming(); renderWater(); renderStatus(); renderTicker(); updateButtonDisabledStates()}
+function renderAll(){try{renderMetrics(); renderPlayhead(); renderUpcoming(); renderWater(); renderStatus(); renderTicker(); updateButtonDisabledStates()}catch(e){addLog('[RENDER] ERROR: '+(e?.message||e)); console.error(e);}}
 
 function persist(){
   try{
@@ -1235,8 +1236,8 @@ function init(){
   cacheEls(); bind(); registerSW(); loadPersisted();
   state.voice.browserNotify = ('Notification' in window && Notification.permission==='granted');
   addLog(`[STARTUP] ${APP_VERSION} · ${BUILD}`);
-  addLog('[TIME] Calibración máquina activa: -1 s por minuto');
-  addLog(`[TIME] Factor máquina activo: ${MACHINE_TIME_FACTOR.toFixed(6)} (${fmt(Math.round(32*60*MACHINE_TIME_FACTOR))} por 32:00 reales)`); addLog('[STARTUP] UI enlazada y bucles iniciados');
+  addLog(`[TIME] Factor máquina activo: ${MACHINE_TIME_FACTOR.toFixed(6)} (${fmt(Math.round(32*60*MACHINE_TIME_FACTOR))} por 32:00 reales)`);
+  addLog('[STARTUP] UI enlazada y bucles iniciados');
   setPwaState(`Eliptica PWA ${APP_VERSION} iniciada. Esperando estado de PWA…`);
   window.addEventListener('online', ()=>{ addLog('[NET] online'); setPwaState(`Conexión recuperada · ${APP_VERSION}`); });
   window.addEventListener('offline', ()=>{ addLog('[NET] offline'); setPwaState('Sin conexión. La app sigue con caché local.'); });
@@ -1253,5 +1254,7 @@ function init(){
   verifyAll(); renderAll(); startLoops(); tryAutoBLE();
 }
 
+window.addEventListener('error', e=>{ try{ addLog('[RUNTIME] ERROR: '+(e?.message||e)); }catch{} });
+window.addEventListener('unhandledrejection', e=>{ try{ addLog('[RUNTIME] PROMISE: '+(e?.reason?.message||e?.reason||e)); }catch{} });
 window.addEventListener('DOMContentLoaded', init);
 })();
