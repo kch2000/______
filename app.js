@@ -1,11 +1,11 @@
 (() => {
 'use strict';
-const APP_VERSION='v62';
-const BUILD='2026-04-10 14:20';
+const APP_VERSION='v64';
+const BUILD='2026-04-15 12:10';
 const $=id=>document.getElementById(id);
-const STATE_KEY='eliptica_state_current'; const VERSIONED_STATE_KEY=`eliptica_state_${APP_VERSION}`; const LAST_SESSION_KEY='lastCompletedSession'; const state={phase:'idle',countdown:{active:false},plan:null,startTs:null,pausedAccumMs:0,pauseTs:null,elapsedSec:0,lastSec:-1,realOffset:0,history:[],logs:[],installPrompt:null,bannerIndex:0,bannerHoldMs:5000,bannerLastChange:0,bpmSamples:[],swReg:null,lastActionTs:0,lastRenderTick:0,wakeLock:null,voice:{supported:('speechSynthesis' in window),unlocked:false,enabled:true,voices:[],selectedURI:'',queue:[],speaking:false,lastByKey:{},volume:1,rate:1,browserNotify:false,beepEnabled:true},audio:{ctx:null,unlocked:false},alerts:{lastKey:{},lastSecChecked:-1,lastNotifTs:0,finished:false},ble:{device:null,server:null,hrChar:null,connected:false,lastPacketTs:0,deviceName:'',autoAttempted:false,status:'EMparejar requerido',detail:'',reconnectAttempts:0,reconnectTimer:null,battery:null,lastRR:null}};
+const STATE_KEY='eliptica_state_current'; const VERSIONED_STATE_KEY=`eliptica_state_${APP_VERSION}`; const LAST_SESSION_KEY='lastCompletedSession'; const state={phase:'idle',countdown:{active:false},plan:null,startTs:null,pausedAccumMs:0,pauseTs:null,elapsedSec:0,machineOffsetSec:0,lastSec:-1,realOffset:0,history:[],logs:[],installPrompt:null,bannerIndex:0,bannerHoldMs:5000,bannerLastChange:0,bpmSamples:[],swReg:null,lastActionTs:0,lastRenderTick:0,wakeLock:null,voice:{supported:('speechSynthesis' in window),unlocked:false,enabled:true,voices:[],selectedURI:'',queue:[],speaking:false,lastByKey:{},volume:1,rate:1,browserNotify:false,beepEnabled:true},audio:{ctx:null,unlocked:false},alerts:{lastKey:{},lastSecChecked:-1,lastNotifTs:0,finished:false},ble:{device:null,server:null,hrChar:null,connected:false,lastPacketTs:0,deviceName:'',autoAttempted:false,status:'EMparejar requerido',detail:'',reconnectAttempts:0,reconnectTimer:null,battery:null,lastRR:null}};
 const els={};
-const MACHINE_TIME_FACTOR=2478/2520;
+const MACHINE_TIME_FACTOR=121/120; // 32:16 máquina real por 32:00 tiempo real
 const ids=['timelineBar','timelineMarkers','playhead','tickerNow','tickerMsg','tickerEta','sessionBadge','planTitle','timeBig','timeRealLabel','kPlanBig','kRealBig','bpmBig','bpmTargetLabel','avgPlanLabel','avgRealLabel','deviationTotalLabel','deviationSegmentLabel','realRateLabel','planRateLabel','waterCountLabel','upcomingBody','upcomingVisibleLabel','waterNextLabel','waterProgressBar','chipBle','chipPulse','chipSession','chipSaved','chipWater','chipAlerts','chipApp','chipTest','bleStatusLabel','bleBpmBig','ble5s','ble10s','ble30s','bleLastPkt','bleDeviceName','planInput','importOutput','versionLabel','pwaStateLabel','logBox','voiceSelect','voiceStatus','voiceVolumeRange','voiceVolumeVal','voiceRateRange','voiceRateVal','browserNotifyChk','voiceAlertsChk','beepAlertsChk','bleState','bleBattery','bleRR','wakeLockLabel','countdownOverlay','countdownRing','countdownNumber','countdownSub'];
 function cacheEls(){ids.forEach(id=>els[id]=$(id)); if(els.versionLabel) els.versionLabel.textContent=`${APP_VERSION} · ${BUILD}`;}
 function addLog(msg){const t=new Date().toTimeString().slice(0,8); state.logs.push(`[${t}] ${msg}`); if(state.logs.length>800) state.logs.shift(); if(els.logBox){els.logBox.textContent=state.logs.join('\n'); els.logBox.scrollTop=els.logBox.scrollHeight;}}
@@ -113,7 +113,7 @@ async function releaseWakeLock(){
   }catch(e){ addLog('[WAKE] release ERROR: '+(e.message||e)); }
 }
 function saveCompletedSession(reason='manual'){
-  const payload = {elapsedSec:currentElapsed(),realElapsedSec:currentRealElapsed(),kReal:currentRealKcal(),kPlan:currentPlanKcal(),summary:summaryText(),when:Date.now(),reason,version:APP_VERSION};
+  const payload = {elapsedSec:currentElapsed(),realElapsedSec:currentRealElapsed(),machineOffsetSec:state.machineOffsetSec||0,kReal:currentRealKcal(),kPlan:currentPlanKcal(),summary:summaryText(),when:Date.now(),reason,version:APP_VERSION};
   try{ localStorage.setItem(LAST_SESSION_KEY, JSON.stringify(payload)); addLog('[SAVE] Sesión final guardada'); }catch(e){ addLog('[SAVE] ERROR final: '+(e.message||e)); }
 }
 
@@ -480,7 +480,7 @@ function bind(){
     el.addEventListener('keydown', ev=>{ if(ev.key==='Enter' || ev.key===' '){ ev.preventDefault?.(); ev.stopPropagation?.(); handler(ev); } });
   };
   B('applyPlanBtn','applyPlan',applyPlan);
-  B('copyPlanBtn','copyPlan',copyPlanText);
+  B('copyPlanBtn','copyPlan',async()=>{ await copyPlanText(); if(els.importOutput) els.importOutput.textContent='PLAN COPIADO'; });
   B('previewPlanBtn','previewPlan',previewPlan);
   B('normalizePlanBtn','normalizePlan',normalizePlan);
   B('clearPlanBtn','clearPlan',()=>{els.planInput.value=''; els.importOutput.textContent=''; state.plan=null; renderAll();});
@@ -499,8 +499,8 @@ function bind(){
   B('testVoiceBtn','testVoice',testVoice);
   B('copyLogBtn','copyLog',async()=>{
     const txt = state.logs.join('\n');
-    try{ await copyText(txt); addLog('[LOG] Copiado'); }
-    catch(e){ download(`log_${APP_VERSION}.txt`, txt); addLog('[LOG] Descargado como TXT'); }
+    try{ await copyText(txt); addLog('[LOG] Copiado'); if(els.importOutput) els.importOutput.textContent='LOG COPIADO'; }
+    catch(e){ download(`log_${APP_VERSION}.txt`, txt); addLog('[LOG] Descargado como TXT'); if(els.importOutput) els.importOutput.textContent='LOG DESCARGADO'; }
   });
   B('verifyAllBtn','verifyAll',verifyAll);
   B('exportSessionBtn','exportSession',exportSessionCsv);
@@ -529,10 +529,20 @@ function bind(){
 function round1(n){return Math.round(n*10)/10} function round2(n){return Math.round(n*100)/100} function fmt(sec){sec=Math.max(0,Math.round(sec)); const m=String(Math.floor(sec/60)).padStart(2,'0'); const s=String(sec%60).padStart(2,'0'); return `${m}:${s}`}
 function hm(d){return d?d.toTimeString().slice(0,5):'--:--'}
 function planDuration(){return state.plan?.segments?.reduce((a,s)=>a+s.durationSec,0)||0}
-function realToMachineSec(realSec){ realSec=Math.max(0,Number(realSec||0)); return Math.max(0, Math.floor(realSec*MACHINE_TIME_FACTOR)); }
-function machineToRealSec(machineSec){ machineSec=Math.max(0,Number(machineSec||0)); return Math.max(0, Math.round(machineSec/MACHINE_TIME_FACTOR)); }
-function currentRealElapsed(){if(state.phase==='running'&&state.startTs!=null) return Math.max(0,Math.floor((Date.now()-state.startTs)/1000)); return state.elapsedSec||0}
-function currentElapsed(){return realToMachineSec(currentRealElapsed())}
+function clampPlanSec(sec){
+  const max = state.plan ? planDuration() : Infinity;
+  return Math.max(0, Math.min(max, Math.round(Number(sec||0))));
+}
+function currentRealElapsed(){
+  if(state.phase==='running'&&state.startTs!=null) return Math.max(0,Math.floor((Date.now()-state.startTs)/1000));
+  return Math.max(0, Math.round(state.elapsedSec||0));
+}
+function currentMachineElapsedRaw(){
+  return Math.max(0, Math.round(currentRealElapsed()*MACHINE_TIME_FACTOR + (state.machineOffsetSec||0)));
+}
+function currentElapsed(){
+  return clampPlanSec(currentMachineElapsedRaw());
+}
 function currentSegInfo(sec=currentElapsed()){if(!state.plan) return null; let c=0; for(let i=0;i<state.plan.segments.length;i++){const seg=state.plan.segments[i]; if(sec < c+seg.durationSec) return {index:i,seg,startSec:c,endSec:c+seg.durationSec}; c+=seg.durationSec;} const last=state.plan.segments.at(-1); return last?{index:state.plan.segments.length-1,seg:last,startSec:c-last.durationSec,endSec:c}:null}
 function currentPlanKcal(){if(!state.plan) return 0; let rem=currentElapsed(), total=0; for(const seg of state.plan.segments){if(rem<=0) break; const used=Math.min(seg.durationSec, rem); total += seg.kcalTarget*(used/seg.durationSec); rem-=used;} return round1(total)}
 function currentRealKcal(){return Math.max(0, round1(currentPlanKcal()+state.realOffset))}
@@ -659,6 +669,7 @@ function applyPlan(){
   state.pauseTs=null;
   state.pausedAccumMs=0;
   state.lastSec=-1;
+  state.machineOffsetSec=0;
   state.realOffset=0;
   state.history=[];
   state.alerts.lastSecChecked=-1;
@@ -676,7 +687,7 @@ function applyPlan(){
 function previewPlan(){const text=els.planInput.value.trim(); const p=parsePlan(text); els.importOutput.textContent=`TRAMOS: ${p.segments.length}\nDURACIÓN: ${p.totalTime||fmt(p.segments.reduce((a,s)=>a+s.durationSec,0))}\nKCAL: ~${Math.round(p.totalKcal||p.segments.reduce((a,s)=>a+s.kcalTarget,0))}\nAGUA: ${p.water.join(', ')||'ninguna'}\nTESTS: ${p.segments.filter(s=>s.isTest).map(s=>s.id).join(', ')||'ninguno'}`;}
 function normalizePlan(){const text=els.planInput.value.trim(); const p=parsePlan(text); els.planInput.value=normalizeText(p);}
 async function copyText(txt){if(!txt) throw new Error('No hay texto'); try{if(navigator.clipboard&&window.isSecureContext){await navigator.clipboard.writeText(txt); return true}}catch(e){} const ta=document.createElement('textarea'); ta.value=txt; ta.setAttribute('readonly',''); ta.style.position='fixed'; ta.style.left='-9999px'; ta.style.opacity='0'; document.body.appendChild(ta); ta.focus(); ta.select(); ta.setSelectionRange(0, ta.value.length); let ok=false; try{ok=document.execCommand('copy')}catch(e){} ta.remove(); if(ok) return true; download(`copiado_${APP_VERSION}.txt`,txt,'text/plain;charset=utf-8'); addLog('[COPY] Portapapeles no disponible; descargado como TXT'); return false}
-function copyPlanText(){return copyText(els.planInput.value||'')}
+function copyPlanText(){ const txt=(els.planInput?.value||'').trim() || (state.plan?normalizeText(): ''); return copyText(txt) }
 
 async function toggleRun(){
   if(!state.plan) throw new Error('Carga un plan primero');
@@ -710,6 +721,7 @@ function resetSession(){
   state.pauseTs=null;
   state.pausedAccumMs=0;
   state.elapsedSec=0;
+  state.machineOffsetSec=0;
   state.realOffset=0;
   state.history=[];
   state.lastSec=-1;
@@ -721,25 +733,35 @@ function resetSession(){
   addLog('[SESSION] Reseteada');
 }
 
-function capturePoint(force=false){if(!state.plan) return; const sec=currentElapsed(); const prevSec = state.lastSec; if(!force&&sec===state.lastSec) return; const info=currentSegInfo(sec); const point={sec,clock:fmt(sec),level:info?.seg?.level??null,segment:info?.seg?.id??null,kPlan:currentPlanKcal(),kReal:currentRealKcal(),bpm:bpmDisplay(),ts:Date.now()}; const h=state.history; if(h.length&&h[h.length-1].sec===sec) h[h.length-1]=point; else h.push(point); if(h.length>10000) h.shift(); state.lastSec=sec; if(prevSec>=0) evaluateAlertsRange(prevSec, sec, force?'force':'tick'); }
+function capturePoint(force=false){if(!state.plan) return; const sec=currentElapsed(); const prevSec = state.lastSec; if(!force&&sec===state.lastSec) return; const info=currentSegInfo(sec); const realSec=currentRealElapsed(); const machineRawSec=currentMachineElapsedRaw(); const point={sec,realSec,machineRawSec,clock:fmt(sec),realClock:fmt(realSec),machineRawClock:fmt(machineRawSec),level:info?.seg?.level??null,segment:info?.seg?.id??null,kPlan:currentPlanKcal(),kReal:currentRealKcal(),bpm:bpmDisplay(),ts:Date.now()}; const h=state.history; if(h.length&&h[h.length-1].sec===sec) h[h.length-1]=point; else h.push(point); if(h.length>10000) h.shift(); state.lastSec=sec; if(prevSec>=0) evaluateAlertsRange(prevSec, sec, force?'force':'tick'); }
 
 function seek(delta){
   if(!state.plan) throw new Error('Carga un plan primero');
   const dur=planDuration();
-  const prev=currentElapsed();
-  const next=Math.max(0,Math.min(dur,prev+delta));
-  const nextReal=machineToRealSec(next);
-  state.elapsedSec=nextReal;
-  if(state.phase==='running'){
-    state.startTs=Date.now()-(nextReal*1000);
+  const prevPlan=currentElapsed();
+  const prevReal=currentRealElapsed();
+  const prevMachine=currentMachineElapsedRaw();
+  const earlyWindow = prevReal < 60;
+  if(earlyWindow){
+    const nextReal=Math.max(0,Math.min(dur,prevReal+delta));
+    state.elapsedSec=nextReal;
+    state.machineOffsetSec = Math.round((prevMachine + delta) - (nextReal * MACHINE_TIME_FACTOR));
+    if(state.phase==='running'){
+      state.startTs=Date.now()-(nextReal*1000);
+    } else {
+      state.startTs=null;
+    }
   } else {
-    state.startTs=null;
+    const nextMachine=Math.max(0,prevMachine+delta);
+    state.machineOffsetSec = Math.round(nextMachine - (prevReal * MACHINE_TIME_FACTOR));
   }
-  state.lastSec=prev;
+  const nextPlan=currentElapsed();
+  const nextMachine=currentMachineElapsedRaw();
+  state.lastSec=prevPlan;
   capturePoint(true);
   persist();
-  addLog(`[SEEK] ${delta>0?'+':''}${delta}s → MÁQ ${fmt(next)} · REAL ${fmt(nextReal)}`);
-  if(state.phase==='running') evaluateAlertsRange(prev, next, 'seek');
+  addLog(`[SEEK] ${delta>0?'+':''}${delta}s → MÁQ ${fmt(nextMachine)} · PLAN ${fmt(nextPlan)} · REAL ${fmt(currentRealElapsed())} · ${earlyWindow?'AMBOS':'SOLO MÁQ'}`);
+  if(state.phase==='running') evaluateAlertsRange(prevPlan, nextPlan, 'seek');
   renderAll();
 }
 
@@ -786,7 +808,7 @@ function renderUpcoming(){const body=els.upcomingBody; body.innerHTML=''; if(!st
 
 function renderTicker(){
   els.tickerNow.textContent=hm(new Date());
-  const eta=state.plan?new Date(Date.now()+machineToRealSec(Math.max(0,planDuration()-currentElapsed()))*1000):null;
+  const eta=state.plan?new Date(Date.now()+Math.max(0,planDuration()-currentElapsed())*1000):null;
   els.tickerEta.textContent='FIN '+hm(eta);
   const msgs=[];
   const info=currentSegInfo();
@@ -851,8 +873,8 @@ function renderStatus(){
 function renderMetrics(){
   const sec=currentElapsed(), realSec=currentRealElapsed(), info=currentSegInfo(sec), bpm=bpmDisplay();
   $('startBtn').textContent = state.phase==='running' ? '⏸ Pausa' : (state.phase==='paused' ? '▶ Reanudar' : '▶ Empezar');
-  els.timeBig.textContent=fmt(sec);
-  els.timeRealLabel.textContent=`REAL ${fmt(realSec)} · MÁQ ${fmt(sec)}`;
+  els.timeBig.textContent=fmt(machineRawSec);
+  els.timeRealLabel.textContent=`REAL ${fmt(realSec)} · PLAN ${fmt(sec)} · AJ ${state.machineOffsetSec>=0?'+':'-'}${fmt(Math.abs(state.machineOffsetSec||0))}`;
   els.kPlanBig.textContent=currentPlanKcal().toFixed(1);
   els.kRealBig.textContent=currentRealKcal().toFixed(1);
   els.bpmBig.textContent=bpm==null?'--.-':round1(bpm).toFixed(1);
@@ -898,7 +920,7 @@ function renderAll(){renderMetrics(); renderPlayhead(); renderUpcoming(); render
 
 function persist(){
   try{
-    const payload={version:APP_VERSION,plan:state.plan,phase:state.phase,startTs:state.startTs,pausedAccumMs:state.pausedAccumMs,pauseTs:state.pauseTs,elapsedSec:currentRealElapsed(),machineElapsedSec:currentElapsed(),realOffset:state.realOffset,history:state.history.slice(-5000)};
+    const payload={version:APP_VERSION,plan:state.plan,phase:state.phase,startTs:state.startTs,pausedAccumMs:state.pausedAccumMs,pauseTs:state.pauseTs,elapsedSec:currentRealElapsed(),machineElapsedSec:currentElapsed(),machineRawElapsedSec:currentMachineElapsedRaw(),machineOffsetSec:state.machineOffsetSec||0,realOffset:state.realOffset,history:state.history.slice(-5000)};
     localStorage.setItem(STATE_KEY,JSON.stringify(payload));
     localStorage.setItem(VERSIONED_STATE_KEY,JSON.stringify(payload));
   }catch(e){addLog('[SAVE] ERROR: '+(e.message||e))}
@@ -908,7 +930,7 @@ function loadPersisted(){
     const raw=localStorage.getItem(STATE_KEY)||localStorage.getItem(VERSIONED_STATE_KEY);
     if(!raw) return;
     const d=JSON.parse(raw);
-    Object.assign(state,{plan:d.plan||null,phase:d.phase||'idle',startTs:d.startTs??null,pausedAccumMs:d.pausedAccumMs||0,pauseTs:d.pauseTs||null,elapsedSec:d.elapsedSec||0,realOffset:d.realOffset||0,history:d.history||[]});
+    Object.assign(state,{plan:d.plan||null,phase:d.phase||'idle',startTs:d.startTs??null,pausedAccumMs:d.pausedAccumMs||0,pauseTs:d.pauseTs||null,elapsedSec:d.elapsedSec||0,machineOffsetSec:(d.machineOffsetSec!=null?d.machineOffsetSec:((d.machineRawElapsedSec||d.machineElapsedSec||d.elapsedSec||0)-Math.round((d.elapsedSec||0)*MACHINE_TIME_FACTOR))),realOffset:d.realOffset||0,history:d.history||[]});
     if(state.phase==='running' && state.startTs==null && state.elapsedSec>0){
       state.phase='paused';
     }
@@ -921,7 +943,7 @@ function loadPersisted(){
   }catch(e){addLog('[LOAD] ERROR: '+(e.message||e))}
 }
 function resumeSavedSession(){loadPersisted(); renderAll(); if(state.plan) addLog('[LOAD] Reanudada desde guardado local'); else throw new Error('No hay sesión guardada')}
-function summaryText(){const segs=buildSegmentSummary(); const lines=[`ELÍPTICA ${APP_VERSION}`,`Tiempo máquina: ${fmt(currentElapsed())}`,`Tiempo real: ${fmt(currentRealElapsed())}`,`Kcal plan: ${currentPlanKcal().toFixed(1)}`,`Kcal real: ${currentRealKcal().toFixed(1)}`,`Desvío total: ${totalDeviation().toFixed(1)} kcal`,`Ritmo real: ${realRate().toFixed(2)} kcal/min`,`Pulso: ${bpmDisplay()?.toFixed(1)??'--.-'}`,'']; segs.forEach(s=>lines.push(`${s.segment} · N${s.level} · plan ${s.kcalPlan} · real ${s.kcalReal} · desvío ${s.deviation}`)); return lines.join('\n')}
+function summaryText(){const segs=buildSegmentSummary(); const lines=[`ELÍPTICA ${APP_VERSION}`,`Tiempo máquina: ${fmt(currentMachineElapsedRaw())}`,`Tiempo plan: ${fmt(currentElapsed())}`,`Tiempo real: ${fmt(currentRealElapsed())}`,`Ajuste máquina: ${state.machineOffsetSec>=0?'+':'-'}${fmt(Math.abs(state.machineOffsetSec||0))}`,`Kcal plan: ${currentPlanKcal().toFixed(1)}`,`Kcal real: ${currentRealKcal().toFixed(1)}`,`Desvío total: ${totalDeviation().toFixed(1)} kcal`,`Ritmo real: ${realRate().toFixed(2)} kcal/min`,`Pulso: ${bpmDisplay()?.toFixed(1)??'--.-'}`,'']; segs.forEach(s=>lines.push(`${s.segment} · N${s.level} · plan ${s.kcalPlan} · real ${s.kcalReal} · desvío ${s.deviation}`)); return lines.join('\n')}
 
 function showFinalSummary(){
   const txt=summaryText();
@@ -931,8 +953,8 @@ function showFinalSummary(){
 }
 
 function download(name, content, mime='text/plain;charset=utf-8'){const blob=new Blob([content],{type:mime}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(url),500)}
-function exportJson(){download(`eliptica_${APP_VERSION}.json`,JSON.stringify({version:APP_VERSION,build:BUILD,plan:state.plan,current:{elapsedSec:currentElapsed(),realElapsedSec:currentRealElapsed(),kPlan:currentPlanKcal(),kReal:currentRealKcal(),bpm:bpmDisplay()},history:state.history,segmentSummary:buildSegmentSummary(),logs:state.logs},null,2),'application/json'); addLog('[EXPORT] JSON exportado'); if(els.importOutput) els.importOutput.textContent='JSON exportado'}
-function exportSessionCsv(){if(!state.history.length) throw new Error('No hay datos segundo a segundo'); const rows=['seg;clock;level;segment;kcal_plan;kcal_real;bpm']; state.history.forEach(h=>rows.push([h.sec,h.clock,h.level,h.segment,h.kPlan,h.kReal,h.bpm??''].join(';'))); download(`sesion_${APP_VERSION}.csv`,'\ufeff'+rows.join('\r\n'),'text/csv;charset=utf-8'); addLog('[EXPORT] Sesión CSV exportada')}
+function exportJson(){download(`eliptica_${APP_VERSION}.json`,JSON.stringify({version:APP_VERSION,build:BUILD,plan:state.plan,current:{elapsedSec:currentElapsed(),machineRawElapsedSec:currentMachineElapsedRaw(),realElapsedSec:currentRealElapsed(),machineOffsetSec:state.machineOffsetSec||0,kPlan:currentPlanKcal(),kReal:currentRealKcal(),bpm:bpmDisplay()},history:state.history,segmentSummary:buildSegmentSummary(),logs:state.logs},null,2),'application/json'); addLog('[EXPORT] JSON exportado'); if(els.importOutput) els.importOutput.textContent='JSON exportado'}
+function exportSessionCsv(){if(!state.history.length) throw new Error('No hay datos segundo a segundo'); const rows=['seg_plan;clock_plan;seg_machine_raw;clock_machine_raw;seg_real;clock_real;level;segment;kcal_plan;kcal_real;bpm']; state.history.forEach(h=>rows.push([h.sec,h.clock,h.machineRawSec??'',h.machineRawClock??'',h.realSec??'',h.realClock??'',h.level,h.segment,h.kPlan,h.kReal,h.bpm??''].join(';'))); download(`sesion_${APP_VERSION}.csv`,'\ufeff'+rows.join('\r\n'),'text/csv;charset=utf-8'); addLog('[EXPORT] Sesión CSV exportada')}
 function exportMinuteCsv(){const rowsData=buildMinuteRows(); if(!rowsData.length) throw new Error('No hay datos minuto a minuto todavía'); const rows=['minute;clock;level;segment;kcal_start;kcal_end;kcal_minute;kcal_per_min;bpm_avg']; rowsData.forEach(r=>rows.push([r.minute,r.clock,r.level,r.segment,r.kcalStart,r.kcalEnd,r.kcalMinute,r.kcalPerMin,r.bpmAvg??''].join(';'))); download(`minuto_${APP_VERSION}.csv`,'\ufeff'+rows.join('\r\n'),'text/csv;charset=utf-8'); addLog('[EXPORT] Minuto a minuto exportado')}
 function exportTramoCsv(){const segs=buildSegmentSummary(); if(!segs.length) throw new Error('No hay datos por tramo'); const rows=['segment;level;duration;kcal_plan;kcal_real;deviation;bpm_avg']; segs.forEach(s=>rows.push([s.segment,s.level,s.duration,s.kcalPlan,s.kcalReal,s.deviation,s.bpmAvg??''].join(';'))); download(`tramos_${APP_VERSION}.csv`,'\ufeff'+rows.join('\r\n'),'text/csv;charset=utf-8'); addLog('[EXPORT] CSV por tramos exportado')}
 function exportPlan(){const txt=state.plan?normalizeText():els.planInput.value; if(!txt) throw new Error('No hay plan para exportar'); download(`plan_${APP_VERSION}.txt`,txt,'text/plain;charset=utf-8'); addLog('[EXPORT] Plan exportado')}
@@ -946,7 +968,7 @@ function compareLast(){
     return;
   }
   const prev=JSON.parse(raw);
-  els.importOutput.textContent=`COMPARAR CON ÚLTIMA\nAnterior kcal: ${prev.kReal??'--'}\nActual kcal: ${currentRealKcal().toFixed(1)}\nDiff kcal: ${((currentRealKcal()||0)-(prev.kReal||0)).toFixed(1)}\nAnterior tiempo: ${fmt(prev.elapsedSec||0)}\nActual tiempo: ${fmt(currentElapsed())}\nVersión anterior: ${prev.version||'--'}`;
+  els.importOutput.textContent=`COMPARAR CON ÚLTIMA\nAnterior kcal: ${prev.kReal??'--'}\nActual kcal: ${currentRealKcal().toFixed(1)}\nDiff kcal: ${((currentRealKcal()||0)-(prev.kReal||0)).toFixed(1)}\nAnterior tiempo: ${fmt(prev.elapsedSec||0)}\nActual tiempo: ${fmt(currentMachineElapsedRaw())}\nVersión anterior: ${prev.version||'--'}`;
 }
 
 async function clearAppData(){
@@ -1214,7 +1236,7 @@ function init(){
   state.voice.browserNotify = ('Notification' in window && Notification.permission==='granted');
   addLog(`[STARTUP] ${APP_VERSION} · ${BUILD}`);
   addLog('[TIME] Calibración máquina activa: -1 s por minuto');
-  addLog('[STARTUP] UI enlazada y bucles iniciados');
+  addLog(`[TIME] Factor máquina activo: ${MACHINE_TIME_FACTOR.toFixed(6)} (${fmt(Math.round(32*60*MACHINE_TIME_FACTOR))} por 32:00 reales)`); addLog('[STARTUP] UI enlazada y bucles iniciados');
   setPwaState(`Eliptica PWA ${APP_VERSION} iniciada. Esperando estado de PWA…`);
   window.addEventListener('online', ()=>{ addLog('[NET] online'); setPwaState(`Conexión recuperada · ${APP_VERSION}`); });
   window.addEventListener('offline', ()=>{ addLog('[NET] offline'); setPwaState('Sin conexión. La app sigue con caché local.'); });
