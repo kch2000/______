@@ -1,7 +1,7 @@
 (() => {
 'use strict';
-const APP_VERSION='v70';
-const BUILD='2026-04-18 15:20';
+const APP_VERSION='v71';
+const BUILD='2026-04-18 16:40';
 const $=id=>document.getElementById(id);
 const STATE_KEY='eliptica_state_current'; const VERSIONED_STATE_KEY=`eliptica_state_${APP_VERSION}`; const LAST_SESSION_KEY='lastCompletedSession'; const state={phase:'idle',countdown:{active:false},plan:null,startTs:null,pausedAccumMs:0,pauseTs:null,elapsedSec:0,machineOffsetSec:0,lastSec:-1,realOffset:0,history:[],logs:[],installPrompt:null,bannerIndex:0,bannerHoldMs:5000,bannerLastChange:0,bpmSamples:[],swReg:null,lastActionTs:0,lastRenderTick:0,wakeLock:null,timeCal:{enabled:false,appRefSec:0,realRefSec:0,factorOverall:1,factorAfterMinute:1},voice:{supported:('speechSynthesis' in window),unlocked:false,enabled:true,voices:[],selectedURI:'',queue:[],speaking:false,lastByKey:{},volume:1,rate:1,browserNotify:false,beepEnabled:true},audio:{ctx:null,unlocked:false},alerts:{lastKey:{},lastSecChecked:-1,lastNotifTs:0,finished:false,pulseSide:'ok',pulseSinceTs:0,pulseLastAlertTs:0},ble:{device:null,server:null,hrChar:null,connected:false,lastPacketTs:0,deviceName:'',autoAttempted:false,status:'EMparejar requerido',detail:'',reconnectAttempts:0,reconnectTimer:null,battery:null,lastRR:null}};
 const els={};
@@ -611,11 +611,14 @@ function currentRealElapsedFloat(){
 function currentRealElapsed(){
   return Math.max(0, Math.floor(currentRealElapsedFloat()));
 }
-function currentMachineElapsedBaseFloat(){
-  const real = Math.max(0, currentRealElapsedFloat());
+function machineBaseAtRealFloat(realSec){
+  const real = Math.max(0, Number(realSec||0));
   if(!state.timeCal.enabled) return real * MACHINE_TIME_FACTOR;
   if(real <= 60) return real;
   return 60 + ((real - 60) * Number(state.timeCal.factorAfterMinute||1));
+}
+function currentMachineElapsedBaseFloat(){
+  return machineBaseAtRealFloat(currentRealElapsedFloat());
 }
 function currentMachineElapsedRawFloat(){
   return Math.max(0, currentMachineElapsedBaseFloat() + Number(state.machineOffsetSec||0));
@@ -627,8 +630,32 @@ function currentElapsed(){
   return clampPlanSec(currentMachineElapsedRaw());
 }
 function currentSegInfo(sec=currentElapsed()){if(!state.plan) return null; let c=0; for(let i=0;i<state.plan.segments.length;i++){const seg=state.plan.segments[i]; if(sec < c+seg.durationSec) return {index:i,seg,startSec:c,endSec:c+seg.durationSec}; c+=seg.durationSec;} const last=state.plan.segments.at(-1); return last?{index:state.plan.segments.length-1,seg:last,startSec:c-last.durationSec,endSec:c}:null}
-function currentPlanKcal(){if(!state.plan) return 0; let rem=currentElapsed(), total=0; for(const seg of state.plan.segments){if(rem<=0) break; const used=Math.min(seg.durationSec, rem); total += seg.kcalTarget*(used/seg.durationSec); rem-=used;} return round1(total)}
-function currentRealKcal(){return Math.max(0, round1(currentPlanKcal()+state.realOffset))}
+function kcalAtElapsed(sec, allowOverflow=false){
+  if(!state.plan) return 0;
+  let rem = Math.max(0, Number(sec||0));
+  let total = 0;
+  for(const seg of state.plan.segments){
+    if(rem<=0) break;
+    const used = Math.min(seg.durationSec, rem);
+    total += seg.kcalTarget * (used / seg.durationSec);
+    rem -= used;
+  }
+  if(allowOverflow && rem>0 && state.plan.segments.length){
+    const last = state.plan.segments.at(-1);
+    const rate = last.kcalTarget / Math.max(1,last.durationSec);
+    total += rem * rate;
+  }
+  return total;
+}
+function currentPlanKcal(){
+  return Math.max(0, round1(kcalAtElapsed(currentElapsed(), false)));
+}
+function currentRealKcalBase(){
+  return Math.max(0, round1(kcalAtElapsed(currentRealElapsedFloat(), true)));
+}
+function currentRealKcal(){
+  return Math.max(0, round1(currentRealKcalBase() + Number(state.realOffset||0)));
+}
 function hasFreshPulse(maxAgeSec=6){ return !!(state.ble.connected && state.ble.lastPacketTs && (Date.now()-state.ble.lastPacketTs)<=maxAgeSec*1000); }
 function pruneBpmSamples(){ const now=Date.now(); state.bpmSamples = state.bpmSamples.filter(x=>now-x.ts<=30000); }
 function bpmDisplay(){ pruneBpmSamples(); const arr=state.bpmSamples.filter(x=>Date.now()-x.ts<=6000); if(!hasFreshPulse(6) || !arr.length) return null; const recent=arr.slice(-3).map(x=>x.bpm); return recent.reduce((a,b)=>a+b,0)/recent.length }
@@ -830,7 +857,7 @@ function resetSession(){
   addLog('[SESSION] Reseteada');
 }
 
-function capturePoint(force=false){if(!state.plan) return; const sec=currentElapsed(); const prevSec = state.lastSec; if(!force&&sec===state.lastSec) return; const info=currentSegInfo(sec); const realSec=currentRealElapsed(); const machineRawSec=currentMachineElapsedRaw(); const point={sec,realSec,machineRawSec,clock:fmt(sec),realClock:fmt(realSec),machineRawClock:fmt(machineRawSec),level:info?.seg?.level??null,segment:info?.seg?.id??null,kPlan:currentPlanKcal(),kReal:currentRealKcal(),bpm:bpmDisplay(),ts:Date.now()}; const h=state.history; if(h.length&&h[h.length-1].sec===sec) h[h.length-1]=point; else h.push(point); if(h.length>10000) h.shift(); state.lastSec=sec; if(prevSec>=0) evaluateAlertsRange(prevSec, sec, force?'force':'tick'); }
+function capturePoint(force=false){if(!state.plan) return; const sec=currentElapsed(); const prevSec = state.lastSec; const info=currentSegInfo(sec); const realSec=currentRealElapsed(); const machineRawSec=currentMachineElapsedRaw(); const h=state.history; const last=h[h.length-1]; if(!force && last && last.sec===sec && last.realSec===realSec && last.machineRawSec===machineRawSec) return; const point={sec,realSec,machineRawSec,clock:fmt(sec),realClock:fmt(realSec),machineRawClock:fmt(machineRawSec),level:info?.seg?.level??null,segment:info?.seg?.id??null,kPlan:currentPlanKcal(),kReal:currentRealKcal(),bpm:bpmDisplay(),ts:Date.now()}; if(last && last.sec===sec && last.realSec===realSec) h[h.length-1]=point; else h.push(point); if(h.length>10000) h.shift(); state.lastSec=sec; if(prevSec>=0 && sec!==prevSec) evaluateAlertsRange(prevSec, sec, force?'force':'tick'); }
 
 function seek(delta){
   if(!state.plan) throw new Error('Carga un plan primero');
@@ -844,7 +871,7 @@ function seek(delta){
   if(earlyWindow){
     const nextReal=Math.max(0,Math.min(dur,prevRealFloat+delta));
     state.elapsedSec=nextReal;
-    state.machineOffsetSec = (prevMachineFloat + delta) - (nextReal * MACHINE_TIME_FACTOR);
+    state.machineOffsetSec = (prevMachineFloat + delta) - machineBaseAtRealFloat(nextReal);
     if(state.phase==='running'){
       state.startTs=Date.now()-(nextReal*1000);
     } else {
@@ -852,7 +879,7 @@ function seek(delta){
     }
   } else {
     const nextMachine=Math.max(0,prevMachineFloat+delta);
-    state.machineOffsetSec = nextMachine - (prevRealFloat * MACHINE_TIME_FACTOR);
+    state.machineOffsetSec = nextMachine - machineBaseAtRealFloat(prevRealFloat);
   }
   const nextPlan=currentElapsed();
   const nextMachine=currentMachineElapsedRaw();
@@ -874,7 +901,7 @@ function adjustReal(delta){
   } else {
     cur=round1(cur+delta);
   }
-  state.realOffset=round1(cur-currentPlanKcal());
+  state.realOffset=round1(cur-currentRealKcalBase());
   addLog(`[KCAL] ajuste ${delta>0?'+':''}${delta.toFixed(1)} → real ${cur.toFixed(1)}`);
   renderAll();
   persist();
@@ -888,21 +915,21 @@ function equalizeSegmentKcal(){
   const items=state.history.filter(x=>x.sec>=info.startSec && x.sec<=currentElapsed());
   const first=items[0] || {kPlan: info.startSec?state.history.filter(x=>x.sec<=info.startSec).at(-1)?.kPlan||0:0, kReal: info.startSec?state.history.filter(x=>x.sec<=info.startSec).at(-1)?.kReal||0:0};
   const desiredReal = round1((first.kReal||0) + (currentPlanKcal() - (first.kPlan||0)));
-  state.realOffset = round1(desiredReal - currentPlanKcal());
+  state.realOffset = round1(desiredReal - currentRealKcalBase());
   addLog(`[KCAL] tramo igualado → real ${desiredReal.toFixed(1)} · desvío tramo 0.0`);
   renderAll();
   persist();
 }
 
-function buildMinuteRows(){const rows=[]; for(let m=0;m<=Math.floor((state.history.at(-1)?.sec||0)/60);m++){const items=state.history.filter(x=>Math.floor(x.sec/60)===m); if(!items.length) continue; const first=items[0], last=items.at(-1); const bpmItems=items.filter(x=>x.bpm!=null); rows.push({minute:m,clock:fmt(m*60),level:last.level,segment:last.segment,kcalStart:first.kReal,kcalEnd:last.kReal,kcalMinute:round2(last.kReal-first.kReal),kcalPerMin:round2((last.kReal-first.kReal)/Math.max(1,(items.length/60))),bpmAvg:bpmItems.length?round1(bpmItems.reduce((a,b)=>a+b.bpm,0)/bpmItems.length):null})} return rows}
+function buildMinuteRows(){const rows=[]; const maxMinute=Math.floor((state.history.at(-1)?.realSec||0)/60); for(let m=0;m<=maxMinute;m++){const items=state.history.filter(x=>Math.floor((x.realSec??x.sec)/60)===m); if(!items.length) continue; const first=items[0], last=items.at(-1); const bpmItems=items.filter(x=>x.bpm!=null); rows.push({minute:m,clock:fmt(m*60),level:last.level,segment:last.segment,kcalStart:first.kReal,kcalEnd:last.kReal,kcalMinute:round2(last.kReal-first.kReal),kcalPerMin:round2((last.kReal-first.kReal)/Math.max(1,((last.realSec??last.sec)-(first.realSec??first.sec)+1)/60)),bpmAvg:bpmItems.length?round1(bpmItems.reduce((a,b)=>a+b.bpm,0)/bpmItems.length):null})} return rows}
 function buildSegmentSummary(){const out=[]; if(!state.plan) return out; let cursor=0; for(const seg of state.plan.segments){const items=state.history.filter(x=>x.sec>=cursor&&x.sec<=cursor+seg.durationSec); const startPlan=items[0]?.kPlan??0, endPlan=items.at(-1)?.kPlan??startPlan, startReal=items[0]?.kReal??0, endReal=items.at(-1)?.kReal??startReal; const bpmItems=items.filter(x=>x.bpm!=null); out.push({segment:seg.id,level:seg.level,duration:fmt(seg.durationSec),kcalPlan:round1(endPlan-startPlan),kcalReal:round1(endReal-startReal),deviation:round1((endReal-startReal)-(endPlan-startPlan)),bpmAvg:bpmItems.length?round1(bpmItems.reduce((a,b)=>a+b.bpm,0)/bpmItems.length):null}); cursor+=seg.durationSec} return out}
 function renderTimeline(){const bar=els.timelineBar,mks=els.timelineMarkers; bar.querySelectorAll('.seg').forEach(n=>n.remove()); mks.innerHTML=''; if(!state.plan) return; const total=planDuration(); state.plan.segments.forEach(seg=>{const el=document.createElement('div'); el.className='seg'+(seg.isTest?' test':''); el.dataset.level=String(seg.level); el.style.setProperty('--flex',seg.durationSec); el.textContent=`${seg.id} · ${seg.level}`; bar.appendChild(el)}); let c=0; const add=(left,label,water=false)=>{const d=document.createElement('div'); d.className='mkr'; d.style.left=left+'%'; d.innerHTML=`<div class="stick" style="background:${water?'#60a5fa':'#fff'}"></div><div class="label">${label}</div>`; mks.appendChild(d)}; state.plan.segments.forEach(seg=>{add((c/total)*100,`${fmt(c)} ${seg.id}`); c+=seg.durationSec}); add(100,`${fmt(total)} Fin`); state.plan.water.forEach(w=>{const [mm,ss]=w.split(':').map(Number); const sec=mm*60+ss; add((sec/total)*100,`${w} 💧`,true)})}
 function nextChangeInfo(){if(!state.plan) return null; const now=currentElapsed(); let c=0; for(const seg of state.plan.segments){if(c>now) return {inSec:c-now,seg}; c+=seg.durationSec} return null}
 function nextWaterInfo(){if(!state.plan||!state.plan.water.length) return null; const now=currentElapsed(); for(const w of state.plan.water){const [mm,ss]=w.split(':').map(Number); const sec=mm*60+ss; if(sec>now) return {inSec:sec-now,at:w}} return null}
 function segmentDeviation(){const info=currentSegInfo(); if(!info) return 0; const items=state.history.filter(x=>x.sec>=info.startSec&&x.sec<=currentElapsed()); if(!items.length) return 0; const first=items[0], last=items.at(-1); return round1((last.kReal-first.kReal)-(last.kPlan-first.kPlan))}
 function totalDeviation(){return round1(currentRealKcal()-currentPlanKcal())}
-function realRate(){const sec=Math.max(1,currentElapsed()); return round2(currentRealKcal()/(sec/60))}
-function planRateNeeded(){const remainSec=Math.max(1,planDuration()-currentElapsed()); const remainK=Math.max(0,(state.plan?.totalKcal||0)-currentRealKcal()); return round2(remainK/(remainSec/60))}
+function realRate(){const sec=Math.max(1,currentRealElapsedFloat()); return round2(currentRealKcal()/(sec/60))}
+function planRateNeeded(){const remainSec=Math.max(1,planDuration()-currentElapsed()); const remainK=Math.max(0,(state.plan?.totalKcal||0)-currentPlanKcal()); return round2(remainK/(remainSec/60))}
 function renderUpcoming(){const body=els.upcomingBody; body.innerHTML=''; if(!state.plan) return; const now=currentElapsed(), total=planDuration(), info=currentSegInfo(now), rows=[]; if(info) rows.push({en:'AHORA',hora:fmt(now),nivel:info.seg.level,tramo:info.seg.id,current:true,atSec:now}); let c=0; const future=[]; for(const seg of state.plan.segments){ if(c>now) future.push({atSec:c,en:fmt(c-now),hora:fmt(c),nivel:seg.level,tramo:seg.id,type:'segment'}); c+=seg.durationSec; } state.plan.water.forEach(w=>{ const [m,s]=w.split(':').map(Number); const sec=m*60+s; if(sec>now) future.push({atSec:sec,en:fmt(sec-now),hora:w,nivel:'Agua',tramo:'💧',type:'water'}); }); future.push({atSec:total,en:fmt(Math.max(0,total-now)),hora:fmt(total),nivel:'Fin',tramo:'Fin',type:'end'}); future.sort((a,b)=>a.atSec-b.atSec || (a.type==='water'?1:-1)); rows.push(...future.slice(0,4)); rows.slice(0,5).forEach(r=>{const tr=document.createElement('tr'); if(r.current) tr.className='current'; tr.innerHTML=`<td>${r.en}</td><td>${r.hora}</td><td>${r.nivel}</td><td>${r.tramo}</td>`; body.appendChild(tr)}); els.upcomingVisibleLabel.textContent=`Cambios visibles: ${Math.max(0,rows.length-1)}`}
 
 function renderTicker(){
@@ -921,7 +948,7 @@ function renderTicker(){
   if(water){msgs.push({t:`AGUA EN ${fmt(water.inSec)} · HORA ${water.at}`,c:'warn'});}
   msgs.push({t:`DESVÍO TOTAL ${totalDev>=0?'+':''}${totalDev.toFixed(1)} KCAL · PLAN ${currentPlanKcal().toFixed(1)} · REAL ${currentRealKcal().toFixed(1)}`,c:Math.abs(totalDev)>=6?'bad':'good'});
   if(state.ble.connected){msgs.push({t:`BLE OK · ${state.ble.deviceName||'PULSÓMETRO'} · BPM ${bpmDisplay()?.toFixed(1)??'--.-'} · 5S ${avgBpmWindow(5)?.toFixed(1)??'--.-'}`,c:'good'});} else {msgs.push({t:'BLE DESCONECTADO · PULSA CONECTAR PULSÓMETRO',c:'bad'});}
-  if(state.phase==='running'){msgs.push({t:`SESIÓN CORRIENDO · RESTAN ${fmt(Math.max(0,planDuration()-currentElapsed()))} · FIN ${hm(eta)}`,c:''});}
+  if(state.phase==='running'){const goal=Math.max(0,Number(state.plan?.totalKcal||0)-currentRealKcal()); msgs.push({t:`SESIÓN CORRIENDO · RESTAN ${fmt(Math.max(0,planDuration()-currentElapsed()))} · KCAL OBJ ${goal.toFixed(1)} · FIN ${hm(eta)}`,c:''});}
   if(state.countdown.active){msgs.push({t:'CUENTA ATRÁS DE INICIO EN MARCHA',c:'warn'});}
   if(!msgs.length) msgs.push({t:'APP LISTA PARA EMPEZAR',c:''});
   const now=Date.now();
@@ -1003,7 +1030,7 @@ function renderMetrics(){
     els.bpmBig.style.background = pulseKind==='ok' ? '#166534' : pulseKind==='warn' ? '#92400e' : '#7f1d1d';
   }
   els.avgPlanLabel.textContent=`${round2(currentPlanKcal()/Math.max(1,sec/60)).toFixed(2)} kcal/min · ${round2(currentPlanKcal()/Math.max(1,sec/30)).toFixed(2)}/30s`;
-  els.avgRealLabel.textContent=`${realRate().toFixed(2)} kcal/min · ${round2(currentRealKcal()/Math.max(1,sec/30)).toFixed(2)}/30s`;
+  els.avgRealLabel.textContent=`${realRate().toFixed(2)} kcal/min · ${round2(currentRealKcal()/Math.max(1,currentRealElapsedFloat()/30)).toFixed(2)}/30s`;
   els.deviationTotalLabel.textContent=`${totalDeviation()>=0?'+':'-'}${Math.abs(totalDeviation()).toFixed(1)} kcal`;
   els.deviationSegmentLabel.textContent=`${segmentDeviation()>=0?'+':'-'}${Math.abs(segmentDeviation()).toFixed(1)} kcal`;
   els.realRateLabel.textContent=`${realRate().toFixed(2)} kcal/min`;
@@ -1033,7 +1060,7 @@ function loadPersisted(){
     if(!raw) return;
     const d=JSON.parse(raw);
     const sameTimeModel = d.version === APP_VERSION;
-    Object.assign(state,{plan:d.plan||null,phase:d.phase||'idle',startTs:d.startTs??null,pausedAccumMs:d.pausedAccumMs||0,pauseTs:d.pauseTs||null,elapsedSec:d.elapsedSec||0,machineOffsetSec:(sameTimeModel ? Number(d.machineOffsetSec||0) : 0),realOffset:d.realOffset||0,history:d.history||[]});
+    Object.assign(state,{plan:d.plan||null,phase:d.phase||'idle',startTs:d.startTs??null,pausedAccumMs:d.pausedAccumMs||0,pauseTs:d.pauseTs||null,elapsedSec:d.elapsedSec||0,machineOffsetSec:(sameTimeModel ? Number(d.machineOffsetSec||0) : 0),realOffset:(sameTimeModel ? Number(d.realOffset||0) : 0),history:d.history||[]});
     state.timeCal = (sameTimeModel && d.timeCal) ? Object.assign({enabled:false,appRefSec:0,realRefSec:0,factorOverall:1,factorAfterMinute:1}, d.timeCal) : {enabled:false,appRefSec:0,realRefSec:0,factorOverall:1,factorAfterMinute:1};
     recomputeTimeCalibration();
     if(state.phase==='running' && state.startTs==null && state.elapsedSec>0){
@@ -1309,9 +1336,9 @@ function handleHeartRate(ev){
 function startLoops(){
   setInterval(()=>{
     if(state.phase==='running'){
-      const dur=planDuration();
-      if(dur>0 && currentElapsed()>=dur){
-        state.elapsedSec=dur;
+      const goalK = Number(state.plan?.totalKcal||0);
+      if(goalK>0 && currentRealKcal()>=goalK){
+        state.elapsedSec=currentRealElapsed();
         state.phase='paused';
         state.startTs=null;
         capturePoint(true);
@@ -1320,7 +1347,7 @@ function startLoops(){
           pushAlert('session_finished','FIN DEL EJERCICIO. SESIÓN COMPLETADA.',{cooldownMs:60000,notifyTitle:'Fin de elíptica',notifyBody:'Sesión completada',cls:'good',doNotify:true,beepKind:'critical',priority:5,category:'finish',replaceCategory:true});
           saveCompletedSession('auto-finish');
           releaseWakeLock();
-          addLog('[SESSION] Fin automático del plan');
+          addLog('[SESSION] Fin automático por KCAL REAL objetivo');
         }
       } else {
         capturePoint();
