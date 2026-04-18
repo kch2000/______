@@ -1,7 +1,7 @@
 (() => {
 'use strict';
-const APP_VERSION='v69';
-const BUILD='2026-04-18 18:10';
+const APP_VERSION='v70';
+const BUILD='2026-04-18 15:20';
 const $=id=>document.getElementById(id);
 const STATE_KEY='eliptica_state_current'; const VERSIONED_STATE_KEY=`eliptica_state_${APP_VERSION}`; const LAST_SESSION_KEY='lastCompletedSession'; const state={phase:'idle',countdown:{active:false},plan:null,startTs:null,pausedAccumMs:0,pauseTs:null,elapsedSec:0,machineOffsetSec:0,lastSec:-1,realOffset:0,history:[],logs:[],installPrompt:null,bannerIndex:0,bannerHoldMs:5000,bannerLastChange:0,bpmSamples:[],swReg:null,lastActionTs:0,lastRenderTick:0,wakeLock:null,timeCal:{enabled:false,appRefSec:0,realRefSec:0,factorOverall:1,factorAfterMinute:1},voice:{supported:('speechSynthesis' in window),unlocked:false,enabled:true,voices:[],selectedURI:'',queue:[],speaking:false,lastByKey:{},volume:1,rate:1,browserNotify:false,beepEnabled:true},audio:{ctx:null,unlocked:false},alerts:{lastKey:{},lastSecChecked:-1,lastNotifTs:0,finished:false,pulseSide:'ok',pulseSinceTs:0,pulseLastAlertTs:0},ble:{device:null,server:null,hrChar:null,connected:false,lastPacketTs:0,deviceName:'',autoAttempted:false,status:'EMparejar requerido',detail:'',reconnectAttempts:0,reconnectTimer:null,battery:null,lastRR:null}};
 const els={};
@@ -558,8 +558,10 @@ function recomputeTimeCalibration(){
   if(!Number.isFinite(state.timeCal.factorOverall) || state.timeCal.factorOverall<=0) state.timeCal.factorOverall=1;
 }
 function syncCalibrationUi(){
-  if(els.calAppRefInput && document.activeElement!==els.calAppRefInput) els.calAppRefInput.value = state.timeCal.appRefSec?fmt(state.timeCal.appRefSec):'';
-  if(els.calRealRefInput && document.activeElement!==els.calRealRefInput) els.calRealRefInput.value = state.timeCal.realRefSec?fmt(state.timeCal.realRefSec):'';
+  if(state.timeCal.enabled){
+    if(els.calAppRefInput && document.activeElement!==els.calAppRefInput) els.calAppRefInput.value = state.timeCal.appRefSec?fmt(state.timeCal.appRefSec):'';
+    if(els.calRealRefInput && document.activeElement!==els.calRealRefInput) els.calRealRefInput.value = state.timeCal.realRefSec?fmt(state.timeCal.realRefSec):'';
+  }
   if(els.calFactorLabel){
     const t = state.timeCal.enabled
       ? `ACTIVA · APP ${fmt(state.timeCal.appRefSec)} → MÁQUINA REAL ${fmt(state.timeCal.realRefSec)} · FACTOR GENERAL ${fmtFactor10(state.timeCal.factorOverall)} · FACTOR DESDE 01:00 ${fmtFactor10(state.timeCal.factorAfterMinute)}`
@@ -589,6 +591,8 @@ function clearTimeCalibration(){
   if(state.phase==='running' || state.phase==='paused') throw new Error('Borra la calibración con la sesión parada');
   state.timeCal={enabled:false,appRefSec:0,realRefSec:0,factorOverall:1,factorAfterMinute:1};
   state.machineOffsetSec=0;
+  if(els.calAppRefInput) els.calAppRefInput.value='';
+  if(els.calRealRefInput) els.calRealRefInput.value='';
   syncCalibrationUi();
   persist();
   if(els.importOutput) els.importOutput.textContent='Calibración previa borrada';
