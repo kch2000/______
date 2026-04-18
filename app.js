@@ -1,12 +1,12 @@
 (() => {
 'use strict';
-const APP_VERSION='v67';
-const BUILD='2026-04-16 18:10';
+const APP_VERSION='v69';
+const BUILD='2026-04-18 18:10';
 const $=id=>document.getElementById(id);
-const STATE_KEY='eliptica_state_current'; const VERSIONED_STATE_KEY=`eliptica_state_${APP_VERSION}`; const LAST_SESSION_KEY='lastCompletedSession'; const state={phase:'idle',countdown:{active:false},plan:null,startTs:null,pausedAccumMs:0,pauseTs:null,elapsedSec:0,machineOffsetSec:0,lastSec:-1,realOffset:0,history:[],logs:[],installPrompt:null,bannerIndex:0,bannerHoldMs:5000,bannerLastChange:0,bpmSamples:[],swReg:null,lastActionTs:0,lastRenderTick:0,wakeLock:null,voice:{supported:('speechSynthesis' in window),unlocked:false,enabled:true,voices:[],selectedURI:'',queue:[],speaking:false,lastByKey:{},volume:1,rate:1,browserNotify:false,beepEnabled:true},audio:{ctx:null,unlocked:false},alerts:{lastKey:{},lastSecChecked:-1,lastNotifTs:0,finished:false},ble:{device:null,server:null,hrChar:null,connected:false,lastPacketTs:0,deviceName:'',autoAttempted:false,status:'EMparejar requerido',detail:'',reconnectAttempts:0,reconnectTimer:null,battery:null,lastRR:null}};
+const STATE_KEY='eliptica_state_current'; const VERSIONED_STATE_KEY=`eliptica_state_${APP_VERSION}`; const LAST_SESSION_KEY='lastCompletedSession'; const state={phase:'idle',countdown:{active:false},plan:null,startTs:null,pausedAccumMs:0,pauseTs:null,elapsedSec:0,machineOffsetSec:0,lastSec:-1,realOffset:0,history:[],logs:[],installPrompt:null,bannerIndex:0,bannerHoldMs:5000,bannerLastChange:0,bpmSamples:[],swReg:null,lastActionTs:0,lastRenderTick:0,wakeLock:null,timeCal:{enabled:false,appRefSec:0,realRefSec:0,factorOverall:1,factorAfterMinute:1},voice:{supported:('speechSynthesis' in window),unlocked:false,enabled:true,voices:[],selectedURI:'',queue:[],speaking:false,lastByKey:{},volume:1,rate:1,browserNotify:false,beepEnabled:true},audio:{ctx:null,unlocked:false},alerts:{lastKey:{},lastSecChecked:-1,lastNotifTs:0,finished:false,pulseSide:'ok',pulseSinceTs:0,pulseLastAlertTs:0},ble:{device:null,server:null,hrChar:null,connected:false,lastPacketTs:0,deviceName:'',autoAttempted:false,status:'EMparejar requerido',detail:'',reconnectAttempts:0,reconnectTimer:null,battery:null,lastRR:null}};
 const els={};
-const MACHINE_TIME_FACTOR=121/120; // 32:16 máquina real por 32:00 tiempo real
-const ids=['timelineBar','timelineMarkers','playhead','tickerNow','tickerMsg','tickerEta','sessionBadge','planTitle','timeBig','timeRealLabel','kPlanBig','kRealBig','bpmBig','bpmTargetLabel','avgPlanLabel','avgRealLabel','deviationTotalLabel','deviationSegmentLabel','realRateLabel','planRateLabel','waterCountLabel','upcomingBody','upcomingVisibleLabel','waterNextLabel','waterProgressBar','chipBle','chipPulse','chipSession','chipSaved','chipWater','chipAlerts','chipApp','chipTest','bleStatusLabel','bleBpmBig','ble5s','ble10s','ble30s','bleLastPkt','bleDeviceName','planInput','importOutput','versionLabel','pwaStateLabel','logBox','voiceSelect','voiceStatus','voiceVolumeRange','voiceVolumeVal','voiceRateRange','voiceRateVal','browserNotifyChk','voiceAlertsChk','beepAlertsChk','bleState','bleBattery','bleRR','wakeLockLabel','countdownOverlay','countdownRing','countdownNumber','countdownSub'];
+const MACHINE_TIME_FACTOR=1; // base sin calibración automática; la calibración previa se aplica por estado.timeCal
+const ids=['timelineBar','timelineMarkers','playhead','tickerNow','tickerMsg','tickerEta','sessionBadge','planTitle','timeBig','timeRealLabel','kPlanBig','kRealBig','bpmBig','bpmTargetLabel','avgPlanLabel','avgRealLabel','deviationTotalLabel','deviationSegmentLabel','realRateLabel','planRateLabel','waterCountLabel','upcomingBody','upcomingVisibleLabel','waterNextLabel','waterProgressBar','chipBle','chipPulse','chipSession','chipSaved','chipWater','chipAlerts','chipApp','chipTest','bleStatusLabel','bleBpmBig','ble5s','ble10s','ble30s','bleLastPkt','bleDeviceName','planInput','importOutput','versionLabel','pwaStateLabel','logBox','voiceSelect','voiceStatus','voiceVolumeRange','voiceVolumeVal','voiceRateRange','voiceRateVal','browserNotifyChk','voiceAlertsChk','beepAlertsChk','bleState','bleBattery','bleRR','wakeLockLabel','countdownOverlay','countdownRing','countdownNumber','countdownSub','calAppRefInput','calRealRefInput','calFactorLabel'];
 function cacheEls(){ids.forEach(id=>els[id]=$(id)); if(els.versionLabel) els.versionLabel.textContent=`${APP_VERSION} · ${BUILD}`;}
 function addLog(msg){const t=new Date().toTimeString().slice(0,8); state.logs.push(`[${t}] ${msg}`); if(state.logs.length>800) state.logs.shift(); if(els.logBox){els.logBox.textContent=state.logs.join('\n'); els.logBox.scrollTop=els.logBox.scrollHeight;}}
 function setPwaState(msg){ if(els.pwaStateLabel) els.pwaStateLabel.textContent = msg; }
@@ -92,6 +92,8 @@ function updateTickerOverflow(){
 function updateButtonDisabledStates(){
   const needPlan=['startBtn','resetBtn','seekPlus60','seekPlus10','seekPlus5','seekPlus1','seekMinus1','seekMinus5','seekMinus10','seekMinus60','kPlus1','kPlus05','kPlus01','kMinus01','kMinus05','kMinus1','eqSegmentBtn'];
   needPlan.forEach(id=>{ const el=$(id); if(el) el.disabled = !state.plan; });
+  const calLocked = state.phase==='running' || state.phase==='paused' || currentRealElapsed()>0;
+  ['applyCalBtn','clearCalBtn','calAppRefInput','calRealRefInput'].forEach(id=>{ const el=$(id); if(el) el.disabled = calLocked; });
   const minuteBtn=$('exportMinuteBtn'); if(minuteBtn) minuteBtn.disabled = !buildMinuteRows().length;
   const sessionBtn=$('exportSessionBtn'); if(sessionBtn) sessionBtn.disabled = !state.history.length;
   const tramoBtn=$('exportTramoCsvBtn'); if(tramoBtn) tramoBtn.disabled = !buildSegmentSummary().length;
@@ -423,9 +425,22 @@ function evaluateVoiceAlerts(prevSec, sec, mode='tick'){
   }
   const target = getCurrentBpmTarget();
   const bpm = bpmDisplay();
-  if(target && bpm!=null && !isSeek && sec>0 && sec%60===0){
-    if(bpm < target.min - 2) pushAlert(`bpm_low_${sec}`, `PULSO POR DEBAJO DEL OBJETIVO. OBJETIVO ${target.min} A ${target.max}.`, {cooldownMs:20000, notifyTitle:'Pulso bajo', notifyBody:`Objetivo ${target.min}-${target.max}`, cls:'bad', doNotify:true, beepKind:'info', priority:3, category:'pulse', replaceCategory:true});
-    if(bpm > target.max + 2) pushAlert(`bpm_high_${sec}`, `PULSO POR ENCIMA DEL OBJETIVO. OBJETIVO ${target.min} A ${target.max}.`, {cooldownMs:20000, notifyTitle:'Pulso alto', notifyBody:`Objetivo ${target.min}-${target.max}`, cls:'bad', doNotify:true, beepKind:'info', priority:3, category:'pulse', replaceCategory:true});
+  if(!isSeek && target && bpm!=null && hasFreshPulse(6)){
+    const side = bpm < target.min ? 'low' : (bpm > target.max ? 'high' : 'ok');
+    const nowTs = Date.now();
+    if(side !== state.alerts.pulseSide){
+      state.alerts.pulseSide = side;
+      state.alerts.pulseSinceTs = nowTs;
+    }
+    const sustainedMs = nowTs - (state.alerts.pulseSinceTs||nowTs);
+    if(side !== 'ok' && sustainedMs >= 18000 && nowTs - (state.alerts.pulseLastAlertTs||0) >= 20000){
+      state.alerts.pulseLastAlertTs = nowTs;
+      if(side==='low') pushAlert(`bpm_low_${sec}`, `PULSO POR DEBAJO DEL OBJETIVO. OBJETIVO ${target.min} A ${target.max}.`, {cooldownMs:15000, notifyTitle:'Pulso bajo', notifyBody:`Objetivo ${target.min}-${target.max}`, cls:'bad', doNotify:true, beepKind:'info', priority:3, category:'pulse', replaceCategory:true});
+      if(side==='high') pushAlert(`bpm_high_${sec}`, `PULSO POR ENCIMA DEL OBJETIVO. OBJETIVO ${target.min} A ${target.max}.`, {cooldownMs:15000, notifyTitle:'Pulso alto', notifyBody:`Objetivo ${target.min}-${target.max}`, cls:'bad', doNotify:true, beepKind:'info', priority:3, category:'pulse', replaceCategory:true});
+    }
+  } else if(!hasFreshPulse(6)){
+    state.alerts.pulseSide = 'ok';
+    state.alerts.pulseSinceTs = 0;
   }
 }
 function evaluateAlertsRange(prevSec, sec, cause='tick'){
@@ -528,6 +543,58 @@ function bind(){
 }
 function round1(n){return Math.round(n*10)/10} function round2(n){return Math.round(n*100)/100} function fmt(sec){sec=Math.max(0,Math.round(sec)); const m=String(Math.floor(sec/60)).padStart(2,'0'); const s=String(sec%60).padStart(2,'0'); return `${m}:${s}`}
 function hm(d){return d?d.toTimeString().slice(0,5):'--:--'}
+function parseMmSsInput(v){ const m=String(v||'').trim().match(/^(\d{1,2}):(\d{2})$/); return m ? Number(m[1])*60+Number(m[2]) : null; }
+function fmtFactor10(n){ return Number.isFinite(n)?Number(n).toFixed(10):'--'; }
+function recomputeTimeCalibration(){
+  const a=Math.max(0, Number(state.timeCal.appRefSec||0));
+  const r=Math.max(0, Number(state.timeCal.realRefSec||0));
+  state.timeCal.factorOverall = (a>0 && r>0) ? (r/a) : 1;
+  if(a>60 && r>60){
+    state.timeCal.factorAfterMinute = (r-60)/(a-60);
+  } else {
+    state.timeCal.factorAfterMinute = state.timeCal.factorOverall || 1;
+  }
+  if(!Number.isFinite(state.timeCal.factorAfterMinute) || state.timeCal.factorAfterMinute<=0) state.timeCal.factorAfterMinute=1;
+  if(!Number.isFinite(state.timeCal.factorOverall) || state.timeCal.factorOverall<=0) state.timeCal.factorOverall=1;
+}
+function syncCalibrationUi(){
+  if(els.calAppRefInput && document.activeElement!==els.calAppRefInput) els.calAppRefInput.value = state.timeCal.appRefSec?fmt(state.timeCal.appRefSec):'';
+  if(els.calRealRefInput && document.activeElement!==els.calRealRefInput) els.calRealRefInput.value = state.timeCal.realRefSec?fmt(state.timeCal.realRefSec):'';
+  if(els.calFactorLabel){
+    const t = state.timeCal.enabled
+      ? `ACTIVA · APP ${fmt(state.timeCal.appRefSec)} → MÁQUINA REAL ${fmt(state.timeCal.realRefSec)} · FACTOR GENERAL ${fmtFactor10(state.timeCal.factorOverall)} · FACTOR DESDE 01:00 ${fmtFactor10(state.timeCal.factorAfterMinute)}`
+      : 'SIN CALIBRACIÓN PREVIA · REAL Y MÁQUINA A LA PAR';
+    els.calFactorLabel.textContent=t;
+  }
+}
+function applyTimeCalibration(){
+  if(state.phase==='running' || state.phase==='paused' || currentRealElapsed()>0) throw new Error('Aplica la calibración antes de iniciar');
+  const appSec = parseMmSsInput(els.calAppRefInput?.value);
+  const realSec = parseMmSsInput(els.calRealRefInput?.value);
+  if(appSec==null || realSec==null) throw new Error('Usa formato mm:ss en ambos tiempos');
+  if(appSec<=0 || realSec<=0) throw new Error('Los tiempos deben ser mayores que 00:00');
+  state.timeCal.enabled=true;
+  state.timeCal.appRefSec=appSec;
+  state.timeCal.realRefSec=realSec;
+  state.machineOffsetSec=0;
+  recomputeTimeCalibration();
+  syncCalibrationUi();
+  persist();
+  const msg=`CALIBRACIÓN TIEMPO OK\nAPP ${fmt(appSec)} → MÁQUINA REAL ${fmt(realSec)}\nFACTOR GENERAL ${fmtFactor10(state.timeCal.factorOverall)}\nFACTOR DESDE 01:00 ${fmtFactor10(state.timeCal.factorAfterMinute)}\nEl primer minuto irá 1:1 y después se repartirá la corrección segundo a segundo.`;
+  if(els.importOutput) els.importOutput.textContent=msg;
+  addLog(`[TIME] Calibración previa aplicada · app ${fmt(appSec)} · real ${fmt(realSec)} · f=${fmtFactor10(state.timeCal.factorAfterMinute)}`);
+  renderAll();
+}
+function clearTimeCalibration(){
+  if(state.phase==='running' || state.phase==='paused') throw new Error('Borra la calibración con la sesión parada');
+  state.timeCal={enabled:false,appRefSec:0,realRefSec:0,factorOverall:1,factorAfterMinute:1};
+  state.machineOffsetSec=0;
+  syncCalibrationUi();
+  persist();
+  if(els.importOutput) els.importOutput.textContent='Calibración previa borrada';
+  addLog('[TIME] Calibración previa borrada');
+  renderAll();
+}
 function planDuration(){return state.plan?.segments?.reduce((a,s)=>a+s.durationSec,0)||0}
 function clampPlanSec(sec){
   const max = state.plan ? planDuration() : Infinity;
@@ -540,8 +607,14 @@ function currentRealElapsedFloat(){
 function currentRealElapsed(){
   return Math.max(0, Math.floor(currentRealElapsedFloat()));
 }
+function currentMachineElapsedBaseFloat(){
+  const real = Math.max(0, currentRealElapsedFloat());
+  if(!state.timeCal.enabled) return real * MACHINE_TIME_FACTOR;
+  if(real <= 60) return real;
+  return 60 + ((real - 60) * Number(state.timeCal.factorAfterMinute||1));
+}
 function currentMachineElapsedRawFloat(){
-  return Math.max(0, currentRealElapsedFloat()*MACHINE_TIME_FACTOR + Number(state.machineOffsetSec||0));
+  return Math.max(0, currentMachineElapsedBaseFloat() + Number(state.machineOffsetSec||0));
 }
 function currentMachineElapsedRaw(){
   return Math.max(0, Math.floor(currentMachineElapsedRawFloat()));
@@ -552,8 +625,10 @@ function currentElapsed(){
 function currentSegInfo(sec=currentElapsed()){if(!state.plan) return null; let c=0; for(let i=0;i<state.plan.segments.length;i++){const seg=state.plan.segments[i]; if(sec < c+seg.durationSec) return {index:i,seg,startSec:c,endSec:c+seg.durationSec}; c+=seg.durationSec;} const last=state.plan.segments.at(-1); return last?{index:state.plan.segments.length-1,seg:last,startSec:c-last.durationSec,endSec:c}:null}
 function currentPlanKcal(){if(!state.plan) return 0; let rem=currentElapsed(), total=0; for(const seg of state.plan.segments){if(rem<=0) break; const used=Math.min(seg.durationSec, rem); total += seg.kcalTarget*(used/seg.durationSec); rem-=used;} return round1(total)}
 function currentRealKcal(){return Math.max(0, round1(currentPlanKcal()+state.realOffset))}
-function bpmDisplay(){const arr=state.bpmSamples; if(!arr.length) return null; const recent=arr.slice(-3).map(x=>x.bpm); return recent.reduce((a,b)=>a+b,0)/recent.length}
-function avgBpmWindow(secWindow){const now=Date.now(); const items=state.bpmSamples.filter(x=>now-x.ts<=secWindow*1000); if(!items.length) return null; return items.reduce((a,b)=>a+b.bpm,0)/items.length}
+function hasFreshPulse(maxAgeSec=6){ return !!(state.ble.connected && state.ble.lastPacketTs && (Date.now()-state.ble.lastPacketTs)<=maxAgeSec*1000); }
+function pruneBpmSamples(){ const now=Date.now(); state.bpmSamples = state.bpmSamples.filter(x=>now-x.ts<=30000); }
+function bpmDisplay(){ pruneBpmSamples(); const arr=state.bpmSamples.filter(x=>Date.now()-x.ts<=6000); if(!hasFreshPulse(6) || !arr.length) return null; const recent=arr.slice(-3).map(x=>x.bpm); return recent.reduce((a,b)=>a+b,0)/recent.length }
+function avgBpmWindow(secWindow){ pruneBpmSamples(); const now=Date.now(); if(!hasFreshPulse(Math.max(6,secWindow))) return null; const items=state.bpmSamples.filter(x=>now-x.ts<=secWindow*1000); if(!items.length) return null; return items.reduce((a,b)=>a+b.bpm,0)/items.length }
 
 function parsePlan(text){
   const lines=text.split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
@@ -685,6 +760,10 @@ function applyPlan(){
   state.alerts.lastSecChecked=-1;
   state.alerts.lastKey={};
   state.alerts.finished=false;
+  state.alerts.pulseSide='ok';
+  state.alerts.pulseSinceTs=0;
+  state.alerts.pulseLastAlertTs=0;
+  state.bpmSamples=[];
   clearVoiceQueue('NUEVO PLAN');
   releaseWakeLock();
   els.importOutput.textContent=normalizeText();
@@ -736,6 +815,10 @@ function resetSession(){
   state.history=[];
   state.lastSec=-1;
   state.alerts.finished=false;
+  state.alerts.pulseSide='ok';
+  state.alerts.pulseSinceTs=0;
+  state.alerts.pulseLastAlertTs=0;
+  state.bpmSamples=[];
   clearVoiceQueue('RESET');
   releaseWakeLock();
   persist();
@@ -849,13 +932,14 @@ function setChip(el, text, kind){ if(!el) return; el.textContent=text; el.classL
 function renderStatus(){
   const bpm=bpmDisplay();
   const target=getCurrentBpmTarget();
-  let pulseKind='warn', pulseText='❤️ SIN PULSO';
-  if(bpm!=null && target){
+  const freshPulse = hasFreshPulse(6);
+  let pulseKind='warn', pulseText=freshPulse?'❤️ SIN PULSO':'❤️ SIN PULSO';
+  if(freshPulse && bpm!=null && target){
     pulseText=`❤️ ${round1(bpm).toFixed(1)} BPM`;
     if(bpm>=target.min && bpm<=target.max) pulseKind='ok';
     else if(bpm>=target.min-5 && bpm<=target.max+5) pulseKind='warn';
     else pulseKind='bad';
-  } else if(bpm!=null){
+  } else if(freshPulse && bpm!=null){
     pulseText=`❤️ ${round1(bpm).toFixed(1)} BPM`;
     pulseKind='ok';
   }
@@ -874,7 +958,7 @@ function renderStatus(){
   setChip(els.chipApp,'📲 '+APP_VERSION,'ok');
   const tests=state.plan?.segments?.filter(s=>s.isTest).map(s=>s.id).join(', ');
   setChip(els.chipTest,tests?`🧪 ${tests}`:'🧪 --',tests?'warn':'');
-  if(els.bleStatusLabel) els.bleStatusLabel.textContent = state.ble.detail || (state.ble.connected?`Conectado a ${state.ble.deviceName||'pulsómetro'}`:'BLE listo. Usa “Conectar pulsómetro”.');
+  if(els.bleStatusLabel) els.bleStatusLabel.textContent = state.ble.connected ? (hasFreshPulse(6)? (state.ble.detail || `Conectado a ${state.ble.deviceName||'pulsómetro'}`) : `Conectado a ${state.ble.deviceName||'pulsómetro'} · sin pulso reciente`) : 'BLE listo. Usa “Conectar pulsómetro”.';
   if(els.bleState) els.bleState.textContent = state.ble.status || '--';
   if(els.bleBattery) els.bleBattery.textContent = state.ble.battery!=null ? `${state.ble.battery}%` : '--';
   if(els.bleRR) els.bleRR.textContent = state.ble.lastRR!=null ? `${state.ble.lastRR} ms` : '--';
@@ -883,14 +967,15 @@ function renderStatus(){
 
 
 function renderMetrics(){
-  const sec=currentElapsed(), realSec=currentRealElapsed(), machineRawSec=currentMachineElapsedRaw(), info=currentSegInfo(sec), bpm=bpmDisplay();
+  const sec=currentElapsed(), realSec=currentRealElapsed(), machineRawSec=currentMachineElapsedRaw(), info=currentSegInfo(sec), bpm=bpmDisplay(), freshPulse=hasFreshPulse(6);
   const startBtnNode=$('startBtn');
   if(startBtnNode) startBtnNode.textContent = state.phase==='running' ? '⏸ Pausa' : (state.phase==='paused' ? '▶ Reanudar' : '▶ Empezar');
   if(els.timeBig) els.timeBig.textContent=fmt(machineRawSec);
   els.timeRealLabel.textContent=`REAL ${fmt(realSec)} · PLAN ${fmt(sec)} · AJ ${state.machineOffsetSec>=0?'+':'-'}${fmt(Math.abs(state.machineOffsetSec||0))}`;
+  syncCalibrationUi();
   els.kPlanBig.textContent=currentPlanKcal().toFixed(1);
   els.kRealBig.textContent=currentRealKcal().toFixed(1);
-  els.bpmBig.textContent=bpm==null?'--.-':round1(bpm).toFixed(1);
+  els.bpmBig.textContent=(!freshPulse || bpm==null)?'--.-':round1(bpm).toFixed(1);
   els.bleBpmBig.textContent=els.bpmBig.textContent;
   els.ble5s.textContent=avgBpmWindow(5)?.toFixed(1)??'--.-';
   els.ble10s.textContent=avgBpmWindow(10)?.toFixed(1)??'--.-';
@@ -933,7 +1018,7 @@ function renderAll(){try{renderMetrics(); renderPlayhead(); renderUpcoming(); re
 
 function persist(){
   try{
-    const payload={version:APP_VERSION,plan:state.plan,phase:state.phase,startTs:state.startTs,pausedAccumMs:state.pausedAccumMs,pauseTs:state.pauseTs,elapsedSec:currentRealElapsed(),machineElapsedSec:currentElapsed(),machineRawElapsedSec:currentMachineElapsedRaw(),machineOffsetSec:state.machineOffsetSec||0,realOffset:state.realOffset,history:state.history.slice(-5000)};
+    const payload={version:APP_VERSION,plan:state.plan,phase:state.phase,startTs:state.startTs,pausedAccumMs:state.pausedAccumMs,pauseTs:state.pauseTs,elapsedSec:currentRealElapsed(),machineElapsedSec:currentElapsed(),machineRawElapsedSec:currentMachineElapsedRaw(),machineOffsetSec:state.machineOffsetSec||0,timeCal:state.timeCal,realOffset:state.realOffset,history:state.history.slice(-5000)};
     localStorage.setItem(STATE_KEY,JSON.stringify(payload));
     localStorage.setItem(VERSIONED_STATE_KEY,JSON.stringify(payload));
   }catch(e){addLog('[SAVE] ERROR: '+(e.message||e))}
@@ -943,7 +1028,10 @@ function loadPersisted(){
     const raw=localStorage.getItem(STATE_KEY)||localStorage.getItem(VERSIONED_STATE_KEY);
     if(!raw) return;
     const d=JSON.parse(raw);
-    Object.assign(state,{plan:d.plan||null,phase:d.phase||'idle',startTs:d.startTs??null,pausedAccumMs:d.pausedAccumMs||0,pauseTs:d.pauseTs||null,elapsedSec:d.elapsedSec||0,machineOffsetSec:(d.machineOffsetSec!=null?Number(d.machineOffsetSec):((d.machineRawElapsedSec||d.machineElapsedSec||d.elapsedSec||0)-((d.elapsedSec||0)*MACHINE_TIME_FACTOR))),realOffset:d.realOffset||0,history:d.history||[]});
+    const sameTimeModel = d.version === APP_VERSION;
+    Object.assign(state,{plan:d.plan||null,phase:d.phase||'idle',startTs:d.startTs??null,pausedAccumMs:d.pausedAccumMs||0,pauseTs:d.pauseTs||null,elapsedSec:d.elapsedSec||0,machineOffsetSec:(sameTimeModel ? Number(d.machineOffsetSec||0) : 0),realOffset:d.realOffset||0,history:d.history||[]});
+    state.timeCal = (sameTimeModel && d.timeCal) ? Object.assign({enabled:false,appRefSec:0,realRefSec:0,factorOverall:1,factorAfterMinute:1}, d.timeCal) : {enabled:false,appRefSec:0,realRefSec:0,factorOverall:1,factorAfterMinute:1};
+    recomputeTimeCalibration();
     if(state.phase==='running' && state.startTs==null && state.elapsedSec>0){
       state.phase='paused';
     }
@@ -952,11 +1040,13 @@ function loadPersisted(){
       els.planTitle.textContent=state.plan.title;
       renderTimeline();
     }
+    if((d.version||'') && d.version !== APP_VERSION) addLog('[LOAD] Estado anterior detectado · ajuste máquina reiniciado para evitar desfases heredados');
+    syncCalibrationUi();
     addLog('[LOAD] Sesión recuperada desde guardado local');
   }catch(e){addLog('[LOAD] ERROR: '+(e.message||e))}
 }
 function resumeSavedSession(){loadPersisted(); renderAll(); if(state.plan) addLog('[LOAD] Reanudada desde guardado local'); else throw new Error('No hay sesión guardada')}
-function summaryText(){const segs=buildSegmentSummary(); const lines=[`ELÍPTICA ${APP_VERSION}`,`Tiempo máquina: ${fmt(currentMachineElapsedRaw())}`,`Tiempo plan: ${fmt(currentElapsed())}`,`Tiempo real: ${fmt(currentRealElapsed())}`,`Ajuste máquina: ${state.machineOffsetSec>=0?'+':'-'}${fmt(Math.abs(state.machineOffsetSec||0))}`,`Kcal plan: ${currentPlanKcal().toFixed(1)}`,`Kcal real: ${currentRealKcal().toFixed(1)}`,`Desvío total: ${totalDeviation().toFixed(1)} kcal`,`Ritmo real: ${realRate().toFixed(2)} kcal/min`,`Pulso: ${bpmDisplay()?.toFixed(1)??'--.-'}`,'']; segs.forEach(s=>lines.push(`${s.segment} · N${s.level} · plan ${s.kcalPlan} · real ${s.kcalReal} · desvío ${s.deviation}`)); return lines.join('\n')}
+function summaryText(){const segs=buildSegmentSummary(); const lines=[`ELÍPTICA ${APP_VERSION}`,`Tiempo máquina: ${fmt(currentMachineElapsedRaw())}`,`Tiempo plan: ${fmt(currentElapsed())}`,`Tiempo real: ${fmt(currentRealElapsed())}`,`Ajuste máquina: ${state.machineOffsetSec>=0?'+':'-'}${fmt(Math.abs(state.machineOffsetSec||0))}`,`Calibración activa: ${state.timeCal.enabled?'SÍ':'NO'}`,`Factor general: ${fmtFactor10(state.timeCal.factorOverall||1)}`,`Factor desde 01:00: ${fmtFactor10(state.timeCal.factorAfterMinute||1)}`,`Kcal plan: ${currentPlanKcal().toFixed(1)}`,`Kcal real: ${currentRealKcal().toFixed(1)}`,`Desvío total: ${totalDeviation().toFixed(1)} kcal`,`Ritmo real: ${realRate().toFixed(2)} kcal/min`,`Pulso: ${bpmDisplay()?.toFixed(1)??'--.-'}`,'']; segs.forEach(s=>lines.push(`${s.segment} · N${s.level} · plan ${s.kcalPlan} · real ${s.kcalReal} · desvío ${s.deviation}`)); return lines.join('\n')}
 
 function showFinalSummary(){
   const txt=summaryText();
@@ -966,7 +1056,7 @@ function showFinalSummary(){
 }
 
 function download(name, content, mime='text/plain;charset=utf-8'){const blob=new Blob([content],{type:mime}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(url),500)}
-function exportJson(){download(`eliptica_${APP_VERSION}.json`,JSON.stringify({version:APP_VERSION,build:BUILD,plan:state.plan,current:{elapsedSec:currentElapsed(),machineRawElapsedSec:currentMachineElapsedRaw(),realElapsedSec:currentRealElapsed(),machineOffsetSec:state.machineOffsetSec||0,kPlan:currentPlanKcal(),kReal:currentRealKcal(),bpm:bpmDisplay()},history:state.history,segmentSummary:buildSegmentSummary(),logs:state.logs},null,2),'application/json'); addLog('[EXPORT] JSON exportado'); if(els.importOutput) els.importOutput.textContent='JSON exportado'}
+function exportJson(){download(`eliptica_${APP_VERSION}.json`,JSON.stringify({version:APP_VERSION,build:BUILD,plan:state.plan,timeCal:state.timeCal,current:{elapsedSec:currentElapsed(),machineRawElapsedSec:currentMachineElapsedRaw(),realElapsedSec:currentRealElapsed(),machineOffsetSec:state.machineOffsetSec||0,kPlan:currentPlanKcal(),kReal:currentRealKcal(),bpm:bpmDisplay()},history:state.history,segmentSummary:buildSegmentSummary(),logs:state.logs},null,2),'application/json'); addLog('[EXPORT] JSON exportado'); if(els.importOutput) els.importOutput.textContent='JSON exportado'}
 function exportSessionCsv(){if(!state.history.length) throw new Error('No hay datos segundo a segundo'); const rows=['seg_plan;clock_plan;seg_machine_raw;clock_machine_raw;seg_real;clock_real;level;segment;kcal_plan;kcal_real;bpm']; state.history.forEach(h=>rows.push([h.sec,h.clock,h.machineRawSec??'',h.machineRawClock??'',h.realSec??'',h.realClock??'',h.level,h.segment,h.kPlan,h.kReal,h.bpm??''].join(';'))); download(`sesion_${APP_VERSION}.csv`,'\ufeff'+rows.join('\r\n'),'text/csv;charset=utf-8'); addLog('[EXPORT] Sesión CSV exportada')}
 function exportMinuteCsv(){const rowsData=buildMinuteRows(); if(!rowsData.length) throw new Error('No hay datos minuto a minuto todavía'); const rows=['minute;clock;level;segment;kcal_start;kcal_end;kcal_minute;kcal_per_min;bpm_avg']; rowsData.forEach(r=>rows.push([r.minute,r.clock,r.level,r.segment,r.kcalStart,r.kcalEnd,r.kcalMinute,r.kcalPerMin,r.bpmAvg??''].join(';'))); download(`minuto_${APP_VERSION}.csv`,'\ufeff'+rows.join('\r\n'),'text/csv;charset=utf-8'); addLog('[EXPORT] Minuto a minuto exportado')}
 function exportTramoCsv(){const segs=buildSegmentSummary(); if(!segs.length) throw new Error('No hay datos por tramo'); const rows=['segment;level;duration;kcal_plan;kcal_real;deviation;bpm_avg']; segs.forEach(s=>rows.push([s.segment,s.level,s.duration,s.kcalPlan,s.kcalReal,s.deviation,s.bpmAvg??''].join(';'))); download(`tramos_${APP_VERSION}.csv`,'\ufeff'+rows.join('\r\n'),'text/csv;charset=utf-8'); addLog('[EXPORT] CSV por tramos exportado')}
@@ -1107,6 +1197,8 @@ async function bleDisconnect(){
   try{ if(state.ble.hrChar&&state._hrHandler) state.ble.hrChar.removeEventListener('characteristicvaluechanged',state._hrHandler); }catch{}
   try{ state.ble.server&&state.ble.server.disconnect(); }catch{}
   state.ble.connected=false;
+  state.bpmSamples=[];
+  state.ble.lastPacketTs=0;
   setBleStatus('Desconectado','Desconectado por el usuario');
   addLog('[BLE] desconectado');
   renderAll();
@@ -1168,6 +1260,7 @@ async function connectDevice(device,isReconnect=false){
   state._gattDisconnectHandler=()=>{
     state.ble.connected=false;
     state.ble.lastPacketTs=0;
+    state.bpmSamples=[];
     setBleStatus('Sin señal', 'Se perdió la señal del pulsómetro');
     addLog('[BLE] GATT desconectado');
     renderAll();
@@ -1248,7 +1341,7 @@ function init(){
   cacheEls(); bind(); registerSW(); loadPersisted();
   state.voice.browserNotify = ('Notification' in window && Notification.permission==='granted');
   addLog(`[STARTUP] ${APP_VERSION} · ${BUILD}`);
-  addLog(`[TIME] Factor máquina activo: ${MACHINE_TIME_FACTOR.toFixed(6)} (${fmt(Math.floor(32*60*MACHINE_TIME_FACTOR))} por 32:00 reales) · continuo sin saltos`);
+  addLog('[TIME] Tiempo máquina sincronizado con tiempo real por defecto. El desfase solo entra por ajuste manual.');
   addLog('[STARTUP] UI enlazada y bucles iniciados');
   setPwaState(`Eliptica PWA ${APP_VERSION} iniciada. Esperando estado de PWA…`);
   window.addEventListener('online', ()=>{ addLog('[NET] online'); setPwaState(`Conexión recuperada · ${APP_VERSION}`); });
