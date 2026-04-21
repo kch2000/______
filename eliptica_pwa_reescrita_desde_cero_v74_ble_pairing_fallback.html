@@ -64,17 +64,6 @@ button{background:#1f2937;border:1px solid #374151;color:#f3f4f6;border-radius:1
       </div>
       <div class="upcoming card" style="padding:0; background:transparent;"><table><thead><tr><th>En</th><th>Hora</th><th>Nivel</th><th>Tramo</th></tr></thead><tbody id="upcomingBody"></tbody></table><div class="small" style="padding:8px 8px 0 8px; font-weight:800;" id="upcomingVisibleLabel">Cambios visibles: 0</div></div>
       <div class="watercard card" style="margin-top:8px;"><div class="between"><div class="title" style="font-size:14px;">💧 Agua</div><div id="waterNextLabel">--</div></div><div class="progress" style="margin-top:6px;"><div class="bar" id="waterProgressBar"></div></div></div>
-      <div class="card" style="margin-top:8px;padding:10px;">
-        <div class="title" style="font-size:14px;">Calibración previa tiempo máquina</div>
-        <div class="small muted" style="margin-top:4px;">Antes de iniciar, pon el tiempo que llevaba la app y el que marcaba la máquina real. El primer minuto irá 1:1.</div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:end;margin-top:8px;">
-          <label class="small">Tiempo app/plan<input id="calAppRefInput" type="text" placeholder="27:25" style="width:100%;margin-top:4px;background:#0b1220;color:#fff;border:1px solid #334155;border-radius:8px;padding:8px;"></label>
-          <label class="small">Tiempo máquina real<input id="calRealRefInput" type="text" placeholder="28:00" style="width:100%;margin-top:4px;background:#0b1220;color:#fff;border:1px solid #334155;border-radius:8px;padding:8px;"></label>
-          <button id="applyCalBtn" style="background:#17324a;border-color:#2d5d86;">Aplicar calibración</button>
-          <button id="clearCalBtn">Borrar calibración</button>
-        </div>
-        <div class="small" id="calFactorLabel" style="margin-top:8px;color:#cbd5e1;">SIN CALIBRACIÓN PREVIA · REAL Y MÁQUINA A LA PAR</div>
-      </div>
       <div class="controls-bottom"><button class="btn-big btn-green" id="startBtn">▶ Empezar</button><button class="btn-big btn-red" id="resetBtn">↺ Reset</button></div>
     </div>
     <div class="vertcol"><button class="vbtn" id="seekPlus60">+1m</button><button class="vbtn" id="seekPlus10">+10s</button><button class="vbtn" id="seekPlus5">+5s</button><button class="vbtn" id="seekPlus1">+1s</button><button class="vbtn" id="seekMinus1">-1s</button><button class="vbtn" id="seekMinus5">-5s</button><button class="vbtn" id="seekMinus10">-10s</button><button class="vbtn" id="seekMinus60">-1m</button></div>

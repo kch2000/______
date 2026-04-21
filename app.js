@@ -1,7 +1,7 @@
 (() => {
 'use strict';
-const APP_VERSION='v73';
-const BUILD='2026-04-20 12:30';
+const APP_VERSION='v74';
+const BUILD='2026-04-20 12:55';
 const $=id=>document.getElementById(id);
 const STATE_KEY='eliptica_state_current'; const VERSIONED_STATE_KEY=`eliptica_state_${APP_VERSION}`; const LAST_SESSION_KEY='lastCompletedSession'; const state={phase:'idle',countdown:{active:false},plan:null,startTs:null,pausedAccumMs:0,pauseTs:null,elapsedSec:0,machineOffsetSec:0,lastSec:-1,realOffset:0,history:[],logs:[],installPrompt:null,bannerIndex:0,bannerHoldMs:5000,bannerLastChange:0,bpmSamples:[],swReg:null,lastActionTs:0,lastRenderTick:0,wakeLock:null,timeCal:{enabled:false,appRefSec:0,realRefSec:0,factorOverall:1,factorAfterMinute:1},voice:{supported:('speechSynthesis' in window),unlocked:false,enabled:true,voices:[],selectedURI:'',queue:[],speaking:false,lastByKey:{},volume:1,rate:1,browserNotify:false,beepEnabled:true},audio:{ctx:null,unlocked:false},alerts:{lastKey:{},lastSecChecked:-1,lastNotifTs:0,finished:false,pulseSide:'ok',pulseSinceTs:0,pulseLastAlertTs:0},ble:{device:null,server:null,hrChar:null,connected:false,lastPacketTs:0,deviceName:'',autoAttempted:false,status:'EMparejar requerido',detail:'',reconnectAttempts:0,reconnectTimer:null,battery:null,lastRR:null}};
 const els={};
@@ -1226,10 +1226,12 @@ function verifyAll(){
 
 async function bleConnect(){
   if(!navigator.bluetooth) throw new Error('Web Bluetooth no disponible');
-  setBleStatus('Emparejando','Selecciona tu pulsómetro BLE. Ponte la banda y humedece los electrodos.');
-  addLog('[BLE] Buscando pulsómetros: servicio heart_rate + namePrefix OnRhythm/Geonaute');
+  setBleStatus('Emparejando','Selecciona tu pulsómetro BLE. Ponte la banda, humedece los electrodos y espera unos segundos.');
+  addLog('[BLE] Búsqueda ampliada: acceptAllDevices + servicios heart_rate/battery/device_information');
   renderAll();
-  const device=await navigator.bluetooth.requestDevice({filters:[{services:['heart_rate']},{namePrefix:'OnRhythm'},{namePrefix:'Geonaute'},{namePrefix:'ONRHYTHM'},{namePrefix:'GEONAUTE'}],optionalServices:['heart_rate','battery_service','device_information']});
+  const options={acceptAllDevices:true,optionalServices:['heart_rate','battery_service','device_information']};
+  const device=await navigator.bluetooth.requestDevice(options);
+  addLog(`[BLE] Seleccionado: ${device?.name||'Sin nombre'}`);
   await connectDevice(device,false);
 }
 async function bleReconnect(){
@@ -1267,7 +1269,7 @@ async function tryAutoBLE(){
       addLog('[BLE] Intento de autoconexión');
       await connectDevice(devices[0],true);
     }else{
-      setBleStatus('Emparejar requerido','No hay pulsómetro recordado por el navegador');
+      setBleStatus('Emparejar requerido','No hay pulsómetro recordado. Usa Conectar pulsómetro y elige tu banda BLE.');
       renderAll();
     }
   }catch(e){ addLog('[BLE] Auto ERROR: '+(e.message||e)); }

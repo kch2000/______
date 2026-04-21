@@ -1,5 +1,5 @@
-const CACHE='eliptica-v73-cache';
-const CORE=['./','./index.html?v=v73','./app.js?v=v73','./manifest.webmanifest?v=v73','./icon-192.png?v=v73','./icon-512.png?v=v73'];
+const CACHE='eliptica-v74-cache';
+const CORE=['./','./index.html?v=v74','./app.js?v=v74','./manifest.webmanifest?v=v74','./icon-192.png?v=v74','./icon-512.png?v=v74'];
 self.addEventListener('install',e=>{
   self.skipWaiting();
   e.waitUntil(caches.open(CACHE).then(c=>c.addAll(CORE)));
@@ -21,10 +21,10 @@ self.addEventListener('fetch',e=>{
       try{
         const fresh=await fetch(e.request,{cache:'no-store'});
         const cache=await caches.open(CACHE);
-        cache.put('./index.html?v=v73', fresh.clone());
+        cache.put('./index.html?v=v74', fresh.clone());
         return fresh;
       }catch(err){
-        return (await caches.match('./index.html?v=v73')) || (await caches.match('./index.html')) || Response.error();
+        return (await caches.match('./index.html?v=v74')) || (await caches.match('./index.html')) || Response.error();
       }
     })());
     return;
