@@ -1,7 +1,7 @@
 (() => {
 'use strict';
-const APP_VERSION='v72';
-const BUILD='2026-04-20 10:55';
+const APP_VERSION='v73';
+const BUILD='2026-04-20 12:30';
 const $=id=>document.getElementById(id);
 const STATE_KEY='eliptica_state_current'; const VERSIONED_STATE_KEY=`eliptica_state_${APP_VERSION}`; const LAST_SESSION_KEY='lastCompletedSession'; const state={phase:'idle',countdown:{active:false},plan:null,startTs:null,pausedAccumMs:0,pauseTs:null,elapsedSec:0,machineOffsetSec:0,lastSec:-1,realOffset:0,history:[],logs:[],installPrompt:null,bannerIndex:0,bannerHoldMs:5000,bannerLastChange:0,bpmSamples:[],swReg:null,lastActionTs:0,lastRenderTick:0,wakeLock:null,timeCal:{enabled:false,appRefSec:0,realRefSec:0,factorOverall:1,factorAfterMinute:1},voice:{supported:('speechSynthesis' in window),unlocked:false,enabled:true,voices:[],selectedURI:'',queue:[],speaking:false,lastByKey:{},volume:1,rate:1,browserNotify:false,beepEnabled:true},audio:{ctx:null,unlocked:false},alerts:{lastKey:{},lastSecChecked:-1,lastNotifTs:0,finished:false,pulseSide:'ok',pulseSinceTs:0,pulseLastAlertTs:0},ble:{device:null,server:null,hrChar:null,connected:false,lastPacketTs:0,deviceName:'',autoAttempted:false,status:'EMparejar requerido',detail:'',reconnectAttempts:0,reconnectTimer:null,battery:null,lastRR:null}};
 const els={};
@@ -611,6 +611,25 @@ function currentRealElapsedFloat(){
 function currentRealElapsed(){
   return Math.max(0, Math.floor(currentRealElapsedFloat()));
 }
+function currentRealElapsedFloatAt(nowMs){
+  const now = Number(nowMs||Date.now());
+  if(state.phase==='running'&&state.startTs!=null) return Math.max(0,(now-state.startTs)/1000);
+  return Math.max(0, Number(state.elapsedSec||0));
+}
+function buildTimeSnapshot(nowMs){
+  const now = Number(nowMs||Date.now());
+  const realFloat = currentRealElapsedFloatAt(now);
+  const realSec = Math.max(0, Math.floor(realFloat));
+  const machineBaseFloat = machineBaseAtRealFloat(realFloat);
+  const machineBaseSec = Math.max(0, Math.floor(machineBaseFloat));
+  const machineRawFloat = Math.max(0, machineBaseFloat + Number(state.machineOffsetSec||0));
+  const machineRawSec = Math.max(0, Math.floor(machineRawFloat));
+  const planSec = clampPlanSec(machineRawSec);
+  return {nowMs:now, realFloat, realSec, machineBaseFloat, machineBaseSec, machineRawFloat, machineRawSec, planSec};
+}
+function planKcalAt(sec){ return Math.max(0, round1(kcalAtElapsed(sec, false))); }
+function realKcalBaseAt(realFloat){ return Math.max(0, round1(kcalAtElapsed(realFloat, true))); }
+function realKcalAt(realFloat){ return Math.max(0, round1(realKcalBaseAt(realFloat) + Number(state.realOffset||0))); }
 function machineBaseAtRealFloat(realSec){
   const real = Math.max(0, Number(realSec||0));
   if(!state.timeCal.enabled) return real * MACHINE_TIME_FACTOR;
@@ -651,13 +670,13 @@ function kcalAtElapsed(sec, allowOverflow=false){
   return total;
 }
 function currentPlanKcal(){
-  return Math.max(0, round1(kcalAtElapsed(currentElapsed(), false)));
+  return planKcalAt(currentElapsed());
 }
 function currentRealKcalBase(){
-  return Math.max(0, round1(kcalAtElapsed(currentRealElapsedFloat(), true)));
+  return realKcalBaseAt(currentRealElapsedFloat());
 }
 function currentRealKcal(){
-  return Math.max(0, round1(currentRealKcalBase() + Number(state.realOffset||0)));
+  return realKcalAt(currentRealElapsedFloat());
 }
 function hasFreshPulse(maxAgeSec=6){ return !!(state.ble.connected && state.ble.lastPacketTs && (Date.now()-state.ble.lastPacketTs)<=maxAgeSec*1000); }
 function pruneBpmSamples(){ const now=Date.now(); state.bpmSamples = state.bpmSamples.filter(x=>now-x.ts<=30000); }
@@ -928,43 +947,38 @@ function equalizeSegmentKcal(){
 function buildMinuteRows(){const rows=[]; const maxMinute=Math.floor((state.history.at(-1)?.realSec||0)/60); for(let m=0;m<=maxMinute;m++){const items=state.history.filter(x=>Math.floor((x.realSec??x.sec)/60)===m); if(!items.length) continue; const first=items[0], last=items.at(-1); const bpmItems=items.filter(x=>x.bpm!=null); rows.push({minute:m,clock:fmt(m*60),level:last.level,segment:last.segment,kcalStart:first.kReal,kcalEnd:last.kReal,kcalMinute:round2(last.kReal-first.kReal),kcalPerMin:round2((last.kReal-first.kReal)/Math.max(1,((last.realSec??last.sec)-(first.realSec??first.sec)+1)/60)),bpmAvg:bpmItems.length?round1(bpmItems.reduce((a,b)=>a+b.bpm,0)/bpmItems.length):null})} return rows}
 function buildSegmentSummary(){const out=[]; if(!state.plan) return out; let cursor=0; for(const seg of state.plan.segments){const items=state.history.filter(x=>x.sec>=cursor&&x.sec<=cursor+seg.durationSec); const startPlan=items[0]?.kPlan??0, endPlan=items.at(-1)?.kPlan??startPlan, startReal=items[0]?.kReal??0, endReal=items.at(-1)?.kReal??startReal; const bpmItems=items.filter(x=>x.bpm!=null); out.push({segment:seg.id,level:seg.level,duration:fmt(seg.durationSec),kcalPlan:round1(endPlan-startPlan),kcalReal:round1(endReal-startReal),deviation:round1((endReal-startReal)-(endPlan-startPlan)),bpmAvg:bpmItems.length?round1(bpmItems.reduce((a,b)=>a+b.bpm,0)/bpmItems.length):null}); cursor+=seg.durationSec} return out}
 function renderTimeline(){const bar=els.timelineBar,mks=els.timelineMarkers; bar.querySelectorAll('.seg').forEach(n=>n.remove()); mks.innerHTML=''; if(!state.plan) return; const total=planDuration(); state.plan.segments.forEach(seg=>{const el=document.createElement('div'); el.className='seg'+(seg.isTest?' test':''); el.dataset.level=String(seg.level); el.style.setProperty('--flex',seg.durationSec); el.textContent=`${seg.id} · ${seg.level}`; bar.appendChild(el)}); let c=0; const add=(left,label,water=false)=>{const d=document.createElement('div'); d.className='mkr'; d.style.left=left+'%'; d.innerHTML=`<div class="stick" style="background:${water?'#60a5fa':'#fff'}"></div><div class="label">${label}</div>`; mks.appendChild(d)}; state.plan.segments.forEach(seg=>{add((c/total)*100,`${fmt(c)} ${seg.id}`); c+=seg.durationSec}); add(100,`${fmt(total)} Fin`); state.plan.water.forEach(w=>{const [mm,ss]=w.split(':').map(Number); const sec=mm*60+ss; add((sec/total)*100,`${w} 💧`,true)})}
-function nextChangeInfo(){if(!state.plan) return null; const now=currentElapsed(); let c=0; for(const seg of state.plan.segments){if(c>now) return {inSec:c-now,seg}; c+=seg.durationSec} return null}
-function nextWaterInfo(){if(!state.plan||!state.plan.water.length) return null; const now=currentElapsed(); for(const w of state.plan.water){const [mm,ss]=w.split(':').map(Number); const sec=mm*60+ss; if(sec>now) return {inSec:sec-now,at:w}} return null}
-function segmentDeviation(){const info=currentSegInfo(); if(!info) return 0; const items=state.history.filter(x=>x.sec>=info.startSec&&x.sec<=currentElapsed()); if(!items.length) return 0; const first=items[0], last=items.at(-1); return round1((last.kReal-first.kReal)-(last.kPlan-first.kPlan))}
-function totalDeviation(){return round1(currentRealKcal()-currentPlanKcal())}
-function realRate(){const sec=Math.max(1,currentRealElapsedFloat()); return round2(currentRealKcal()/(sec/60))}
-function planRateNeeded(){const remainSec=Math.max(1,planDuration()-currentElapsed()); const remainK=Math.max(0,(state.plan?.totalKcal||0)-currentPlanKcal()); return round2(remainK/(remainSec/60))}
-function renderUpcoming(){const body=els.upcomingBody; body.innerHTML=''; if(!state.plan) return; const now=currentElapsed(), total=planDuration(), info=currentSegInfo(now), rows=[]; if(info) rows.push({en:'AHORA',hora:fmt(now),nivel:info.seg.level,tramo:info.seg.id,current:true,atSec:now}); let c=0; const future=[]; for(const seg of state.plan.segments){ if(c>now) future.push({atSec:c,en:fmt(c-now),hora:fmt(c),nivel:seg.level,tramo:seg.id,type:'segment'}); c+=seg.durationSec; } state.plan.water.forEach(w=>{ const [m,s]=w.split(':').map(Number); const sec=m*60+s; if(sec>now) future.push({atSec:sec,en:fmt(sec-now),hora:w,nivel:'Agua',tramo:'💧',type:'water'}); }); future.push({atSec:total,en:fmt(Math.max(0,total-now)),hora:fmt(total),nivel:'Fin',tramo:'Fin',type:'end'}); future.sort((a,b)=>a.atSec-b.atSec || (a.type==='water'?1:-1)); rows.push(...future.slice(0,4)); rows.slice(0,5).forEach(r=>{const tr=document.createElement('tr'); if(r.current) tr.className='current'; tr.innerHTML=`<td>${r.en}</td><td>${r.hora}</td><td>${r.nivel}</td><td>${r.tramo}</td>`; body.appendChild(tr)}); els.upcomingVisibleLabel.textContent=`Cambios visibles: ${Math.max(0,rows.length-1)}`}
+function nextChangeInfo(planSec=currentElapsed()){if(!state.plan) return null; const now=planSec; let c=0; for(const seg of state.plan.segments){if(c>now) return {inSec:c-now,seg}; c+=seg.durationSec} return null}
+function nextWaterInfo(planSec=currentElapsed()){if(!state.plan||!state.plan.water.length) return null; const now=planSec; for(const w of state.plan.water){const [mm,ss]=w.split(':').map(Number); const sec=mm*60+ss; if(sec>now) return {inSec:sec-now,at:w}} return null}
+function segmentDeviation(sec=currentElapsed(), kPlan=currentPlanKcal(), kReal=currentRealKcal()){const info=currentSegInfo(sec); if(!info) return 0; const items=state.history.filter(x=>x.sec>=info.startSec&&x.sec<=sec); if(!items.length) return 0; const first=items[0]; return round1((kReal-first.kReal)-(kPlan-first.kPlan))}
+function totalDeviation(sec=currentElapsed(), realFloat=currentRealElapsedFloat()){return round1(realKcalAt(realFloat)-planKcalAt(sec))}
+function realRate(realFloat=currentRealElapsedFloat()){const sec=Math.max(1,realFloat); return round2(realKcalAt(realFloat)/(sec/60))}
+function planRateNeeded(sec=currentElapsed()){const remainSec=Math.max(1,planDuration()-sec); const remainK=Math.max(0,(state.plan?.totalKcal||0)-planKcalAt(sec)); return round2(remainK/(remainSec/60))}
+function renderUpcoming(snap=buildTimeSnapshot()){const body=els.upcomingBody; body.innerHTML=''; if(!state.plan) return; const now=snap.planSec, total=planDuration(), info=currentSegInfo(now), rows=[]; if(info) rows.push({en:'AHORA',hora:fmt(now),nivel:info.seg.level,tramo:info.seg.id,current:true,atSec:now}); let c=0; const future=[]; for(const seg of state.plan.segments){ if(c>now) future.push({atSec:c,en:fmt(c-now),hora:fmt(c),nivel:seg.level,tramo:seg.id,type:'segment'}); c+=seg.durationSec; } state.plan.water.forEach(w=>{ const [m,s]=w.split(':').map(Number); const sec=m*60+s; if(sec>now) future.push({atSec:sec,en:fmt(sec-now),hora:w,nivel:'Agua',tramo:'💧',type:'water'}); }); future.push({atSec:total,en:fmt(Math.max(0,total-now)),hora:fmt(total),nivel:'Fin',tramo:'Fin',type:'end'}); future.sort((a,b)=>a.atSec-b.atSec || (a.type==='water'?1:-1)); rows.push(...future.slice(0,4)); rows.slice(0,5).forEach(r=>{const tr=document.createElement('tr'); if(r.current) tr.className='current'; tr.innerHTML=`<td>${r.en}</td><td>${r.hora}</td><td>${r.nivel}</td><td>${r.tramo}</td>`; body.appendChild(tr)}); els.upcomingVisibleLabel.textContent=`Cambios visibles: ${Math.max(0,rows.length-1)}`}
 
-function renderTicker(){
-  els.tickerNow.textContent=hm(new Date());
-  const eta=state.plan?new Date(Date.now()+Math.max(0,planDuration()-currentElapsed())*1000):null;
+function renderTicker(snap=buildTimeSnapshot()){
+  els.tickerNow.textContent=hm(new Date(snap.nowMs));
+  const eta=state.plan?new Date(snap.nowMs+Math.max(0,planDuration()-snap.planSec)*1000):null;
   els.tickerEta.textContent='FIN '+hm(eta);
   const msgs=[];
-  const info=currentSegInfo();
-  const totalDev=totalDeviation();
-  const segDev=segmentDeviation();
-  const real=realRate();
-  const next=nextChangeInfo();
-  const water=nextWaterInfo();
-  if(info){msgs.push({t:`TRAMO ${info.seg.id} · NIVEL ${info.seg.level} · DESVÍO ${segDev>=0?'+':''}${segDev.toFixed(1)} KCAL · RITMO ${real.toFixed(2)} KCAL/MIN`,c:Math.abs(segDev)>=3?'warn':'good'});}
-  if(next){msgs.push({t:`PRÓXIMO CAMBIO EN ${fmt(next.inSec)} · TRAMO ${next.seg.id} · NIVEL ${next.seg.level}`,c:'warn'});}
-  if(water){msgs.push({t:`AGUA EN ${fmt(water.inSec)} · HORA ${water.at}`,c:'warn'});}
-  msgs.push({t:`DESVÍO TOTAL ${totalDev>=0?'+':''}${totalDev.toFixed(1)} KCAL · PLAN ${currentPlanKcal().toFixed(1)} · REAL ${currentRealKcal().toFixed(1)}`,c:Math.abs(totalDev)>=6?'bad':'good'});
-  if(state.ble.connected){msgs.push({t:`BLE OK · ${state.ble.deviceName||'PULSÓMETRO'} · BPM ${bpmDisplay()?.toFixed(1)??'--.-'} · 5S ${avgBpmWindow(5)?.toFixed(1)??'--.-'}`,c:'good'});} else {msgs.push({t:'BLE DESCONECTADO · PULSA CONECTAR PULSÓMETRO',c:'bad'});}
-  if(state.phase==='running'){const goal=Math.max(0,Number(state.plan?.totalKcal||0)-currentRealKcal()); msgs.push({t:`SESIÓN CORRIENDO · RESTAN ${fmt(Math.max(0,planDuration()-currentElapsed()))} · KCAL OBJ ${goal.toFixed(1)} · FIN ${hm(eta)}`,c:''});}
-  if(state.countdown.active){msgs.push({t:'CUENTA ATRÁS DE INICIO EN MARCHA',c:'warn'});}
-  if(!msgs.length) msgs.push({t:'APP LISTA PARA EMPEZAR',c:''});
-  const now=Date.now();
+  const info=currentSegInfo(snap.planSec);
+  const kPlan=planKcalAt(snap.planSec);
+  const kReal=realKcalAt(snap.realFloat);
+  const totalDev=round1(kReal-kPlan);
+  const segDev=segmentDeviation(snap.planSec,kPlan,kReal);
+  const real=round2(kReal/(Math.max(1,snap.realFloat)/60));
+  const next=nextChangeInfo(snap.planSec);
+  const water=nextWaterInfo(snap.planSec);
+  if(info){msgs.push({t:`TRAMO ${info.seg.id} · NIVEL ${info.seg.level} · DESVÍO ${segDev>=0?'+':''}${segDev.toFixed(1)} KCAL · RITMO ${real.toFixed(2)} KCAL/MIN`,c:Math.abs(segDev)>=3?'warn':'good'});} if(next){msgs.push({t:`PRÓXIMO CAMBIO EN ${fmt(next.inSec)} · TRAMO ${next.seg.id} · NIVEL ${next.seg.level}`,c:'warn'});} if(water){msgs.push({t:`AGUA EN ${fmt(water.inSec)} · HORA ${water.at}`,c:'warn'});} msgs.push({t:`DESVÍO TOTAL ${totalDev>=0?'+':''}${totalDev.toFixed(1)} KCAL · PLAN ${kPlan.toFixed(1)} · REAL ${kReal.toFixed(1)}`,c:Math.abs(totalDev)>=6?'bad':'good'}); if(state.ble.connected){msgs.push({t:`BLE OK · ${state.ble.deviceName||'PULSÓMETRO'} · BPM ${bpmDisplay()?.toFixed(1)??'--.-'} · 5S ${avgBpmWindow(5)?.toFixed(1)??'--.-'}`,c:'good'});} else {msgs.push({t:'BLE DESCONECTADO · PULSA CONECTAR PULSÓMETRO',c:'bad'});} if(state.phase==='running'){const goal=Math.max(0,Number(state.plan?.totalKcal||0)-kReal); msgs.push({t:`SESIÓN CORRIENDO · RESTAN ${fmt(Math.max(0,planDuration()-snap.planSec))} · KCAL OBJ ${goal.toFixed(1)} · FIN ${hm(eta)}`,c:''});} if(state.countdown.active){msgs.push({t:'CUENTA ATRÁS DE INICIO EN MARCHA',c:'warn'});} if(!msgs.length) msgs.push({t:'APP LISTA PARA EMPEZAR',c:''});
+  const now=snap.nowMs;
   if(!state.bannerLastChange||now-state.bannerLastChange>state.bannerHoldMs){state.bannerIndex=(state.bannerIndex+1)%msgs.length; state.bannerLastChange=now;}
   const msg=msgs[state.bannerIndex]||msgs[0];
   els.tickerMsg.textContent=msg.t.toUpperCase();
   els.tickerMsg.className='ticker-msg'+(msg.c?' '+msg.c:'');
   updateTickerOverflow();
 }
-function renderWater(){ const next=nextWaterInfo(); const total=(state.plan?.water||[]).length; const done=(state.plan?.water||[]).filter(w=>{const [m,s]=w.split(':').map(Number); return (m*60+s)<=currentElapsed();}).length; els.waterCountLabel.textContent=`${done} / ${total}`; if(!next){ els.waterNextLabel.textContent = total? 'TOMAS COMPLETADAS' : 'SIN TOMA PENDIENTE'; els.waterProgressBar.style.width='100%'; return; } const [m,s]=next.at.split(':').map(Number); const atSec=m*60+s; const prev=(state.plan?.water||[]).map(w=>{const [mm,ss]=w.split(':').map(Number); return mm*60+ss}).filter(v=>v<atSec).sort((a,b)=>a-b).at(-1) ?? 0; const span=Math.max(1,atSec-prev); const pct=Math.min(100,Math.max(0,((currentElapsed()-prev)/span)*100)); els.waterNextLabel.textContent=`PRÓXIMA EN ${fmt(next.inSec)} · ${next.at}`; els.waterProgressBar.style.width=pct+'%'; }
+function renderWater(snap=buildTimeSnapshot()){ const next=nextWaterInfo(snap.planSec); const total=(state.plan?.water||[]).length; const done=(state.plan?.water||[]).filter(w=>{const [m,s]=w.split(':').map(Number); return (m*60+s)<=snap.planSec;}).length; els.waterCountLabel.textContent=`${done} / ${total}`; if(!next){ els.waterNextLabel.textContent = total? 'TOMAS COMPLETADAS' : 'SIN TOMA PENDIENTE'; els.waterProgressBar.style.width='100%'; return; } const [m,s]=next.at.split(':').map(Number); const atSec=m*60+s; const prev=(state.plan?.water||[]).map(w=>{const [mm,ss]=w.split(':').map(Number); return mm*60+ss}).filter(v=>v<atSec).sort((a,b)=>a-b).at(-1) ?? 0; const span=Math.max(1,atSec-prev); const pct=Math.min(100,Math.max(0,((snap.planSec-prev)/span)*100)); els.waterNextLabel.textContent=`PRÓXIMA EN ${fmt(next.inSec)} · ${next.at}`; els.waterProgressBar.style.width=pct+'%'; }
 function setChip(el, text, kind){ if(!el) return; el.textContent=text; el.classList.remove('ok','warn','bad'); if(kind) el.classList.add(kind); } 
-function renderStatus(){
+function renderStatus(snap=buildTimeSnapshot()){
   const bpm=bpmDisplay();
   const target=getCurrentBpmTarget();
   const freshPulse = hasFreshPulse(6);
@@ -988,8 +1002,9 @@ function renderStatus(){
   setChip(els.chipPulse,pulseText,pulseKind);
   setChip(els.chipSession,state.phase==='running'?'⏱️ CORRIENDO':state.phase==='paused'?'⏱️ PAUSADA':'⏱️ LISTA',state.phase==='running'?'ok':state.phase==='paused'?'warn':'');
   setChip(els.chipSaved,'💾 GUARDADO',state.history.length?'ok':'');
-  setChip(els.chipWater,nextWaterInfo()?'💧 AGUA':'💧 SIN AGUA',nextWaterInfo()?'ok':'warn');
-  setChip(els.chipAlerts,Math.abs(totalDeviation())>5?'⚠️ DESVÍO':'⚠️ ALERTAS',Math.abs(totalDeviation())>5?'warn':'');
+  const pendingWater = !!nextWaterInfo(snap.planSec);
+  setChip(els.chipWater,pendingWater?'💧 AGUA':'💧 SIN AGUA',pendingWater?'ok':'warn');
+  setChip(els.chipAlerts,Math.abs(totalDeviation(snap.planSec,snap.realFloat))>5?'⚠️ DESVÍO':'⚠️ ALERTAS',Math.abs(totalDeviation(snap.planSec,snap.realFloat))>5?'warn':'');
   setChip(els.chipApp,'📲 '+APP_VERSION,'ok');
   const tests=state.plan?.segments?.filter(s=>s.isTest).map(s=>s.id).join(', ');
   setChip(els.chipTest,tests?`🧪 ${tests}`:'🧪 --',tests?'warn':'');
@@ -1001,21 +1016,22 @@ function renderStatus(){
 }
 
 
-function renderMetrics(){
-  const sec=currentElapsed(), realSec=currentRealElapsed(), machineBaseSec=currentMachineElapsedBase(), machineRawSec=currentMachineElapsedRaw(), info=currentSegInfo(sec), bpm=bpmDisplay(), freshPulse=hasFreshPulse(6);
+function renderMetrics(snap=buildTimeSnapshot()){
+  const sec=snap.planSec, realSec=snap.realSec, machineBaseSec=snap.machineBaseSec, machineRawSec=snap.machineRawSec, info=currentSegInfo(sec), bpm=bpmDisplay(), freshPulse=hasFreshPulse(6);
+  const kPlan=planKcalAt(sec), kReal=realKcalAt(snap.realFloat);
   const startBtnNode=$('startBtn');
   if(startBtnNode) startBtnNode.textContent = state.phase==='running' ? '⏸ Pausa' : (state.phase==='paused' ? '▶ Reanudar' : '▶ Empezar');
   if(els.timeBig) els.timeBig.textContent=fmt(machineRawSec);
   els.timeRealLabel.textContent=`REAL ${fmt(realSec)} · BASE ${fmt(machineBaseSec)} · AJ ${state.machineOffsetSec>=0?'+':'-'}${fmt(Math.abs(state.machineOffsetSec||0))} · PLAN ${fmt(sec)}`;
   syncCalibrationUi();
-  els.kPlanBig.textContent=currentPlanKcal().toFixed(1);
-  els.kRealBig.textContent=currentRealKcal().toFixed(1);
+  els.kPlanBig.textContent=kPlan.toFixed(1);
+  els.kRealBig.textContent=kReal.toFixed(1);
   els.bpmBig.textContent=(!freshPulse || bpm==null)?'--.-':round1(bpm).toFixed(1);
   els.bleBpmBig.textContent=els.bpmBig.textContent;
   els.ble5s.textContent=avgBpmWindow(5)?.toFixed(1)??'--.-';
   els.ble10s.textContent=avgBpmWindow(10)?.toFixed(1)??'--.-';
   els.ble30s.textContent=avgBpmWindow(30)?.toFixed(1)??'--.-';
-  els.bleLastPkt.textContent=state.ble.lastPacketTs?`${Math.floor((Date.now()-state.ble.lastPacketTs)/1000)}s`:'--';
+  els.bleLastPkt.textContent=state.ble.lastPacketTs?`${Math.floor((snap.nowMs-state.ble.lastPacketTs)/1000)}s`:'--';
   els.bleDeviceName.textContent=state.ble.deviceName||'--';
   let target='--', pulseKind='bad';
   if(info){
@@ -1030,15 +1046,15 @@ function renderMetrics(){
     }
   }
   els.bpmTargetLabel.textContent=target;
-  if(els.bpmBig){
-    els.bpmBig.style.background = pulseKind==='ok' ? '#166534' : pulseKind==='warn' ? '#92400e' : '#7f1d1d';
-  }
-  els.avgPlanLabel.textContent=`${round2(currentPlanKcal()/Math.max(1,sec/60)).toFixed(2)} kcal/min · ${round2(currentPlanKcal()/Math.max(1,sec/30)).toFixed(2)}/30s`;
-  els.avgRealLabel.textContent=`${realRate().toFixed(2)} kcal/min · ${round2(currentRealKcal()/Math.max(1,currentRealElapsedFloat()/30)).toFixed(2)}/30s`;
-  els.deviationTotalLabel.textContent=`${totalDeviation()>=0?'+':'-'}${Math.abs(totalDeviation()).toFixed(1)} kcal`;
-  els.deviationSegmentLabel.textContent=`${segmentDeviation()>=0?'+':'-'}${Math.abs(segmentDeviation()).toFixed(1)} kcal`;
-  els.realRateLabel.textContent=`${realRate().toFixed(2)} kcal/min`;
-  els.planRateLabel.textContent=`${planRateNeeded().toFixed(2)} kcal/min`;
+  if(els.bpmBig){ els.bpmBig.style.background = pulseKind==='ok' ? '#166534' : pulseKind==='warn' ? '#92400e' : '#7f1d1d'; }
+  els.avgPlanLabel.textContent=`${round2(kPlan/Math.max(1,sec/60)).toFixed(2)} kcal/min · ${round2(kPlan/Math.max(1,sec/30)).toFixed(2)}/30s`;
+  els.avgRealLabel.textContent=`${round2(kReal/(Math.max(1,snap.realFloat)/60)).toFixed(2)} kcal/min · ${round2(kReal/Math.max(1,snap.realFloat/30)).toFixed(2)}/30s`;
+  const totalDev=round1(kReal-kPlan), segDev=segmentDeviation(sec,kPlan,kReal);
+  els.deviationTotalLabel.textContent=`${totalDev>=0?'+':'-'}${Math.abs(totalDev).toFixed(1)} kcal`;
+  els.deviationSegmentLabel.textContent=`${segDev>=0?'+':'-'}${Math.abs(segDev).toFixed(1)} kcal`;
+  els.realRateLabel.textContent=`${round2(kReal/(Math.max(1,snap.realFloat)/60)).toFixed(2)} kcal/min`;
+  const remainSec=Math.max(1,planDuration()-sec); const remainK=Math.max(0,(state.plan?.totalKcal||0)-kPlan);
+  els.planRateLabel.textContent=`${round2(remainK/(remainSec/60)).toFixed(2)} kcal/min`;
   const totalWater=state.plan?.water?.length||0;
   const doneWater=(state.plan?.water||[]).filter(w=>{const [m,s]=w.split(':').map(Number); return m*60+s<=sec}).length;
   els.waterCountLabel.textContent=`${doneWater} / ${totalWater}`;
@@ -1048,8 +1064,8 @@ function renderMetrics(){
   if(state.plan) els.planTitle.textContent=state.plan.title;
 }
 
-function renderPlayhead(){const pct=planDuration()?Math.min(100,(currentElapsed()/planDuration())*100):0; els.playhead.style.left=pct+'%'}
-function renderAll(){try{renderMetrics(); renderPlayhead(); renderUpcoming(); renderWater(); renderStatus(); renderTicker(); updateButtonDisabledStates()}catch(e){addLog('[RENDER] ERROR: '+(e?.message||e)); console.error(e);}}
+function renderPlayhead(snap=buildTimeSnapshot()){const pct=planDuration()?Math.min(100,(snap.planSec/planDuration())*100):0; els.playhead.style.left=pct+'%'}
+function renderAll(){try{const snap=buildTimeSnapshot(); renderMetrics(snap); renderPlayhead(snap); renderUpcoming(snap); renderWater(snap); renderStatus(snap); renderTicker(snap); updateButtonDisabledStates()}catch(e){addLog('[RENDER] ERROR: '+(e?.message||e)); console.error(e);}}
 
 function persist(){
   try{
@@ -1210,9 +1226,10 @@ function verifyAll(){
 
 async function bleConnect(){
   if(!navigator.bluetooth) throw new Error('Web Bluetooth no disponible');
-  setBleStatus('Emparejando','Selecciona tu pulsómetro BLE');
+  setBleStatus('Emparejando','Selecciona tu pulsómetro BLE. Ponte la banda y humedece los electrodos.');
+  addLog('[BLE] Buscando pulsómetros: servicio heart_rate + namePrefix OnRhythm/Geonaute');
   renderAll();
-  const device=await navigator.bluetooth.requestDevice({filters:[{services:['heart_rate']}],optionalServices:['battery_service','device_information']});
+  const device=await navigator.bluetooth.requestDevice({filters:[{services:['heart_rate']},{namePrefix:'OnRhythm'},{namePrefix:'Geonaute'},{namePrefix:'ONRHYTHM'},{namePrefix:'GEONAUTE'}],optionalServices:['heart_rate','battery_service','device_information']});
   await connectDevice(device,false);
 }
 async function bleReconnect(){
