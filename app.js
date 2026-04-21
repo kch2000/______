@@ -1,7 +1,7 @@
 (() => {
 'use strict';
-const APP_VERSION='v71';
-const BUILD='2026-04-18 16:40';
+const APP_VERSION='v72';
+const BUILD='2026-04-20 10:55';
 const $=id=>document.getElementById(id);
 const STATE_KEY='eliptica_state_current'; const VERSIONED_STATE_KEY=`eliptica_state_${APP_VERSION}`; const LAST_SESSION_KEY='lastCompletedSession'; const state={phase:'idle',countdown:{active:false},plan:null,startTs:null,pausedAccumMs:0,pauseTs:null,elapsedSec:0,machineOffsetSec:0,lastSec:-1,realOffset:0,history:[],logs:[],installPrompt:null,bannerIndex:0,bannerHoldMs:5000,bannerLastChange:0,bpmSamples:[],swReg:null,lastActionTs:0,lastRenderTick:0,wakeLock:null,timeCal:{enabled:false,appRefSec:0,realRefSec:0,factorOverall:1,factorAfterMinute:1},voice:{supported:('speechSynthesis' in window),unlocked:false,enabled:true,voices:[],selectedURI:'',queue:[],speaking:false,lastByKey:{},volume:1,rate:1,browserNotify:false,beepEnabled:true},audio:{ctx:null,unlocked:false},alerts:{lastKey:{},lastSecChecked:-1,lastNotifTs:0,finished:false,pulseSide:'ok',pulseSinceTs:0,pulseLastAlertTs:0},ble:{device:null,server:null,hrChar:null,connected:false,lastPacketTs:0,deviceName:'',autoAttempted:false,status:'EMparejar requerido',detail:'',reconnectAttempts:0,reconnectTimer:null,battery:null,lastRR:null}};
 const els={};
@@ -620,6 +620,9 @@ function machineBaseAtRealFloat(realSec){
 function currentMachineElapsedBaseFloat(){
   return machineBaseAtRealFloat(currentRealElapsedFloat());
 }
+function currentMachineElapsedBase(){
+  return Math.max(0, Math.floor(currentMachineElapsedBaseFloat()));
+}
 function currentMachineElapsedRawFloat(){
   return Math.max(0, currentMachineElapsedBaseFloat() + Number(state.machineOffsetSec||0));
 }
@@ -857,7 +860,7 @@ function resetSession(){
   addLog('[SESSION] Reseteada');
 }
 
-function capturePoint(force=false){if(!state.plan) return; const sec=currentElapsed(); const prevSec = state.lastSec; const info=currentSegInfo(sec); const realSec=currentRealElapsed(); const machineRawSec=currentMachineElapsedRaw(); const h=state.history; const last=h[h.length-1]; if(!force && last && last.sec===sec && last.realSec===realSec && last.machineRawSec===machineRawSec) return; const point={sec,realSec,machineRawSec,clock:fmt(sec),realClock:fmt(realSec),machineRawClock:fmt(machineRawSec),level:info?.seg?.level??null,segment:info?.seg?.id??null,kPlan:currentPlanKcal(),kReal:currentRealKcal(),bpm:bpmDisplay(),ts:Date.now()}; if(last && last.sec===sec && last.realSec===realSec) h[h.length-1]=point; else h.push(point); if(h.length>10000) h.shift(); state.lastSec=sec; if(prevSec>=0 && sec!==prevSec) evaluateAlertsRange(prevSec, sec, force?'force':'tick'); }
+function capturePoint(force=false){if(!state.plan) return; const sec=currentElapsed(); const prevSec = state.lastSec; const info=currentSegInfo(sec); const realSec=currentRealElapsed(); const machineBaseSec=currentMachineElapsedBase(); const machineRawSec=currentMachineElapsedRaw(); const h=state.history; const last=h[h.length-1]; if(!force && last && last.sec===sec && last.realSec===realSec && last.machineRawSec===machineRawSec) return; const point={sec,realSec,machineBaseSec,machineRawSec,clock:fmt(sec),realClock:fmt(realSec),machineBaseClock:fmt(machineBaseSec),machineRawClock:fmt(machineRawSec),level:info?.seg?.level??null,segment:info?.seg?.id??null,kPlan:currentPlanKcal(),kReal:currentRealKcal(),bpm:bpmDisplay(),ts:Date.now()}; if(last && last.sec===sec && last.realSec===realSec) h[h.length-1]=point; else h.push(point); if(h.length>10000) h.shift(); state.lastSec=sec; if(prevSec>=0 && sec!==prevSec) evaluateAlertsRange(prevSec, sec, force?'force':'tick'); }
 
 function seek(delta){
   if(!state.plan) throw new Error('Carga un plan primero');
@@ -882,11 +885,12 @@ function seek(delta){
     state.machineOffsetSec = nextMachine - machineBaseAtRealFloat(prevRealFloat);
   }
   const nextPlan=currentElapsed();
+  const nextMachineBase=currentMachineElapsedBase();
   const nextMachine=currentMachineElapsedRaw();
   state.lastSec=prevPlan;
   capturePoint(true);
   persist();
-  addLog(`[SEEK] ${delta>0?'+':''}${delta}s → MÁQ ${fmt(nextMachine)} · PLAN ${fmt(nextPlan)} · REAL ${fmt(currentRealElapsed())} · ${earlyWindow?'AMBOS':'SOLO MÁQ'}`);
+  addLog(`[SEEK] ${delta>0?'+':''}${delta}s → BASE ${fmt(nextMachineBase)} · MÁQ ${fmt(nextMachine)} · PLAN ${fmt(nextPlan)} · REAL ${fmt(currentRealElapsed())} · ${earlyWindow?'AMBOS':'SOLO MÁQ'}`);
   if(state.phase==='running') evaluateAlertsRange(prevPlan, nextPlan, 'seek');
   renderAll();
 }
@@ -998,11 +1002,11 @@ function renderStatus(){
 
 
 function renderMetrics(){
-  const sec=currentElapsed(), realSec=currentRealElapsed(), machineRawSec=currentMachineElapsedRaw(), info=currentSegInfo(sec), bpm=bpmDisplay(), freshPulse=hasFreshPulse(6);
+  const sec=currentElapsed(), realSec=currentRealElapsed(), machineBaseSec=currentMachineElapsedBase(), machineRawSec=currentMachineElapsedRaw(), info=currentSegInfo(sec), bpm=bpmDisplay(), freshPulse=hasFreshPulse(6);
   const startBtnNode=$('startBtn');
   if(startBtnNode) startBtnNode.textContent = state.phase==='running' ? '⏸ Pausa' : (state.phase==='paused' ? '▶ Reanudar' : '▶ Empezar');
   if(els.timeBig) els.timeBig.textContent=fmt(machineRawSec);
-  els.timeRealLabel.textContent=`REAL ${fmt(realSec)} · PLAN ${fmt(sec)} · AJ ${state.machineOffsetSec>=0?'+':'-'}${fmt(Math.abs(state.machineOffsetSec||0))}`;
+  els.timeRealLabel.textContent=`REAL ${fmt(realSec)} · BASE ${fmt(machineBaseSec)} · AJ ${state.machineOffsetSec>=0?'+':'-'}${fmt(Math.abs(state.machineOffsetSec||0))} · PLAN ${fmt(sec)}`;
   syncCalibrationUi();
   els.kPlanBig.textContent=currentPlanKcal().toFixed(1);
   els.kRealBig.textContent=currentRealKcal().toFixed(1);
@@ -1077,7 +1081,7 @@ function loadPersisted(){
   }catch(e){addLog('[LOAD] ERROR: '+(e.message||e))}
 }
 function resumeSavedSession(){loadPersisted(); renderAll(); if(state.plan) addLog('[LOAD] Reanudada desde guardado local'); else throw new Error('No hay sesión guardada')}
-function summaryText(){const segs=buildSegmentSummary(); const lines=[`ELÍPTICA ${APP_VERSION}`,`Tiempo máquina: ${fmt(currentMachineElapsedRaw())}`,`Tiempo plan: ${fmt(currentElapsed())}`,`Tiempo real: ${fmt(currentRealElapsed())}`,`Ajuste máquina: ${state.machineOffsetSec>=0?'+':'-'}${fmt(Math.abs(state.machineOffsetSec||0))}`,`Calibración activa: ${state.timeCal.enabled?'SÍ':'NO'}`,`Factor general: ${fmtFactor10(state.timeCal.factorOverall||1)}`,`Factor desde 01:00: ${fmtFactor10(state.timeCal.factorAfterMinute||1)}`,`Kcal plan: ${currentPlanKcal().toFixed(1)}`,`Kcal real: ${currentRealKcal().toFixed(1)}`,`Desvío total: ${totalDeviation().toFixed(1)} kcal`,`Ritmo real: ${realRate().toFixed(2)} kcal/min`,`Pulso: ${bpmDisplay()?.toFixed(1)??'--.-'}`,'']; segs.forEach(s=>lines.push(`${s.segment} · N${s.level} · plan ${s.kcalPlan} · real ${s.kcalReal} · desvío ${s.deviation}`)); return lines.join('\n')}
+function summaryText(){const segs=buildSegmentSummary(); const lines=[`ELÍPTICA ${APP_VERSION}`,`Tiempo máquina base: ${fmt(currentMachineElapsedBase())}`,`Tiempo máquina ajustado: ${fmt(currentMachineElapsedRaw())}`,`Tiempo plan: ${fmt(currentElapsed())}`,`Tiempo real: ${fmt(currentRealElapsed())}`,`Ajuste máquina: ${state.machineOffsetSec>=0?'+':'-'}${fmt(Math.abs(state.machineOffsetSec||0))}`,`Calibración activa: ${state.timeCal.enabled?'SÍ':'NO'}`,`Factor general: ${fmtFactor10(state.timeCal.factorOverall||1)}`,`Factor desde 01:00: ${fmtFactor10(state.timeCal.factorAfterMinute||1)}`,`Kcal plan: ${currentPlanKcal().toFixed(1)}`,`Kcal real: ${currentRealKcal().toFixed(1)}`,`Desvío total: ${totalDeviation().toFixed(1)} kcal`,`Ritmo real: ${realRate().toFixed(2)} kcal/min`,`Pulso: ${bpmDisplay()?.toFixed(1)??'--.-'}`,'']; segs.forEach(s=>lines.push(`${s.segment} · N${s.level} · plan ${s.kcalPlan} · real ${s.kcalReal} · desvío ${s.deviation}`)); return lines.join('\n')}
 
 function showFinalSummary(){
   const txt=summaryText();

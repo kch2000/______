@@ -1,20 +1,20 @@
 {
   "id": "eliptica-pwa",
-  "name": "Eliptica PWA v71",
-  "short_name": "Eliptica v71",
-  "start_url": "./index.html?v=v71",
+  "name": "Eliptica PWA v72",
+  "short_name": "Eliptica v72",
+  "start_url": "./index.html?v=v72",
   "display": "standalone",
   "background_color": "#0b0f16",
   "theme_color": "#0b0f16",
-  "description": "Eliptica PWA v71 para Android/Chrome con calibración previa de tiempo máquina, kcal reales por tiempo real y kcal plan por tiempo máquina.",
+  "description": "Eliptica PWA v72 para Android/Chrome con calibración previa de tiempo máquina, kcal reales por tiempo real y kcal plan por tiempo máquina.",
   "icons": [
     {
-      "src": "./icon-192.png?v=v71",
+      "src": "./icon-192.png?v=v72",
       "sizes": "192x192",
       "type": "image/png"
     },
     {
-      "src": "./icon-512.png?v=v71",
+      "src": "./icon-512.png?v=v72",
       "sizes": "512x512",
       "type": "image/png"
     }
