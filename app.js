@@ -1,9 +1,9 @@
 (() => {
 'use strict';
-const APP_VERSION='v74';
-const BUILD='2026-04-20 12:55';
+const APP_VERSION='v76';
+const BUILD='2026-04-22 11:20';
 const $=id=>document.getElementById(id);
-const STATE_KEY='eliptica_state_current'; const VERSIONED_STATE_KEY=`eliptica_state_${APP_VERSION}`; const LAST_SESSION_KEY='lastCompletedSession'; const state={phase:'idle',countdown:{active:false},plan:null,startTs:null,pausedAccumMs:0,pauseTs:null,elapsedSec:0,machineOffsetSec:0,lastSec:-1,realOffset:0,history:[],logs:[],installPrompt:null,bannerIndex:0,bannerHoldMs:5000,bannerLastChange:0,bpmSamples:[],swReg:null,lastActionTs:0,lastRenderTick:0,wakeLock:null,timeCal:{enabled:false,appRefSec:0,realRefSec:0,factorOverall:1,factorAfterMinute:1},voice:{supported:('speechSynthesis' in window),unlocked:false,enabled:true,voices:[],selectedURI:'',queue:[],speaking:false,lastByKey:{},volume:1,rate:1,browserNotify:false,beepEnabled:true},audio:{ctx:null,unlocked:false},alerts:{lastKey:{},lastSecChecked:-1,lastNotifTs:0,finished:false,pulseSide:'ok',pulseSinceTs:0,pulseLastAlertTs:0},ble:{device:null,server:null,hrChar:null,connected:false,lastPacketTs:0,deviceName:'',autoAttempted:false,status:'EMparejar requerido',detail:'',reconnectAttempts:0,reconnectTimer:null,battery:null,lastRR:null}};
+const STATE_KEY='eliptica_state_current'; const VERSIONED_STATE_KEY=`eliptica_state_${APP_VERSION}`; const LAST_SESSION_KEY='lastCompletedSession'; const state={phase:'idle',countdown:{active:false},plan:null,startTs:null,pausedAccumMs:0,pauseTs:null,elapsedSec:0,machineOffsetSec:0,lastSec:-1,realOffset:0,history:[],logs:[],installPrompt:null,bannerIndex:0,bannerHoldMs:5000,bannerLastChange:0,bpmSamples:[],swReg:null,lastActionTs:0,lastRenderTick:0,lastRenderSnapshot:null,lastSummarySnapshot:null,wakeLock:null,timeCal:{enabled:false,appRefSec:0,realRefSec:0,factorOverall:1,factorAfterMinute:1},voice:{supported:('speechSynthesis' in window),unlocked:false,enabled:true,voices:[],selectedURI:'',queue:[],speaking:false,lastByKey:{},volume:1,rate:1,browserNotify:false,beepEnabled:true},audio:{ctx:null,unlocked:false},alerts:{lastKey:{},lastSecChecked:-1,lastNotifTs:0,finished:false,pulseSide:'ok',pulseSinceTs:0,pulseLastAlertTs:0},ble:{device:null,server:null,hrChar:null,connected:false,lastPacketTs:0,deviceName:'',autoAttempted:false,status:'EMparejar requerido',detail:'',reconnectAttempts:0,reconnectTimer:null,battery:null,lastRR:null}};
 const els={};
 const MACHINE_TIME_FACTOR=1; // base sin calibración automática; la calibración previa se aplica por estado.timeCal
 const ids=['timelineBar','timelineMarkers','playhead','tickerNow','tickerMsg','tickerEta','sessionBadge','planTitle','timeBig','timeRealLabel','kPlanBig','kRealBig','bpmBig','bpmTargetLabel','avgPlanLabel','avgRealLabel','deviationTotalLabel','deviationSegmentLabel','realRateLabel','planRateLabel','waterCountLabel','upcomingBody','upcomingVisibleLabel','waterNextLabel','waterProgressBar','chipBle','chipPulse','chipSession','chipSaved','chipWater','chipAlerts','chipApp','chipTest','bleStatusLabel','bleBpmBig','ble5s','ble10s','ble30s','bleLastPkt','bleDeviceName','planInput','importOutput','versionLabel','pwaStateLabel','logBox','voiceSelect','voiceStatus','voiceVolumeRange','voiceVolumeVal','voiceRateRange','voiceRateVal','browserNotifyChk','voiceAlertsChk','beepAlertsChk','bleState','bleBattery','bleRR','wakeLockLabel','countdownOverlay','countdownRing','countdownNumber','countdownSub','calAppRefInput','calRealRefInput','calFactorLabel'];
@@ -114,10 +114,64 @@ async function releaseWakeLock(){
     if(state.wakeLock){ await state.wakeLock.release(); state.wakeLock=null; addLog('[WAKE] release solicitado'); renderAll(); }
   }catch(e){ addLog('[WAKE] release ERROR: '+(e.message||e)); }
 }
+
+function buildFinalSummarySnapshot(snap=state.lastRenderSnapshot||buildTimeSnapshot()){
+  const safeSnap = snap || buildTimeSnapshot();
+  const segs = buildSegmentSummary();
+  const kPlan = planKcalAt(safeSnap.planSec);
+  const kReal = realKcalAt(safeSnap.realFloat);
+  const totalDev = round1(kReal-kPlan);
+  const rate = round2(kReal/(Math.max(1,safeSnap.realFloat)/60));
+  return {
+    machineBaseSec: safeSnap.machineBaseSec,
+    machineRawSec: safeSnap.machineRawSec,
+    planSec: safeSnap.planSec,
+    realSec: safeSnap.realSec,
+    machineOffsetSec: Number(state.machineOffsetSec||0),
+    timeCalEnabled: !!state.timeCal.enabled,
+    factorOverall: Number(state.timeCal.factorOverall||1),
+    factorAfterMinute: Number(state.timeCal.factorAfterMinute||1),
+    kPlan, kReal, totalDev, realRate: rate,
+    bpm: bpmDisplay(),
+    segs
+  };
+}
+function pointControlText(data=state.lastSummarySnapshot||buildFinalSummarySnapshot()){
+  const d = data || buildFinalSummarySnapshot();
+  const lines = [
+    `PUNTO DE CONTROL`,
+    ``,
+    `Tiempo máquina: ${fmt(d.machineRawSec)}`,
+    `Tiempo real: ${fmt(d.realSec)}`,
+    `Kcal plan: ${d.kPlan.toFixed(1)}`,
+    `Kcal real: ${d.kReal.toFixed(1)}`,
+    `Desvío total: ${d.totalDev>=0?'+':''}${d.totalDev.toFixed(1)} kcal`,
+    `Ritmo real: ${d.realRate.toFixed(2)} kcal/min`
+  ];
+  return lines.join('\n');
+}
 function saveCompletedSession(reason='manual'){
-  const payload = {elapsedSec:currentElapsed(),realElapsedSec:currentRealElapsed(),machineOffsetSec:state.machineOffsetSec||0,kReal:currentRealKcal(),kPlan:currentPlanKcal(),summary:summaryText(),when:Date.now(),reason,version:APP_VERSION};
+  const snap = buildFinalSummarySnapshot(state.lastRenderSnapshot||buildTimeSnapshot());
+  state.lastSummarySnapshot = snap;
+  const payload = {
+    elapsedSec:snap.planSec,
+    realElapsedSec:snap.realSec,
+    machineBaseSec:snap.machineBaseSec,
+    machineRawElapsedSec:snap.machineRawSec,
+    machineOffsetSec:snap.machineOffsetSec,
+    kReal:snap.kReal,
+    kPlan:snap.kPlan,
+    totalDev:snap.totalDev,
+    realRate:snap.realRate,
+    summary:summaryText(snap),
+    pointControl:pointControlText(snap),
+    when:Date.now(),
+    reason,
+    version:APP_VERSION
+  };
   try{ localStorage.setItem(LAST_SESSION_KEY, JSON.stringify(payload)); addLog('[SAVE] Sesión final guardada'); }catch(e){ addLog('[SAVE] ERROR final: '+(e.message||e)); }
 }
+
 
 function unlockAudio(){
   try{
@@ -525,8 +579,8 @@ function bind(){
   B('exportJsonBtn','exportJson',exportJson);
   B('compareLastBtn','compareLast',compareLast);
   B('exportTramoCsvBtn','exportTramoCsv',exportTramoCsv);
-  B('copySummaryBtn','copySummary',()=>copyText(summaryText()));
-  B('copyChatgptBtn','copyChatgpt',()=>copyText(`PUNTO DE CONTROL\n\n${summaryText()}\n\nLOGS\n${state.logs.slice(-20).join('\n')}`));
+  B('copySummaryBtn','copySummary',()=>copyText(summaryText(state.lastSummarySnapshot||buildFinalSummarySnapshot())));
+  B('copyChatgptBtn','copyChatgpt',()=>copyText(`${pointControlText(state.lastSummarySnapshot||buildFinalSummarySnapshot())}\n\nLOGS\n${state.logs.slice(-20).join('\n')}`));
   B('exportPlanBtn','exportPlan',exportPlan);
   B('clearAppDataBtn','clearAppData',clearAppData);
   [['seekPlus60',60],['seekPlus10',10],['seekPlus5',5],['seekPlus1',1],['seekMinus1',-1],['seekMinus5',-5],['seekMinus10',-10],['seekMinus60',-60]].forEach(([id,d])=>B(id,id,()=>seek(d)));
@@ -580,6 +634,7 @@ function applyTimeCalibration(){
   state.timeCal.realRefSec=realSec;
   state.machineOffsetSec=0;
   recomputeTimeCalibration();
+    state.lastSummarySnapshot = null;
   syncCalibrationUi();
   persist();
   const msg=`CALIBRACIÓN TIEMPO OK\nAPP ${fmt(appSec)} → MÁQUINA REAL ${fmt(realSec)}\nFACTOR GENERAL ${fmtFactor10(state.timeCal.factorOverall)}\nFACTOR DESDE 01:00 ${fmtFactor10(state.timeCal.factorAfterMinute)}\nEl primer minuto irá 1:1 y después se repartirá la corrección segundo a segundo.`;
@@ -820,7 +875,7 @@ function applyPlan(){
   clearVoiceQueue('NUEVO PLAN');
   releaseWakeLock();
   els.importOutput.textContent=normalizeText();
-  els.planTitle.textContent=state.plan.title;
+  syncPlanTitle();
   renderTimeline();
   persist();
   renderAll();
@@ -1061,11 +1116,11 @@ function renderMetrics(snap=buildTimeSnapshot()){
   els.sessionBadge.textContent=state.phase==='running'?'Corriendo':state.phase==='paused'?'Pausada':'Lista';
   const startBtn=$('startBtn');
   if(startBtn) startBtn.textContent=state.countdown.active?'⏳ Cuenta atrás':state.phase==='running'?'⏸ Pausa':state.phase==='paused'?'▶ Reanudar':'▶ Empezar';
-  if(state.plan) els.planTitle.textContent=state.plan.title;
+  if(state.plan) syncPlanTitle();
 }
 
 function renderPlayhead(snap=buildTimeSnapshot()){const pct=planDuration()?Math.min(100,(snap.planSec/planDuration())*100):0; els.playhead.style.left=pct+'%'}
-function renderAll(){try{const snap=buildTimeSnapshot(); renderMetrics(snap); renderPlayhead(snap); renderUpcoming(snap); renderWater(snap); renderStatus(snap); renderTicker(snap); updateButtonDisabledStates()}catch(e){addLog('[RENDER] ERROR: '+(e?.message||e)); console.error(e);}}
+function renderAll(){try{const snap=buildTimeSnapshot(); state.lastRenderSnapshot=snap; renderMetrics(snap); renderPlayhead(snap); renderUpcoming(snap); renderWater(snap); renderStatus(snap); renderTicker(snap); updateButtonDisabledStates()}catch(e){addLog('[RENDER] ERROR: '+(e?.message||e)); console.error(e);}}
 
 function persist(){
   try{
@@ -1088,7 +1143,7 @@ function loadPersisted(){
     }
     if(state.plan){
       els.importOutput.textContent=normalizeText();
-      els.planTitle.textContent=state.plan.title;
+      syncPlanTitle();
       renderTimeline();
     }
     if((d.version||'') && d.version !== APP_VERSION) addLog('[LOAD] Estado anterior detectado · ajuste máquina reiniciado para evitar desfases heredados');
@@ -1224,23 +1279,68 @@ function verifyAll(){
 }
 
 
+
+async function bleAvailabilityInfo(){
+  let available = null;
+  try{ if(navigator.bluetooth?.getAvailability) available = await navigator.bluetooth.getAvailability(); }catch(e){ available = null; }
+  let remembered = [];
+  try{ if(navigator.bluetooth?.getDevices) remembered = await navigator.bluetooth.getDevices(); }catch(e){ remembered = []; }
+  return {available, remembered};
+}
+function knownBleFilters(){
+  return [
+    {services:['heart_rate']},
+    {namePrefix:'OnRhythm'},
+    {namePrefix:'Geonaute'},
+    {namePrefix:'ONRHYTHM'},
+    {namePrefix:'HRM'},
+  ];
+}
+
 async function bleConnect(){
   if(!navigator.bluetooth) throw new Error('Web Bluetooth no disponible');
-  setBleStatus('Emparejando','Selecciona tu pulsómetro BLE. Ponte la banda, humedece los electrodos y espera unos segundos.');
-  addLog('[BLE] Búsqueda ampliada: acceptAllDevices + servicios heart_rate/battery/device_information');
+  const info = await bleAvailabilityInfo();
+  addLog(`[BLE] Availability: ${info.available===null?'desconocida':info.available?'ON':'OFF'}`);
+  addLog(`[BLE] Recordados: ${info.remembered.length}`);
+  if(info.remembered.length){
+    const named = info.remembered.map(d=>d.name||'Sin nombre').join(' | ');
+    addLog(`[BLE] Recordados nombres: ${named}`);
+  }
+  setBleStatus('Emparejando','Ponte la banda, humedece los electrodos y elige tu OnRhythm/Geonaute si aparece.');
   renderAll();
-  const options={acceptAllDevices:true,optionalServices:['heart_rate','battery_service','device_information']};
-  const device=await navigator.bluetooth.requestDevice(options);
-  addLog(`[BLE] Seleccionado: ${device?.name||'Sin nombre'}`);
-  await connectDevice(device,false);
+  const optionalServices=['heart_rate','battery_service','device_information'];
+  let lastErr = null;
+  try{
+    addLog('[BLE] requestDevice intento 1: filtros heart_rate / OnRhythm / Geonaute');
+    const device=await navigator.bluetooth.requestDevice({filters:knownBleFilters(), optionalServices});
+    addLog(`[BLE] Seleccionado (filtros): ${device?.name||'Sin nombre'}`);
+    return await connectDevice(device,false);
+  }catch(e){
+    lastErr = e;
+    addLog('[BLE] Intento 1 ERROR: '+(e?.message||e));
+  }
+  try{
+    addLog('[BLE] requestDevice intento 2: acceptAllDevices + servicios opcionales');
+    const device=await navigator.bluetooth.requestDevice({acceptAllDevices:true, optionalServices});
+    addLog(`[BLE] Seleccionado (all): ${device?.name||'Sin nombre'}`);
+    return await connectDevice(device,false);
+  }catch(e){
+    lastErr = e;
+    addLog('[BLE] Intento 2 ERROR: '+(e?.message||e));
+    setBleStatus('Emparejar requerido','No apareció ninguna banda BLE. Banda puesta, húmeda y sin otra app conectada.');
+    renderAll();
+    throw lastErr;
+  }
 }
+
 async function bleReconnect(){
   setBleStatus('Reconectando','Intentando reconexión BLE');
   renderAll();
   if(state.ble.device) return connectDevice(state.ble.device,true);
   if(navigator.bluetooth.getDevices){
     const devices=await navigator.bluetooth.getDevices();
-    if(devices[0]) return connectDevice(devices[0],true);
+    const preferred = devices.find(d=>/onrhythm|geonaute|hrm/i.test(d.name||'')) || devices[0];
+    if(preferred){ addLog(`[BLE] Reconnect usando recordado: ${preferred.name||'Sin nombre'}`); return connectDevice(preferred,true); }
   }
   setBleStatus('Emparejar requerido','No hay dispositivo previo recordado');
   renderAll();
@@ -1257,17 +1357,36 @@ async function bleDisconnect(){
   addLog('[BLE] desconectado');
   renderAll();
 }
-function bleDiag(){
-  els.importOutput.textContent=`BLE connected: ${state.ble.connected}\nEstado: ${state.ble.status||'--'}\nDetalle: ${state.ble.detail||'--'}\nDevice: ${state.ble.deviceName||'--'}\nBattery: ${state.ble.battery!=null?state.ble.battery+'%':'--'}\nRR: ${state.ble.lastRR!=null?state.ble.lastRR+' ms':'--'}\nLast packet: ${state.ble.lastPacketTs?((Date.now()-state.ble.lastPacketTs)/1000).toFixed(1)+'s':'--'}`;
+async function bleDiag(){
+  let availability='--', remembered='--', rememberedNames='--';
+  try{
+    const info = await bleAvailabilityInfo();
+    availability = info.available===null ? 'desconocida' : (info.available ? 'ON' : 'OFF');
+    remembered = info.remembered.length;
+    rememberedNames = info.remembered.map(d=>d.name||'Sin nombre').join(' | ') || '--';
+  }catch{}
+  els.importOutput.textContent=`BLE connected: ${state.ble.connected}
+Estado: ${state.ble.status||'--'}
+Detalle: ${state.ble.detail||'--'}
+Availability: ${availability}
+Recordados: ${remembered}
+Recordados nombres: ${rememberedNames}
+Device actual: ${state.ble.deviceName||'--'}
+Battery: ${state.ble.battery!=null?state.ble.battery+'%':'--'}
+RR: ${state.ble.lastRR!=null?state.ble.lastRR+' ms':'--'}
+Last packet: ${state.ble.lastPacketTs?((Date.now()-state.ble.lastPacketTs)/1000).toFixed(1)+'s':'--'}`;
+  addLog('[BLE] Diagnóstico mostrado');
 }
+
 async function tryAutoBLE(){
   if(!navigator.bluetooth||!navigator.bluetooth.getDevices||state.ble.autoAttempted) return;
   state.ble.autoAttempted=true;
   try{
     const devices=await navigator.bluetooth.getDevices();
     if(devices.length){
-      addLog('[BLE] Intento de autoconexión');
-      await connectDevice(devices[0],true);
+      const preferred = devices.find(d=>/onrhythm|geonaute|hrm/i.test(d.name||'')) || devices[0];
+      addLog(`[BLE] Intento de autoconexión: ${preferred.name||'Sin nombre'}`);
+      await connectDevice(preferred,true);
     }else{
       setBleStatus('Emparejar requerido','No hay pulsómetro recordado. Usa Conectar pulsómetro y elige tu banda BLE.');
       renderAll();
@@ -1417,3 +1536,16 @@ window.addEventListener('error', e=>{ try{ addLog('[RUNTIME] ERROR: '+(e?.messag
 window.addEventListener('unhandledrejection', e=>{ try{ addLog('[RUNTIME] PROMISE: '+(e?.reason?.message||e?.reason||e)); }catch{} });
 window.addEventListener('DOMContentLoaded', init);
 })();
+function currentPlanTitle(){
+  if(!state.plan) return `ELÍPTICA ${APP_VERSION}`;
+  const totalTime = state.plan.totalTime || fmt(planDuration());
+  const totalKcal = Math.round(Number(state.plan.totalKcal||0));
+  return `ELÍPTICA ${APP_VERSION} · ${totalTime} · ~${totalKcal} kcal`;
+}
+function syncPlanTitle(){
+  if(!state.plan) return;
+  state.plan.title = currentPlanTitle();
+  if(els.planTitle) els.planTitle.textContent = state.plan.title;
+}
+
+
