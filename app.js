@@ -1,7 +1,7 @@
 (() => {
 'use strict';
-const APP_VERSION='v77';
-const BUILD='2026-04-23 12:20';
+const APP_VERSION='v79';
+const BUILD='2026-04-24 12:35';
 const $=id=>document.getElementById(id);
 const STATE_KEY='eliptica_state_current'; const VERSIONED_STATE_KEY=`eliptica_state_${APP_VERSION}`; const LAST_SESSION_KEY='lastCompletedSession'; const LAST_TIME_CAL_KEY='lastTimeCalibrationMemory'; const state={phase:'idle',countdown:{active:false},plan:null,startTs:null,pausedAccumMs:0,pauseTs:null,elapsedSec:0,machineOffsetSec:0,lastSec:-1,realOffset:0,history:[],logs:[],installPrompt:null,bannerIndex:0,bannerHoldMs:5000,bannerLastChange:0,bpmSamples:[],swReg:null,lastActionTs:0,lastRenderTick:0,lastRenderSnapshot:null,lastSummarySnapshot:null,wakeLock:null,timeCal:{enabled:false,appRefSec:0,realRefSec:0,factorOverall:1,factorAfterMinute:1},calMemory:{lastStartAppSec:0,lastStartRealSec:0,lastStartFactorOverall:1,lastStartFactorAfterMinute:1,lastRecommendedAppSec:0,lastRecommendedRealSec:0,lastRecommendedFactorOverall:1,lastRecommendedFactorAfterMinute:1,updatedAt:0},voice:{supported:('speechSynthesis' in window),unlocked:false,enabled:true,voices:[],selectedURI:'',queue:[],speaking:false,lastByKey:{},volume:1,rate:1,browserNotify:false,beepEnabled:true},audio:{ctx:null,unlocked:false},alerts:{lastKey:{},lastSecChecked:-1,lastNotifTs:0,finished:false,pulseSide:'ok',pulseSinceTs:0,pulseLastAlertTs:0},ble:{device:null,server:null,hrChar:null,connected:false,lastPacketTs:0,deviceName:'',autoAttempted:false,status:'EMparejar requerido',detail:'',reconnectAttempts:0,reconnectTimer:null,battery:null,lastRR:null}};
 const els={};
@@ -150,7 +150,14 @@ function pointControlText(data=state.lastSummarySnapshot||buildFinalSummarySnaps
     `Kcal plan: ${d.kPlan.toFixed(1)}`,
     `Kcal real: ${d.kReal.toFixed(1)}`,
     `Desvío total: ${d.totalDev>=0?'+':''}${d.totalDev.toFixed(1)} kcal`,
-    `Ritmo real: ${d.realRate.toFixed(2)} kcal/min`
+    `Ritmo real: ${d.realRate.toFixed(2)} kcal/min`,
+    ``,
+    `CALIBRACIÓN`,
+    `Inicio activa: ${d.timeCalEnabled?'SÍ':'NO'}`,
+    `Inicio: ${fmt(d.startCal.appRefSec||0)} → ${fmt(d.startCal.realRefSec||0)}`,
+    `Factor inicio desde 01:00: ${fmtFactor10(d.startCal.factorAfterMinute||1)}`,
+    `Recomendada final: ${fmt(d.recommendedCal.appRefSec||0)} → ${fmt(d.recommendedCal.realRefSec||0)}`,
+    `Factor recomendado desde 01:00: ${fmtFactor10(d.recommendedCal.factorAfterMinute||1)}`
   ];
   return lines.join('\n');
 }
@@ -627,6 +634,36 @@ function makeCalibrationPayload(appSec, realSec){
   if(!Number.isFinite(factorAfterMinute) || factorAfterMinute<=0) factorAfterMinute = factorOverall;
   return {enabled, appRefSec:a, realRefSec:r, factorOverall, factorAfterMinute};
 }
+
+function parseCalibrationFromText(text){
+  const lines = String(text||'').split(/\r?\n/).map(x=>x.trim()).filter(Boolean);
+  let inCal = false;
+  let appSec = null;
+  let realSec = null;
+  for(const line of lines){
+    if(/CALIBRACI[ÓO]N.*(?:TIEMPO|M[ÁA]QUINA|MAQUINA|PREVIA|INICIO)/i.test(line)){
+      inCal = true;
+      continue;
+    }
+    if(inCal && /^(?:BLOQUE|OBJETIVO|BPM|TRAMOS|AGUA|TOTAL|REGLAS|LECTURA|SEÑALES)\b/i.test(line)){
+      if(appSec!=null || realSec!=null) break;
+    }
+    if(!inCal) continue;
+    let m = line.match(/(?:Tiempo\s*)?(?:app|plan|base|aplicaci[oó]n)(?:\s*\/\s*plan)?\s*:\s*(\d{1,2}:\d{2})/i);
+    if(m){ appSec = parseMmSsInput(m[1]); continue; }
+    m = line.match(/(?:Tiempo\s*)?m[áa]quina\s*(?:real)?\s*:\s*(\d{1,2}:\d{2})/i);
+    if(m){ realSec = parseMmSsInput(m[1]); continue; }
+    m = line.match(/(?:maquina|máquina)\s*real\s*:\s*(\d{1,2}:\d{2})/i);
+    if(m){ realSec = parseMmSsInput(m[1]); continue; }
+    m = line.match(/^(\d{1,2}:\d{2})\s*(?:→|->|-->|—|–|-){1,2}\s*(\d{1,2}:\d{2})$/);
+    if(m){ appSec = parseMmSsInput(m[1]); realSec = parseMmSsInput(m[2]); continue; }
+  }
+  if(appSec!=null && realSec!=null){
+    const payload = makeCalibrationPayload(appSec, realSec);
+    return payload.enabled ? payload : null;
+  }
+  return null;
+}
 function recommendedCalibrationFromSnapshot(snap=state.lastRenderSnapshot||buildTimeSnapshot()){
   const safe = snap || buildTimeSnapshot();
   return makeCalibrationPayload(safe.machineBaseSec, safe.machineRawSec);
@@ -827,6 +864,7 @@ function parsePlan(text){
 
   const lines=text.split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
   const segments=[], water=[], bpmApp={}, bpmDay={};
+  const importedTimeCal = parseCalibrationFromText(text);
   let totalTime=null,totalKcal=null, mode='';
   const parseDuration = (str)=>{
     const m = String(str||'').match(/(\d{1,2}):(\d{2})(?::(\d{2}))?/);
@@ -912,13 +950,21 @@ function parsePlan(text){
   const duration=segments.reduce((a,s)=>a+s.durationSec,0);
   if(!totalTime) totalTime = fmt(duration);
   if(totalKcal==null) totalKcal = segments.reduce((a,s)=>a+s.kcalTarget,0);
-  return {title:`ELÍPTICA ${APP_VERSION} · ${totalTime} · ~${Math.round(totalKcal)} kcal`,segments,water:[...new Set(water)],bpmApp,bpmDay,totalTime,totalKcal,normalizedText:text};
+  return {title:`ELÍPTICA ${APP_VERSION} · ${totalTime} · ~${Math.round(totalKcal)} kcal`,segments,water:[...new Set(water)],bpmApp,bpmDay,totalTime,totalKcal,normalizedText:text,timeCal:importedTimeCal};
 }
 function normalizeText(plan=state.plan){
   if(!plan) return '';
   const rows=[];
   rows.push(plan.title.replace(` ${APP_VERSION}`,''));
   rows.push('');
+  if(plan.timeCal && plan.timeCal.enabled){
+    rows.push('CALIBRACIÓN PREVIA TIEMPO MÁQUINA');
+    rows.push(`Tiempo app/plan: ${fmt(plan.timeCal.appRefSec)}`);
+    rows.push(`Tiempo máquina real: ${fmt(plan.timeCal.realRefSec)}`);
+    rows.push(`Factor general: ${fmtFactor10(plan.timeCal.factorOverall)}`);
+    rows.push(`Factor desde 01:00: ${fmtFactor10(plan.timeCal.factorAfterMinute)}`);
+    rows.push('');
+  }
   if(Object.keys(plan.bpmApp||{}).length){
     rows.push('BPM OPERATIVO PARA LA APP');
     Object.keys(plan.bpmApp).sort((a,b)=>Number(a)-Number(b)).forEach(k=>rows.push(`Nivel ${k}: ${plan.bpmApp[k].min}-${plan.bpmApp[k].max}`));
@@ -941,7 +987,17 @@ function normalizeText(plan=state.plan){
 function applyPlan(){
   const text=els.planInput.value.trim();
   if(!text) throw new Error('No hay texto de plan');
-  state.plan=parsePlan(text);
+  const parsedPlan=parsePlan(text);
+  state.plan=parsedPlan;
+  if(parsedPlan.timeCal && parsedPlan.timeCal.enabled){
+    state.timeCal = Object.assign({enabled:false,appRefSec:0,realRefSec:0,factorOverall:1,factorAfterMinute:1}, parsedPlan.timeCal);
+    state.calMemory.lastStartAppSec = state.timeCal.appRefSec;
+    state.calMemory.lastStartRealSec = state.timeCal.realRefSec;
+    state.calMemory.lastStartFactorOverall = state.timeCal.factorOverall;
+    state.calMemory.lastStartFactorAfterMinute = state.timeCal.factorAfterMinute;
+    persistCalibrationMemory();
+    addLog(`[TIME] Calibración importada con el plan · app ${fmt(state.timeCal.appRefSec)} → máquina real ${fmt(state.timeCal.realRefSec)} · f=${fmtFactor10(state.timeCal.factorAfterMinute)}`);
+  }
   state.phase='idle';
   state.elapsedSec=0;
   state.startTs=null;
@@ -967,7 +1023,7 @@ function applyPlan(){
   renderAll();
   addLog(`[PLAN] Cargado · ${state.plan.segments.length} tramos · agua ${state.plan.water.length}`);
 }
-function previewPlan(){const text=els.planInput.value.trim(); const p=parsePlan(text); els.importOutput.textContent=`TRAMOS: ${p.segments.length}\nDURACIÓN: ${p.totalTime||fmt(p.segments.reduce((a,s)=>a+s.durationSec,0))}\nKCAL: ~${Math.round(p.totalKcal||p.segments.reduce((a,s)=>a+s.kcalTarget,0))}\nAGUA: ${p.water.join(', ')||'ninguna'}\nTESTS: ${p.segments.filter(s=>s.isTest).map(s=>s.id).join(', ')||'ninguno'}`;}
+function previewPlan(){const text=els.planInput.value.trim(); const p=parsePlan(text); els.importOutput.textContent=`TRAMOS: ${p.segments.length}\nDURACIÓN: ${p.totalTime||fmt(p.segments.reduce((a,s)=>a+s.durationSec,0))}\nKCAL: ~${Math.round(p.totalKcal||p.segments.reduce((a,s)=>a+s.kcalTarget,0))}\nAGUA: ${p.water.join(', ')||'ninguna'}\nCALIBRACIÓN IMPORTADA: ${p.timeCal&&p.timeCal.enabled?fmt(p.timeCal.appRefSec)+' → '+fmt(p.timeCal.realRefSec):'NO'}\nTESTS: ${p.segments.filter(s=>s.isTest).map(s=>s.id).join(', ')||'ninguno'}`;}
 function normalizePlan(){const text=els.planInput.value.trim(); const p=parsePlan(text); els.planInput.value=normalizeText(p);}
 async function copyText(txt){if(!txt) throw new Error('No hay texto'); try{if(navigator.clipboard&&window.isSecureContext){await navigator.clipboard.writeText(txt); return true}}catch(e){} const ta=document.createElement('textarea'); ta.value=txt; ta.setAttribute('readonly',''); ta.style.position='fixed'; ta.style.left='-9999px'; ta.style.opacity='0'; document.body.appendChild(ta); ta.focus(); ta.select(); ta.setSelectionRange(0, ta.value.length); let ok=false; try{ok=document.execCommand('copy')}catch(e){} ta.remove(); if(ok) return true; download(`copiado_${APP_VERSION}.txt`,txt,'text/plain;charset=utf-8'); addLog('[COPY] Portapapeles no disponible; descargado como TXT'); return false}
 function copyPlanText(){ const txt=(els.planInput?.value||'').trim() || (state.plan?normalizeText(): ''); return copyText(txt) }
@@ -1238,7 +1294,34 @@ function loadPersisted(){
   }catch(e){addLog('[LOAD] ERROR: '+(e.message||e))}
 }
 function resumeSavedSession(){loadPersisted(); renderAll(); if(state.plan) addLog('[LOAD] Reanudada desde guardado local'); else throw new Error('No hay sesión guardada')}
-function summaryText(){const segs=buildSegmentSummary(); const lines=[`ELÍPTICA ${APP_VERSION}`,`Tiempo máquina base: ${fmt(currentMachineElapsedBase())}`,`Tiempo máquina ajustado: ${fmt(currentMachineElapsedRaw())}`,`Tiempo plan: ${fmt(currentElapsed())}`,`Tiempo real: ${fmt(currentRealElapsed())}`,`Ajuste máquina: ${state.machineOffsetSec>=0?'+':'-'}${fmt(Math.abs(state.machineOffsetSec||0))}`,`Calibración activa: ${state.timeCal.enabled?'SÍ':'NO'}`,`Factor general: ${fmtFactor10(state.timeCal.factorOverall||1)}`,`Factor desde 01:00: ${fmtFactor10(state.timeCal.factorAfterMinute||1)}`,`Kcal plan: ${currentPlanKcal().toFixed(1)}`,`Kcal real: ${currentRealKcal().toFixed(1)}`,`Desvío total: ${totalDeviation().toFixed(1)} kcal`,`Ritmo real: ${realRate().toFixed(2)} kcal/min`,`Pulso: ${bpmDisplay()?.toFixed(1)??'--.-'}`,'']; segs.forEach(s=>lines.push(`${s.segment} · N${s.level} · plan ${s.kcalPlan} · real ${s.kcalReal} · desvío ${s.deviation}`)); return lines.join('\n')}
+function summaryText(data=state.lastSummarySnapshot||buildFinalSummarySnapshot()){
+  const d = data || buildFinalSummarySnapshot();
+  const lines=[
+    `ELÍPTICA ${APP_VERSION}`,
+    `Tiempo máquina base: ${fmt(d.machineBaseSec)}`,
+    `Tiempo máquina ajustado: ${fmt(d.machineRawSec)}`,
+    `Tiempo plan: ${fmt(d.planSec)}`,
+    `Tiempo real: ${fmt(d.realSec)}`,
+    `Ajuste máquina: ${d.machineOffsetSec>=0?'+':'-'}${fmt(Math.abs(d.machineOffsetSec||0))}`,
+    `Calibración activa: ${d.timeCalEnabled?'SÍ':'NO'}`,
+    `Calibración inicio app: ${fmt(d.startCal.appRefSec||0)}`,
+    `Calibración inicio máquina real: ${fmt(d.startCal.realRefSec||0)}`,
+    `Factor general inicio: ${fmtFactor10(d.startCal.factorOverall||1)}`,
+    `Factor desde 01:00 inicio: ${fmtFactor10(d.startCal.factorAfterMinute||1)}`,
+    `Calibración recomendada app: ${fmt(d.recommendedCal.appRefSec||0)}`,
+    `Calibración recomendada máquina real: ${fmt(d.recommendedCal.realRefSec||0)}`,
+    `Factor general recomendado: ${fmtFactor10(d.recommendedCal.factorOverall||1)}`,
+    `Factor desde 01:00 recomendado: ${fmtFactor10(d.recommendedCal.factorAfterMinute||1)}`,
+    `Kcal plan: ${d.kPlan.toFixed(1)}`,
+    `Kcal real: ${d.kReal.toFixed(1)}`,
+    `Desvío total: ${d.totalDev>=0?'+':''}${d.totalDev.toFixed(1)} kcal`,
+    `Ritmo real: ${d.realRate.toFixed(2)} kcal/min`,
+    `Pulso: ${d.bpm!=null?Number(d.bpm).toFixed(1):'--.-'}`,
+    ''
+  ];
+  (d.segs||[]).forEach(s=>lines.push(`${s.segment} · N${s.level} · plan ${s.kcalPlan} · real ${s.kcalReal} · desvío ${s.deviation}`));
+  return lines.join('\n');
+}
 
 function showFinalSummary(){
   const snap=buildFinalSummarySnapshot(state.lastRenderSnapshot||buildTimeSnapshot());
@@ -1249,7 +1332,31 @@ function showFinalSummary(){
   addLog('[SUMMARY] Resumen final generado');
 }
 
-function download(name, content, mime='text/plain;charset=utf-8'){const blob=new Blob([content],{type:mime}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(url),500)}
+function fileTimestamp(d=new Date()){
+  const pad=n=>String(n).padStart(2,'0');
+  return `${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
+}
+function withDownloadTimestamp(name){
+  const raw=String(name||`archivo_${APP_VERSION}.txt`).replace(/[\/:*?\"<>|]+/g,'-').trim() || `archivo_${APP_VERSION}.txt`;
+  const stamp=fileTimestamp();
+  const dot=raw.lastIndexOf(".");
+  if(dot>0){ return `${raw.slice(0,dot)}_${stamp}${raw.slice(dot)}`; }
+  return `${raw}_${stamp}`;
+}
+function download(name, content, mime='text/plain;charset=utf-8'){
+  const finalName=withDownloadTimestamp(name);
+  const blob=new Blob([content],{type:mime});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url;
+  a.download=finalName;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),500);
+  try{ addLog(`[DOWNLOAD] ${finalName}`); }catch(e){}
+  return finalName;
+}
 
 function exportJson(){
   const snap = state.lastSummarySnapshot||buildFinalSummarySnapshot();
@@ -1258,9 +1365,9 @@ function exportJson(){
   if(els.importOutput) els.importOutput.textContent='JSON exportado';
 }
 
-function exportSessionCsv(){if(!state.history.length) throw new Error('No hay datos segundo a segundo'); const rows=['seg_plan;clock_plan;seg_machine_raw;clock_machine_raw;seg_real;clock_real;level;segment;kcal_plan;kcal_real;bpm']; state.history.forEach(h=>rows.push([h.sec,h.clock,h.machineRawSec??'',h.machineRawClock??'',h.realSec??'',h.realClock??'',h.level,h.segment,h.kPlan,h.kReal,h.bpm??''].join(';'))); download(`sesion_${APP_VERSION}.csv`,'\ufeff'+rows.join('\r\n'),'text/csv;charset=utf-8'); addLog('[EXPORT] Sesión CSV exportada')}
-function exportMinuteCsv(){const rowsData=buildMinuteRows(); if(!rowsData.length) throw new Error('No hay datos minuto a minuto todavía'); const rows=['minute;clock;level;segment;kcal_start;kcal_end;kcal_minute;kcal_per_min;bpm_avg']; rowsData.forEach(r=>rows.push([r.minute,r.clock,r.level,r.segment,r.kcalStart,r.kcalEnd,r.kcalMinute,r.kcalPerMin,r.bpmAvg??''].join(';'))); download(`minuto_${APP_VERSION}.csv`,'\ufeff'+rows.join('\r\n'),'text/csv;charset=utf-8'); addLog('[EXPORT] Minuto a minuto exportado')}
-function exportTramoCsv(){const segs=buildSegmentSummary(); if(!segs.length) throw new Error('No hay datos por tramo'); const rows=['segment;level;duration;kcal_plan;kcal_real;deviation;bpm_avg']; segs.forEach(s=>rows.push([s.segment,s.level,s.duration,s.kcalPlan,s.kcalReal,s.deviation,s.bpmAvg??''].join(';'))); download(`tramos_${APP_VERSION}.csv`,'\ufeff'+rows.join('\r\n'),'text/csv;charset=utf-8'); addLog('[EXPORT] CSV por tramos exportado')}
+function exportSessionCsv(){if(!state.history.length) throw new Error('No hay datos segundo a segundo'); const snap=state.lastSummarySnapshot||buildFinalSummarySnapshot(); const rows=calibrationRowsForCsv(snap); rows.push('seg_plan;clock_plan;seg_machine_raw;clock_machine_raw;seg_real;clock_real;level;segment;kcal_plan;kcal_real;bpm'); state.history.forEach(h=>rows.push([h.sec,h.clock,h.machineRawSec??'',h.machineRawClock??'',h.realSec??'',h.realClock??'',h.level,h.segment,h.kPlan,h.kReal,h.bpm??''].join(';'))); download(`sesion_${APP_VERSION}.csv`,'\ufeff'+rows.join('\r\n'),'text/csv;charset=utf-8'); addLog('[EXPORT] Sesión CSV exportada')}
+function exportMinuteCsv(){const rowsData=buildMinuteRows(); if(!rowsData.length) throw new Error('No hay datos minuto a minuto todavía'); const snap=state.lastSummarySnapshot||buildFinalSummarySnapshot(); const rows=calibrationRowsForCsv(snap); rows.push('minute;clock;level;segment;kcal_start;kcal_end;kcal_minute;kcal_per_min;bpm_avg'); rowsData.forEach(r=>rows.push([r.minute,r.clock,r.level,r.segment,r.kcalStart,r.kcalEnd,r.kcalMinute,r.kcalPerMin,r.bpmAvg??''].join(';'))); download(`minuto_${APP_VERSION}.csv`,'\ufeff'+rows.join('\r\n'),'text/csv;charset=utf-8'); addLog('[EXPORT] Minuto a minuto exportado')}
+function exportTramoCsv(){const segs=buildSegmentSummary(); if(!segs.length) throw new Error('No hay datos por tramo'); const snap=state.lastSummarySnapshot||buildFinalSummarySnapshot(); const rows=calibrationRowsForCsv(snap); rows.push('segment;level;duration;kcal_plan;kcal_real;deviation;bpm_avg'); segs.forEach(s=>rows.push([s.segment,s.level,s.duration,s.kcalPlan,s.kcalReal,s.deviation,s.bpmAvg??''].join(';'))); download(`tramos_${APP_VERSION}.csv`,'\ufeff'+rows.join('\r\n'),'text/csv;charset=utf-8'); addLog('[EXPORT] CSV por tramos exportado')}
 function exportPlan(){const txt=state.plan?normalizeText():els.planInput.value; if(!txt) throw new Error('No hay plan para exportar'); download(`plan_${APP_VERSION}.txt`,txt,'text/plain;charset=utf-8'); addLog('[EXPORT] Plan exportado')}
 
 function compareLast(){
