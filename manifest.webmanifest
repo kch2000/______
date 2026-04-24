@@ -1,20 +1,20 @@
 {
   "id": "eliptica-pwa",
-  "name": "Eliptica PWA v76",
-  "short_name": "Eliptica v76",
-  "start_url": "./index.html?v=v76",
+  "name": "Eliptica PWA v77",
+  "short_name": "Eliptica v77",
+  "start_url": "./index.html?v=v77",
   "display": "standalone",
   "background_color": "#0b0f16",
   "theme_color": "#0b0f16",
-  "description": "Eliptica PWA v76 para Android/Chrome con BLE más tolerante, diagnóstico ampliado y limpieza total de versión visible.",
+  "description": "Eliptica PWA v77 con calibración previa funcional, calibración recomendada al final y CSV con calibración.",
   "icons": [
     {
-      "src": "./icon-192.png?v=v76",
+      "src": "./icon-192.png?v=v77",
       "sizes": "192x192",
       "type": "image/png"
     },
     {
-      "src": "./icon-512.png?v=v76",
+      "src": "./icon-512.png?v=v77",
       "sizes": "512x512",
       "type": "image/png"
     }

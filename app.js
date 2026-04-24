@@ -1,9 +1,9 @@
 (() => {
 'use strict';
-const APP_VERSION='v76';
-const BUILD='2026-04-22 11:20';
+const APP_VERSION='v77';
+const BUILD='2026-04-23 12:20';
 const $=id=>document.getElementById(id);
-const STATE_KEY='eliptica_state_current'; const VERSIONED_STATE_KEY=`eliptica_state_${APP_VERSION}`; const LAST_SESSION_KEY='lastCompletedSession'; const state={phase:'idle',countdown:{active:false},plan:null,startTs:null,pausedAccumMs:0,pauseTs:null,elapsedSec:0,machineOffsetSec:0,lastSec:-1,realOffset:0,history:[],logs:[],installPrompt:null,bannerIndex:0,bannerHoldMs:5000,bannerLastChange:0,bpmSamples:[],swReg:null,lastActionTs:0,lastRenderTick:0,lastRenderSnapshot:null,lastSummarySnapshot:null,wakeLock:null,timeCal:{enabled:false,appRefSec:0,realRefSec:0,factorOverall:1,factorAfterMinute:1},voice:{supported:('speechSynthesis' in window),unlocked:false,enabled:true,voices:[],selectedURI:'',queue:[],speaking:false,lastByKey:{},volume:1,rate:1,browserNotify:false,beepEnabled:true},audio:{ctx:null,unlocked:false},alerts:{lastKey:{},lastSecChecked:-1,lastNotifTs:0,finished:false,pulseSide:'ok',pulseSinceTs:0,pulseLastAlertTs:0},ble:{device:null,server:null,hrChar:null,connected:false,lastPacketTs:0,deviceName:'',autoAttempted:false,status:'EMparejar requerido',detail:'',reconnectAttempts:0,reconnectTimer:null,battery:null,lastRR:null}};
+const STATE_KEY='eliptica_state_current'; const VERSIONED_STATE_KEY=`eliptica_state_${APP_VERSION}`; const LAST_SESSION_KEY='lastCompletedSession'; const LAST_TIME_CAL_KEY='lastTimeCalibrationMemory'; const state={phase:'idle',countdown:{active:false},plan:null,startTs:null,pausedAccumMs:0,pauseTs:null,elapsedSec:0,machineOffsetSec:0,lastSec:-1,realOffset:0,history:[],logs:[],installPrompt:null,bannerIndex:0,bannerHoldMs:5000,bannerLastChange:0,bpmSamples:[],swReg:null,lastActionTs:0,lastRenderTick:0,lastRenderSnapshot:null,lastSummarySnapshot:null,wakeLock:null,timeCal:{enabled:false,appRefSec:0,realRefSec:0,factorOverall:1,factorAfterMinute:1},calMemory:{lastStartAppSec:0,lastStartRealSec:0,lastStartFactorOverall:1,lastStartFactorAfterMinute:1,lastRecommendedAppSec:0,lastRecommendedRealSec:0,lastRecommendedFactorOverall:1,lastRecommendedFactorAfterMinute:1,updatedAt:0},voice:{supported:('speechSynthesis' in window),unlocked:false,enabled:true,voices:[],selectedURI:'',queue:[],speaking:false,lastByKey:{},volume:1,rate:1,browserNotify:false,beepEnabled:true},audio:{ctx:null,unlocked:false},alerts:{lastKey:{},lastSecChecked:-1,lastNotifTs:0,finished:false,pulseSide:'ok',pulseSinceTs:0,pulseLastAlertTs:0},ble:{device:null,server:null,hrChar:null,connected:false,lastPacketTs:0,deviceName:'',autoAttempted:false,status:'EMparejar requerido',detail:'',reconnectAttempts:0,reconnectTimer:null,battery:null,lastRR:null}};
 const els={};
 const MACHINE_TIME_FACTOR=1; // base sin calibración automática; la calibración previa se aplica por estado.timeCal
 const ids=['timelineBar','timelineMarkers','playhead','tickerNow','tickerMsg','tickerEta','sessionBadge','planTitle','timeBig','timeRealLabel','kPlanBig','kRealBig','bpmBig','bpmTargetLabel','avgPlanLabel','avgRealLabel','deviationTotalLabel','deviationSegmentLabel','realRateLabel','planRateLabel','waterCountLabel','upcomingBody','upcomingVisibleLabel','waterNextLabel','waterProgressBar','chipBle','chipPulse','chipSession','chipSaved','chipWater','chipAlerts','chipApp','chipTest','bleStatusLabel','bleBpmBig','ble5s','ble10s','ble30s','bleLastPkt','bleDeviceName','planInput','importOutput','versionLabel','pwaStateLabel','logBox','voiceSelect','voiceStatus','voiceVolumeRange','voiceVolumeVal','voiceRateRange','voiceRateVal','browserNotifyChk','voiceAlertsChk','beepAlertsChk','bleState','bleBattery','bleRR','wakeLockLabel','countdownOverlay','countdownRing','countdownNumber','countdownSub','calAppRefInput','calRealRefInput','calFactorLabel'];
@@ -122,6 +122,8 @@ function buildFinalSummarySnapshot(snap=state.lastRenderSnapshot||buildTimeSnaps
   const kReal = realKcalAt(safeSnap.realFloat);
   const totalDev = round1(kReal-kPlan);
   const rate = round2(kReal/(Math.max(1,safeSnap.realFloat)/60));
+  const recommendedCal = recommendedCalibrationFromSnapshot(safeSnap);
+  const startCal = makeCalibrationPayload(state.timeCal.appRefSec, state.timeCal.realRefSec);
   return {
     machineBaseSec: safeSnap.machineBaseSec,
     machineRawSec: safeSnap.machineRawSec,
@@ -131,6 +133,8 @@ function buildFinalSummarySnapshot(snap=state.lastRenderSnapshot||buildTimeSnaps
     timeCalEnabled: !!state.timeCal.enabled,
     factorOverall: Number(state.timeCal.factorOverall||1),
     factorAfterMinute: Number(state.timeCal.factorAfterMinute||1),
+    startCal,
+    recommendedCal,
     kPlan, kReal, totalDev, realRate: rate,
     bpm: bpmDisplay(),
     segs
@@ -153,12 +157,19 @@ function pointControlText(data=state.lastSummarySnapshot||buildFinalSummarySnaps
 function saveCompletedSession(reason='manual'){
   const snap = buildFinalSummarySnapshot(state.lastRenderSnapshot||buildTimeSnapshot());
   state.lastSummarySnapshot = snap;
+  state.calMemory.lastRecommendedAppSec = snap.recommendedCal.appRefSec;
+  state.calMemory.lastRecommendedRealSec = snap.recommendedCal.realRefSec;
+  state.calMemory.lastRecommendedFactorOverall = snap.recommendedCal.factorOverall;
+  state.calMemory.lastRecommendedFactorAfterMinute = snap.recommendedCal.factorAfterMinute;
+  persistCalibrationMemory();
   const payload = {
     elapsedSec:snap.planSec,
     realElapsedSec:snap.realSec,
     machineBaseSec:snap.machineBaseSec,
     machineRawElapsedSec:snap.machineRawSec,
     machineOffsetSec:snap.machineOffsetSec,
+    startCal:snap.startCal,
+    recommendedCal:snap.recommendedCal,
     kReal:snap.kReal,
     kPlan:snap.kPlan,
     totalDev:snap.totalDev,
@@ -583,6 +594,8 @@ function bind(){
   B('copyChatgptBtn','copyChatgpt',()=>copyText(`${pointControlText(state.lastSummarySnapshot||buildFinalSummarySnapshot())}\n\nLOGS\n${state.logs.slice(-20).join('\n')}`));
   B('exportPlanBtn','exportPlan',exportPlan);
   B('clearAppDataBtn','clearAppData',clearAppData);
+  B('applyCalBtn','applyCal',applyTimeCalibration);
+  B('clearCalBtn','clearCal',clearTimeCalibration);
   [['seekPlus60',60],['seekPlus10',10],['seekPlus5',5],['seekPlus1',1],['seekMinus1',-1],['seekMinus5',-5],['seekMinus10',-10],['seekMinus60',-60]].forEach(([id,d])=>B(id,id,()=>seek(d)));
   B('eqSegmentBtn','eqSegment',equalizeSegmentKcal);
   [['kPlus1',1],['kPlus05',0.5],['kPlus01',0.1],['kMinus01',-0.1],['kMinus05',-0.5],['kMinus1',-1]].forEach(([id,d])=>B(id,id,()=>adjustReal(d)));
@@ -599,28 +612,88 @@ function round1(n){return Math.round(n*10)/10} function round2(n){return Math.ro
 function hm(d){return d?d.toTimeString().slice(0,5):'--:--'}
 function parseMmSsInput(v){ const m=String(v||'').trim().match(/^(\d{1,2}):(\d{2})$/); return m ? Number(m[1])*60+Number(m[2]) : null; }
 function fmtFactor10(n){ return Number.isFinite(n)?Number(n).toFixed(10):'--'; }
-function recomputeTimeCalibration(){
-  const a=Math.max(0, Number(state.timeCal.appRefSec||0));
-  const r=Math.max(0, Number(state.timeCal.realRefSec||0));
-  state.timeCal.factorOverall = (a>0 && r>0) ? (r/a) : 1;
-  if(a>60 && r>60){
-    state.timeCal.factorAfterMinute = (r-60)/(a-60);
-  } else {
-    state.timeCal.factorAfterMinute = state.timeCal.factorOverall || 1;
+
+function makeCalibrationPayload(appSec, realSec){
+  const a = Math.max(0, Math.round(Number(appSec||0)));
+  const r = Math.max(0, Math.round(Number(realSec||0)));
+  let factorOverall = 1;
+  let factorAfterMinute = 1;
+  const enabled = a>0 && r>0;
+  if(enabled){
+    factorOverall = r / a;
+    factorAfterMinute = (a>60 && r>60) ? ((r-60)/(a-60)) : factorOverall;
   }
-  if(!Number.isFinite(state.timeCal.factorAfterMinute) || state.timeCal.factorAfterMinute<=0) state.timeCal.factorAfterMinute=1;
-  if(!Number.isFinite(state.timeCal.factorOverall) || state.timeCal.factorOverall<=0) state.timeCal.factorOverall=1;
+  if(!Number.isFinite(factorOverall) || factorOverall<=0) factorOverall = 1;
+  if(!Number.isFinite(factorAfterMinute) || factorAfterMinute<=0) factorAfterMinute = factorOverall;
+  return {enabled, appRefSec:a, realRefSec:r, factorOverall, factorAfterMinute};
+}
+function recommendedCalibrationFromSnapshot(snap=state.lastRenderSnapshot||buildTimeSnapshot()){
+  const safe = snap || buildTimeSnapshot();
+  return makeCalibrationPayload(safe.machineBaseSec, safe.machineRawSec);
+}
+function persistCalibrationMemory(){
+  try{
+    state.calMemory.updatedAt = Date.now();
+    localStorage.setItem(LAST_TIME_CAL_KEY, JSON.stringify(state.calMemory));
+  }catch(e){ addLog('[TIME] ERROR guardando memoria calibración: '+(e.message||e)); }
+}
+function loadCalibrationMemory(){
+  try{
+    const raw = localStorage.getItem(LAST_TIME_CAL_KEY);
+    if(!raw) return;
+    const d = JSON.parse(raw)||{};
+    state.calMemory = Object.assign(state.calMemory, d);
+    if(!state.timeCal.enabled && state.phase==='idle' && currentRealElapsed()===0){
+      const appSec = Number(state.calMemory.lastRecommendedAppSec||0);
+      const realSec = Number(state.calMemory.lastRecommendedRealSec||0);
+      if(appSec>0 && realSec>0){
+        if(els.calAppRefInput && !els.calAppRefInput.value) els.calAppRefInput.value = fmt(appSec);
+        if(els.calRealRefInput && !els.calRealRefInput.value) els.calRealRefInput.value = fmt(realSec);
+      }
+    }
+  }catch(e){ addLog('[TIME] ERROR leyendo memoria calibración: '+(e.message||e)); }
+}
+function calibrationRowsForCsv(data=state.lastSummarySnapshot||buildFinalSummarySnapshot()){
+  const d = data || buildFinalSummarySnapshot();
+  const rows=[];
+  rows.push(`meta;calibracion_inicio_activa;${d.timeCalEnabled?'SI':'NO'}`);
+  rows.push(`meta;calibracion_inicio_app;${fmt(d.startCal.appRefSec||0)}`);
+  rows.push(`meta;calibracion_inicio_maquina_real;${fmt(d.startCal.realRefSec||0)}`);
+  rows.push(`meta;calibracion_inicio_factor_general;${fmtFactor10(d.startCal.factorOverall||1)}`);
+  rows.push(`meta;calibracion_inicio_factor_desde_0100;${fmtFactor10(d.startCal.factorAfterMinute||1)}`);
+  rows.push(`meta;calibracion_recomendada_app;${fmt(d.recommendedCal.appRefSec||0)}`);
+  rows.push(`meta;calibracion_recomendada_maquina_real;${fmt(d.recommendedCal.realRefSec||0)}`);
+  rows.push(`meta;calibracion_recomendada_factor_general;${fmtFactor10(d.recommendedCal.factorOverall||1)}`);
+  rows.push(`meta;calibracion_recomendada_factor_desde_0100;${fmtFactor10(d.recommendedCal.factorAfterMinute||1)}`);
+  rows.push('');
+  return rows;
+}
+function recomputeTimeCalibration(){
+  const payload = makeCalibrationPayload(state.timeCal.appRefSec, state.timeCal.realRefSec);
+  state.timeCal.enabled = payload.enabled;
+  state.timeCal.appRefSec = payload.appRefSec;
+  state.timeCal.realRefSec = payload.realRefSec;
+  state.timeCal.factorOverall = payload.factorOverall;
+  state.timeCal.factorAfterMinute = payload.factorAfterMinute;
 }
 function syncCalibrationUi(){
   if(state.timeCal.enabled){
     if(els.calAppRefInput && document.activeElement!==els.calAppRefInput) els.calAppRefInput.value = state.timeCal.appRefSec?fmt(state.timeCal.appRefSec):'';
     if(els.calRealRefInput && document.activeElement!==els.calRealRefInput) els.calRealRefInput.value = state.timeCal.realRefSec?fmt(state.timeCal.realRefSec):'';
+  } else if(state.phase==='idle' && currentRealElapsed()===0){
+    const memApp = Number(state.calMemory.lastRecommendedAppSec||0);
+    const memReal = Number(state.calMemory.lastRecommendedRealSec||0);
+    if(memApp>0 && els.calAppRefInput && document.activeElement!==els.calAppRefInput && !els.calAppRefInput.value) els.calAppRefInput.value = fmt(memApp);
+    if(memReal>0 && els.calRealRefInput && document.activeElement!==els.calRealRefInput && !els.calRealRefInput.value) els.calRealRefInput.value = fmt(memReal);
   }
   if(els.calFactorLabel){
-    const t = state.timeCal.enabled
-      ? `ACTIVA · APP ${fmt(state.timeCal.appRefSec)} → MÁQUINA REAL ${fmt(state.timeCal.realRefSec)} · FACTOR GENERAL ${fmtFactor10(state.timeCal.factorOverall)} · FACTOR DESDE 01:00 ${fmtFactor10(state.timeCal.factorAfterMinute)}`
-      : 'SIN CALIBRACIÓN PREVIA · REAL Y MÁQUINA A LA PAR';
-    els.calFactorLabel.textContent=t;
+    let t = 'SIN CALIBRACIÓN PREVIA · REAL Y MÁQUINA A LA PAR';
+    if(state.timeCal.enabled){
+      t = `ACTIVA · APP ${fmt(state.timeCal.appRefSec)} → MÁQUINA REAL ${fmt(state.timeCal.realRefSec)} · FACTOR GENERAL ${fmtFactor10(state.timeCal.factorOverall)} · FACTOR DESDE 01:00 ${fmtFactor10(state.timeCal.factorAfterMinute)}`;
+    } else if(Number(state.calMemory.lastRecommendedAppSec||0)>0 && Number(state.calMemory.lastRecommendedRealSec||0)>0){
+      t = `SIN CALIBRACIÓN ACTIVA · ÚLTIMA RECOMENDADA APP ${fmt(state.calMemory.lastRecommendedAppSec)} → MÁQUINA REAL ${fmt(state.calMemory.lastRecommendedRealSec)} · FACTOR ${fmtFactor10(state.calMemory.lastRecommendedFactorAfterMinute||1)}`;
+    }
+    els.calFactorLabel.textContent = t;
   }
 }
 function applyTimeCalibration(){
@@ -738,7 +811,20 @@ function pruneBpmSamples(){ const now=Date.now(); state.bpmSamples = state.bpmSa
 function bpmDisplay(){ pruneBpmSamples(); const arr=state.bpmSamples.filter(x=>Date.now()-x.ts<=6000); if(!hasFreshPulse(6) || !arr.length) return null; const recent=arr.slice(-3).map(x=>x.bpm); return recent.reduce((a,b)=>a+b,0)/recent.length }
 function avgBpmWindow(secWindow){ pruneBpmSamples(); const now=Date.now(); if(!hasFreshPulse(Math.max(6,secWindow))) return null; const items=state.bpmSamples.filter(x=>now-x.ts<=secWindow*1000); if(!items.length) return null; return items.reduce((a,b)=>a+b.bpm,0)/items.length }
 
+
+function currentPlanTitle(){
+  if(!state.plan) return `ELÍPTICA ${APP_VERSION}`;
+  const totalTime = state.plan.totalTime || fmt(planDuration());
+  const totalKcal = Math.round(Number(state.plan.totalKcal||0));
+  return `ELÍPTICA ${APP_VERSION} · ${totalTime} · ~${totalKcal} kcal`;
+}
+function syncPlanTitle(){
+  if(!state.plan) return;
+  state.plan.title = currentPlanTitle();
+  if(els.planTitle) els.planTitle.textContent = state.plan.title;
+}
 function parsePlan(text){
+
   const lines=text.split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
   const segments=[], water=[], bpmApp={}, bpmDay={};
   let totalTime=null,totalKcal=null, mode='';
@@ -1155,14 +1241,23 @@ function resumeSavedSession(){loadPersisted(); renderAll(); if(state.plan) addLo
 function summaryText(){const segs=buildSegmentSummary(); const lines=[`ELÍPTICA ${APP_VERSION}`,`Tiempo máquina base: ${fmt(currentMachineElapsedBase())}`,`Tiempo máquina ajustado: ${fmt(currentMachineElapsedRaw())}`,`Tiempo plan: ${fmt(currentElapsed())}`,`Tiempo real: ${fmt(currentRealElapsed())}`,`Ajuste máquina: ${state.machineOffsetSec>=0?'+':'-'}${fmt(Math.abs(state.machineOffsetSec||0))}`,`Calibración activa: ${state.timeCal.enabled?'SÍ':'NO'}`,`Factor general: ${fmtFactor10(state.timeCal.factorOverall||1)}`,`Factor desde 01:00: ${fmtFactor10(state.timeCal.factorAfterMinute||1)}`,`Kcal plan: ${currentPlanKcal().toFixed(1)}`,`Kcal real: ${currentRealKcal().toFixed(1)}`,`Desvío total: ${totalDeviation().toFixed(1)} kcal`,`Ritmo real: ${realRate().toFixed(2)} kcal/min`,`Pulso: ${bpmDisplay()?.toFixed(1)??'--.-'}`,'']; segs.forEach(s=>lines.push(`${s.segment} · N${s.level} · plan ${s.kcalPlan} · real ${s.kcalReal} · desvío ${s.deviation}`)); return lines.join('\n')}
 
 function showFinalSummary(){
-  const txt=summaryText();
+  const snap=buildFinalSummarySnapshot(state.lastRenderSnapshot||buildTimeSnapshot());
+  state.lastSummarySnapshot = snap;
+  const txt=summaryText(snap);
   els.importOutput.textContent=txt;
   saveCompletedSession('manual');
   addLog('[SUMMARY] Resumen final generado');
 }
 
 function download(name, content, mime='text/plain;charset=utf-8'){const blob=new Blob([content],{type:mime}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(url),500)}
-function exportJson(){download(`eliptica_${APP_VERSION}.json`,JSON.stringify({version:APP_VERSION,build:BUILD,plan:state.plan,timeCal:state.timeCal,current:{elapsedSec:currentElapsed(),machineRawElapsedSec:currentMachineElapsedRaw(),realElapsedSec:currentRealElapsed(),machineOffsetSec:state.machineOffsetSec||0,kPlan:currentPlanKcal(),kReal:currentRealKcal(),bpm:bpmDisplay()},history:state.history,segmentSummary:buildSegmentSummary(),logs:state.logs},null,2),'application/json'); addLog('[EXPORT] JSON exportado'); if(els.importOutput) els.importOutput.textContent='JSON exportado'}
+
+function exportJson(){
+  const snap = state.lastSummarySnapshot||buildFinalSummarySnapshot();
+  download(`eliptica_${APP_VERSION}.json`,JSON.stringify({version:APP_VERSION,build:BUILD,plan:state.plan,timeCal:state.timeCal,calibrationMemory:state.calMemory,summarySnapshot:snap,current:{elapsedSec:currentElapsed(),machineRawElapsedSec:currentMachineElapsedRaw(),realElapsedSec:currentRealElapsed(),machineOffsetSec:state.machineOffsetSec||0,kPlan:currentPlanKcal(),kReal:currentRealKcal(),bpm:bpmDisplay()},history:state.history,segmentSummary:buildSegmentSummary(),logs:state.logs},null,2),'application/json');
+  addLog('[EXPORT] JSON exportado');
+  if(els.importOutput) els.importOutput.textContent='JSON exportado';
+}
+
 function exportSessionCsv(){if(!state.history.length) throw new Error('No hay datos segundo a segundo'); const rows=['seg_plan;clock_plan;seg_machine_raw;clock_machine_raw;seg_real;clock_real;level;segment;kcal_plan;kcal_real;bpm']; state.history.forEach(h=>rows.push([h.sec,h.clock,h.machineRawSec??'',h.machineRawClock??'',h.realSec??'',h.realClock??'',h.level,h.segment,h.kPlan,h.kReal,h.bpm??''].join(';'))); download(`sesion_${APP_VERSION}.csv`,'\ufeff'+rows.join('\r\n'),'text/csv;charset=utf-8'); addLog('[EXPORT] Sesión CSV exportada')}
 function exportMinuteCsv(){const rowsData=buildMinuteRows(); if(!rowsData.length) throw new Error('No hay datos minuto a minuto todavía'); const rows=['minute;clock;level;segment;kcal_start;kcal_end;kcal_minute;kcal_per_min;bpm_avg']; rowsData.forEach(r=>rows.push([r.minute,r.clock,r.level,r.segment,r.kcalStart,r.kcalEnd,r.kcalMinute,r.kcalPerMin,r.bpmAvg??''].join(';'))); download(`minuto_${APP_VERSION}.csv`,'\ufeff'+rows.join('\r\n'),'text/csv;charset=utf-8'); addLog('[EXPORT] Minuto a minuto exportado')}
 function exportTramoCsv(){const segs=buildSegmentSummary(); if(!segs.length) throw new Error('No hay datos por tramo'); const rows=['segment;level;duration;kcal_plan;kcal_real;deviation;bpm_avg']; segs.forEach(s=>rows.push([s.segment,s.level,s.duration,s.kcalPlan,s.kcalReal,s.deviation,s.bpmAvg??''].join(';'))); download(`tramos_${APP_VERSION}.csv`,'\ufeff'+rows.join('\r\n'),'text/csv;charset=utf-8'); addLog('[EXPORT] CSV por tramos exportado')}
@@ -1511,7 +1606,7 @@ function startLoops(){
 
 
 function init(){
-  cacheEls(); bind(); registerSW(); loadPersisted();
+  cacheEls(); loadCalibrationMemory(); bind(); registerSW(); loadPersisted();
   state.voice.browserNotify = ('Notification' in window && Notification.permission==='granted');
   addLog(`[STARTUP] ${APP_VERSION} · ${BUILD}`);
   addLog('[TIME] Tiempo máquina sincronizado con tiempo real por defecto. El desfase solo entra por ajuste manual.');
