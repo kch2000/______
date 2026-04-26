@@ -1,20 +1,20 @@
 {
   "id": "eliptica-pwa",
-  "name": "Eliptica PWA v79",
-  "short_name": "Eliptica v79",
-  "start_url": "./index.html?v=v79",
+  "name": "Eliptica PWA v80",
+  "short_name": "Eliptica v80",
+  "start_url": "./index.html?v=v80",
   "display": "standalone",
   "background_color": "#0b0f16",
   "theme_color": "#0b0f16",
-  "description": "Eliptica PWA v79 con importación de calibración y descargas con fecha y hora.",
+  "description": "Eliptica PWA v80 con panel principal compacto, calibración opcional oculta y descargas con fecha y hora.",
   "icons": [
     {
-      "src": "./icon-192.png?v=v79",
+      "src": "./icon-192.png?v=v80",
       "sizes": "192x192",
       "type": "image/png"
     },
     {
-      "src": "./icon-512.png?v=v79",
+      "src": "./icon-512.png?v=v80",
       "sizes": "512x512",
       "type": "image/png"
     }

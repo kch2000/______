@@ -1,7 +1,7 @@
 (() => {
 'use strict';
-const APP_VERSION='v79';
-const BUILD='2026-04-24 12:35';
+const APP_VERSION='v80';
+const BUILD='2026-04-24 13:20';
 const $=id=>document.getElementById(id);
 const STATE_KEY='eliptica_state_current'; const VERSIONED_STATE_KEY=`eliptica_state_${APP_VERSION}`; const LAST_SESSION_KEY='lastCompletedSession'; const LAST_TIME_CAL_KEY='lastTimeCalibrationMemory'; const state={phase:'idle',countdown:{active:false},plan:null,startTs:null,pausedAccumMs:0,pauseTs:null,elapsedSec:0,machineOffsetSec:0,lastSec:-1,realOffset:0,history:[],logs:[],installPrompt:null,bannerIndex:0,bannerHoldMs:5000,bannerLastChange:0,bpmSamples:[],swReg:null,lastActionTs:0,lastRenderTick:0,lastRenderSnapshot:null,lastSummarySnapshot:null,wakeLock:null,timeCal:{enabled:false,appRefSec:0,realRefSec:0,factorOverall:1,factorAfterMinute:1},calMemory:{lastStartAppSec:0,lastStartRealSec:0,lastStartFactorOverall:1,lastStartFactorAfterMinute:1,lastRecommendedAppSec:0,lastRecommendedRealSec:0,lastRecommendedFactorOverall:1,lastRecommendedFactorAfterMinute:1,updatedAt:0},voice:{supported:('speechSynthesis' in window),unlocked:false,enabled:true,voices:[],selectedURI:'',queue:[],speaking:false,lastByKey:{},volume:1,rate:1,browserNotify:false,beepEnabled:true},audio:{ctx:null,unlocked:false},alerts:{lastKey:{},lastSecChecked:-1,lastNotifTs:0,finished:false,pulseSide:'ok',pulseSinceTs:0,pulseLastAlertTs:0},ble:{device:null,server:null,hrChar:null,connected:false,lastPacketTs:0,deviceName:'',autoAttempted:false,status:'EMparejar requerido',detail:'',reconnectAttempts:0,reconnectTimer:null,battery:null,lastRR:null}};
 const els={};
